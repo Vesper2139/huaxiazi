@@ -1,0 +1,24 @@
+<Window x:Class="PromptFloat.Views.FloatingBallWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:PromptFloat.Views"
+        Title="Vesper" Icon="pack://siteoforigin:,,,/Resources/Brand/Vesper.ico" Width="60" Height="60"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
+        ToolTipService.InitialShowDelay="250" Loaded="FloatingBall_OnLoaded">
+    <Window.ContextMenu>
+        <ContextMenu Style="{StaticResource AppContextMenu}">
+            <MenuItem Header="打开 Vesper" Style="{StaticResource AppMenuItem}" Click="OpenMenu_OnClick" />
+            <MenuItem Header="设置" Style="{StaticResource AppMenuItem}" Click="SettingsMenu_OnClick" />
+            <Separator Style="{StaticResource AppMenuSeparator}" />
+            <MenuItem Header="退出" Style="{StaticResource AppMenuItem}" Click="ExitMenu_OnClick" />
+        </ContextMenu>
+    </Window.ContextMenu>
+
+    <Border x:Name="Orb" Width="44" Height="44" HorizontalAlignment="Center" VerticalAlignment="Center"
+            Background="Transparent" Cursor="SizeAll"
+            ToolTip="按住精灵拖动 · 单击展开 · 右键菜单" AutomationProperties.Name="Vesper 精灵拖动入口">
+        <local:CompanionFace x:Name="CompanionFace" />
+    </Border>
+</Window>

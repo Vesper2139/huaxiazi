@@ -1,0 +1,66 @@
+# ===== .NET 构建产物 =====
+[Bb]in/
+[Oo]bj/
+TestResults/
+*.trx
+coverage/
+coverage.*
+
+# ===== 统一生成输出（由脚本生成，不入库） =====
+out/
+deploy/out/
+
+# release/ 只允许可直接交付的包与校验文件入库
+release/*
+!release/Huaxiazi-portable-win-x64.zip
+!release/Huaxiazi-portable-win-x64.zip.sha256
+!release/HuaxiaziSetup.exe
+!release/HuaxiaziSetup.exe.sha256
+
+# ===== Visual Studio / IDE =====
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# ===== WPF 设计器临时工程文件 =====
+*_wpftmp.csproj
+
+# ===== 临时文件 =====
+*.tmp
+*.log
+*.bak
+~$*
+
+# ===== 本机运行时数据（严禁提交） =====
+config.json
+!Config/default-config.json
+workspace-draft.json
+health-check.json
+errors.log*
+data/
+secrets/
+backups/
+exports/
+updates/
+*.db
+*.db-wal
+*.db-shm
+
+# ===== 凭据、签名与环境文件 =====
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pem
+*.key
+*.snk
+
+# ===== 只属于验收过程的材料 =====
+客户端验收报告_*.md
+*复验*.md
+*工程保障报告*.md

@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <!--
+      主工程 PromptFloat.csproj 是 net8.0-windows + UseWPF 的 WinExe。
+      测试工程同为 net8.0-windows，可引用主工程并在显式 STA 线程中构造关键 WPF 页面。
+    -->
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <LangVersion>latest</LangVersion>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>PromptFloat.Tests</RootNamespace>
+    <AssemblyName>PromptFloat.Tests</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 引用主工程，从而复用 Models / Services 的纯逻辑实现 -->
+    <ProjectReference Include="..\PromptFloat.csproj" />
+  </ItemGroup>
+
+  <Target Name="CopyPromptFloatAssets" AfterTargets="Build">
+    <ItemGroup>
+      <_PromptTxt Include="$(ProjectDir)..\Prompts\*.txt" />
+      <_DefaultCfg Include="$(ProjectDir)..\Config\default-config.json" />
+    </ItemGroup>
+    <MakeDir Directories="$(OutDir)Prompts" Condition="!Exists('$(OutDir)Prompts')" />
+    <Copy SourceFiles="@(_PromptTxt)" DestinationFolder="$(OutDir)Prompts" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_DefaultCfg)" DestinationFiles="$(OutDir)default-config.json" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

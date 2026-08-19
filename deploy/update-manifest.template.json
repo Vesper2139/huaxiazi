@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "url": "https://example.invalid/HuaxiaziSetup.exe",
+  "sha256": "REPLACE_WITH_64_HEX_SHA256",
+  "publishedAt": "2026-08-11T00:00:00Z",
+  "releaseNotes": "测试版：请在发布前替换地址、哈希和说明。"
+}

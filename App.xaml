@@ -1,0 +1,17 @@
+<Application x:Class="PromptFloat.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:PromptFloat"
+             Startup="App_OnStartup"
+             Exit="App_OnExit">
+    <Application.Resources>
+        <!-- 全局样式：集中放在这里，避免每个控件重复设置 -->
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Resources/Themes/Dark.xaml" />
+                <ResourceDictionary Source="Resources/Styles/GlobalStyles.xaml" />
+                <ResourceDictionary Source="Resources/Icons/AppIcons.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

@@ -1,0 +1,48 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+    <!-- Nocturne skin: soft charcoal layers, violet signal color, deeper corners. -->
+    <sys:String x:Key="ThemeId">DarkNocturne</sys:String>
+    <Color x:Key="BrandColor">#B45CFF</Color>
+    <Color x:Key="BrandColorDark">#9844E3</Color>
+    <Color x:Key="BrandHoverColor">#C47DFF</Color>
+    <Color x:Key="BgColor">#101014</Color>
+    <Color x:Key="PanelColor">#16151B</Color>
+    <Color x:Key="TextColor">#F4F1F7</Color>
+    <Color x:Key="BodyTextColor">#DFDBE4</Color>
+    <Color x:Key="MutedColor">#9993A0</Color>
+    <Color x:Key="DisabledTextColor">#68646D</Color>
+    <Color x:Key="BorderColor">#36323C</Color>
+    <Color x:Key="HighlightColor">#24B45CFF</Color>
+    <Color x:Key="SuccessColor">#63D894</Color>
+    <Color x:Key="DangerColor">#F06B74</Color>
+    <Color x:Key="GlassTopColor">#1C1A20</Color>
+    <Color x:Key="GlassBottomColor">#131217</Color>
+    <Color x:Key="GlassBaseColor">#16151B</Color>
+    <Color x:Key="EditorFillColor">#201E25</Color>
+    <Color x:Key="CapsuleFillColor">#12FFFFFF</Color>
+    <Color x:Key="CapsuleBorderColor">#3A3541</Color>
+    <Color x:Key="InputFillColor">#1D1B22</Color>
+    <Color x:Key="InputBorderColor">#3A3640</Color>
+    <Color x:Key="FocusBorderColor">#A0B45CFF</Color>
+    <Color x:Key="GlassBorderColor">#36323C</Color>
+    <Color x:Key="HoverSurfaceColor">#13FFFFFF</Color>
+    <Color x:Key="SelectedSurfaceColor">#1FB45CFF</Color>
+    <Color x:Key="PopupColor">#1B1920</Color>
+    <Color x:Key="DockColor">#1B1920</Color>
+    <Color x:Key="SwitchTrackColor">#3A3541</Color>
+    <Color x:Key="ScrollThumbColor">#829A93A0</Color>
+    <Color x:Key="CompanionSurfaceColor">#101116</Color>
+    <Color x:Key="CompanionFaceColor">#F4E9FF</Color>
+    <Color x:Key="CompanionAccentColor">#B45CFF</Color>
+    <Color x:Key="CompanionBorderColor">#302B36</Color>
+    <Color x:Key="CompanionGlowColor">#9B43E8</Color>
+    <Color x:Key="CompanionShadowColor">#000000</Color>
+
+    <CornerRadius x:Key="WindowRadius">14</CornerRadius>
+    <CornerRadius x:Key="InputRadius">10</CornerRadius>
+    <CornerRadius x:Key="ButtonRadius">9</CornerRadius>
+    <CornerRadius x:Key="DropdownRadius">9</CornerRadius>
+    <CornerRadius x:Key="SmallRadius">7</CornerRadius>
+    <CornerRadius x:Key="CardRadius">11</CornerRadius>
+</ResourceDictionary>

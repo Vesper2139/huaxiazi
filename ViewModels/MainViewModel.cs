@@ -1,0 +1,968 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using PromptFloat.Models;
+using PromptFloat.Services;
+
+namespace PromptFloat.ViewModels;
+
+public sealed partial class MainViewModel : ObservableObject
+{
+    private readonly WorkspaceDraftService _draftStore;
+    private readonly ArchiveService _archiveService;
+    private readonly Func<ProviderProfile, string?, ITextGenerationClient> _generationClientFactory;
+    private readonly Stack<WorkspaceDraft> _undoWorkspace = new();
+    private readonly Stack<WorkspaceDraft> _redoWorkspace = new();
+    private bool _restoringWorkspace;
+    private bool _draftDirty;
+    private CancellationTokenSource? _requestCancellation;
+    private long _requestVersion;
+    private CancellationTokenSource? _undoCancellation;
+    private ContentRevision? _lastSavedRevision;
+    private Guid? _currentItemId;
+    private string _currentScenario = "其他";
+    private string _currentTopic = "未命名表达";
+    private readonly SmartContextAnalyzer _contextAnalyzer = new();
+    private readonly AdaptivePreferenceService _preferenceService = new();
+    private string _generatedResultBeforeEdit = string.Empty;
+    private SourceApplicationContext? _sourceApplicationContext;
+    private string? _clarificationSubmission;
+    private string? _clarificationOriginalInput;
+
+    public IReadOnlyList<PromptCategory> Categories => App.Settings.EnabledPromptCategories;
+    public IReadOnlyList<PromptDepth> Depths => PromptDepthMetadata.AllDepths;
+    public IReadOnlyList<string> History => App.Settings.History;
+    public IReadOnlyList<ApplicationMode> EnabledModes => App.Settings.EnabledModes;
+    public IReadOnlyList<ProviderProfile> ProviderProfiles => App.Settings.ProviderProfiles;
+    public IReadOnlyList<OptimizationPreset> Presets => App.Settings.OptimizationPresets;
+    public ObservableCollection<ContentRevision> RecentRevisions { get; } = [];
+    public bool ShowModeSwitcher => App.Settings.EnabledModes.Count > 1;
+    public bool IsPolishMode => CurrentMode == ApplicationMode.Polish;
+    public bool CanUndoWorkspace => _undoWorkspace.Count > 0;
+    public bool CanRedoWorkspace => _redoWorkspace.Count > 0;
+    public string ActiveProviderLabel
+    {
+        get
+        {
+            var profile = App.Settings.GetActiveProviderProfile();
+            return $"{profile.Name} · {profile.Model}";
+        }
+    }
+    public ProviderProfile ActiveProviderProfile
+    {
+        get => App.Settings.GetActiveProviderProfile();
+        set => SelectProvider(value);
+    }
+    private OptimizationPreset? _selectedPreset;
+    public OptimizationPreset? SelectedPreset
+    {
+        get => _selectedPreset;
+        set
+        {
+            if (!SetProperty(ref _selectedPreset, value) || value is null) return;
+            RecordWorkspaceUndo();
+            App.Settings.ActivePresetId = value.Id;
+            if (App.Settings.EnabledModes.Contains(value.Mode)) CurrentMode = value.Mode;
+            if (App.Settings.EnabledPromptCategories.Contains(value.Category)) SelectedCategory = value.Category;
+            SelectedDepth = value.Depth;
+            MarkDraftDirty();
+        }
+    }
+
+    private string _userInput = string.Empty;
+    public string UserInput
+    {
+        get => _userInput;
+        set
+        {
+            if (SetProperty(ref _userInput, value))
+            {
+                MarkDraftDirty();
+                OnPropertyChanged(nameof(DisplayText));
+                OnPropertyChanged(nameof(IsDisplayTextEmpty));
+            }
+        }
+    }
+
+    private string _optimizedResult = string.Empty;
+    public string OptimizedResult
+    {
+        get => _optimizedResult;
+        set
+        {
+            if (SetProperty(ref _optimizedResult, value))
+            {
+                MarkDraftDirty();
+                OnPropertyChanged(nameof(DisplayText));
+                OnPropertyChanged(nameof(ShowResultToggle));
+                OnPropertyChanged(nameof(IsDisplayTextEmpty));
+            }
+        }
+    }
+
+    private ViewMode _viewMode = ViewMode.Original;
+    public ViewMode ViewMode
+    {
+        get => _viewMode;
+        set
+        {
+            if (SetProperty(ref _viewMode, value))
+            {
+                MarkDraftDirty();
+                OnPropertyChanged(nameof(DisplayText));
+                OnPropertyChanged(nameof(IsReadOnly));
+                OnPropertyChanged(nameof(IsEditorView));
+                OnPropertyChanged(nameof(ShowDiff));
+                OnPropertyChanged(nameof(IsDisplayTextEmpty));
+            }
+        }
+    }
+
+    private ApplicationMode _currentMode = ApplicationMode.Polish;
+    public ApplicationMode CurrentMode
+    {
+        get => _currentMode;
+        set
+        {
+            if (IsBusy && value != _currentMode) return;
+            if (SetProperty(ref _currentMode, value))
+            {
+                MarkDraftDirty();
+                OnPropertyChanged(nameof(IsPolishMode));
+                OnPropertyChanged(nameof(EditorPlaceholderText));
+                OnPropertyChanged(nameof(PrimaryActionText));
+            }
+        }
+    }
+
+    public string DisplayText
+    {
+        get => ViewMode switch
+        {
+            ViewMode.Optimized => OptimizedResult,
+            _ => UserInput
+        };
+        set
+        {
+            if (ViewMode == ViewMode.Optimized)
+            {
+                if (IsEditingResult) OptimizedResult = value ?? string.Empty;
+            }
+            else
+            {
+                UserInput = value ?? string.Empty;
+            }
+        }
+    }
+
+    public bool IsReadOnly => ViewMode == ViewMode.Optimized && !IsEditingResult;
+    public bool IsDisplayTextEmpty => string.IsNullOrEmpty(DisplayText);
+    public string EditorPlaceholderText => IsPolishMode
+        ? "输入想润色的原文…\n可选：用【上下文】对象：客户；目的：说明延期；语气：专业【/上下文】补充要求"
+        : "输入你的想法或提示词…\n可选：用【上下文】对象：用户；目的：生成方案；优先级：高【/上下文】补充要求";
+    public string PrimaryActionText => IsBusy
+        ? (IsPolishMode ? "润色中…" : "优化中…")
+        : (IsPolishMode ? "润色" : "优化");
+    public bool ShowResultToggle => !string.IsNullOrEmpty(OptimizedResult);
+    public bool IsEditorView => true;
+    public CompanionVisualState CompanionState => HasError
+        ? CompanionVisualState.Error
+        : HasClarification
+            ? CompanionVisualState.Curious
+            : IsBusy
+                ? CompanionVisualState.Thinking
+                : ArchiveStatus.StartsWith("已归档", StringComparison.Ordinal) || ArchiveStatus == "已复制"
+                    ? CompanionVisualState.Happy
+                    : CompanionVisualState.Idle;
+    public string OperationalNotice => HasError
+        ? ErrorMessage
+        : HasClarification
+            ? string.Join("  ", ClarificationQuestions)
+            : IsBusy
+                ? (IsPolishMode ? "正在整理表达，请稍候…" : "正在优化提示词，请稍候…")
+                : ArchiveStatus;
+    public bool HasOperationalNotice => !string.IsNullOrWhiteSpace(OperationalNotice);
+
+    private bool _showDiff;
+    public bool ShowDiff
+    {
+        get => _showDiff && ViewMode == ViewMode.Optimized && !IsEditingResult;
+        set
+        {
+            if (SetProperty(ref _showDiff, value)) OnPropertyChanged(nameof(ShowDiff));
+        }
+    }
+
+    [ObservableProperty] private PromptCategory _selectedCategory = PromptCategory.General;
+    [ObservableProperty] private PromptDepth _selectedDepth = PromptDepth.Standard;
+    [ObservableProperty] private bool _isBusy;
+    partial void OnIsBusyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(PrimaryActionText));
+        NotifyCompanionFeedbackChanged();
+    }
+    [ObservableProperty] private string _errorMessage = string.Empty;
+    partial void OnErrorMessageChanged(string value) => NotifyCompanionFeedbackChanged();
+    [ObservableProperty] private bool _hasError;
+    partial void OnHasErrorChanged(bool value) => NotifyCompanionFeedbackChanged();
+    [ObservableProperty] private bool _isContextExpanded;
+    [ObservableProperty] private string _recipient = string.Empty;
+    [ObservableProperty] private string _channel = string.Empty;
+    [ObservableProperty] private string _purpose = string.Empty;
+    [ObservableProperty] private string _formality = string.Empty;
+    [ObservableProperty] private string _scenario = string.Empty;
+    [ObservableProperty] private IReadOnlyList<string> _clarificationQuestions = [];
+    partial void OnClarificationQuestionsChanged(IReadOnlyList<string> value) => NotifyCompanionFeedbackChanged();
+    [ObservableProperty] private bool _hasClarification;
+    partial void OnHasClarificationChanged(bool value) => NotifyCompanionFeedbackChanged();
+    [ObservableProperty] private string _clarificationAnswer = string.Empty;
+    [ObservableProperty] private string _archiveStatus = string.Empty;
+    partial void OnArchiveStatusChanged(string value) => NotifyCompanionFeedbackChanged();
+    [ObservableProperty] private string _draftStatus = string.Empty;
+    [ObservableProperty] private bool _canUndoArchive;
+    [ObservableProperty] private bool _isResultUnarchived;
+
+    private bool _isEditingResult;
+    public bool IsEditingResult
+    {
+        get => _isEditingResult;
+        set
+        {
+            if (SetProperty(ref _isEditingResult, value))
+            {
+                OnPropertyChanged(nameof(IsReadOnly));
+                OnPropertyChanged(nameof(ShowDiff));
+            }
+        }
+    }
+
+    private void NotifyCompanionFeedbackChanged()
+    {
+        OnPropertyChanged(nameof(CompanionState));
+        OnPropertyChanged(nameof(OperationalNotice));
+        OnPropertyChanged(nameof(HasOperationalNotice));
+    }
+
+    public MainViewModel() : this(App.WorkspaceDraftService, App.ArchiveService)
+    {
+    }
+
+    internal MainViewModel(WorkspaceDraftService draftStore, ArchiveService archiveService)
+        : this(draftStore, archiveService, (profile, key) => new AIService(profile, key))
+    {
+    }
+
+    internal MainViewModel(
+        WorkspaceDraftService draftStore,
+        ArchiveService archiveService,
+        Func<ProviderProfile, string?, ITextGenerationClient> generationClientFactory)
+    {
+        _draftStore = draftStore ?? throw new ArgumentNullException(nameof(draftStore));
+        _archiveService = archiveService ?? throw new ArgumentNullException(nameof(archiveService));
+        _generationClientFactory = generationClientFactory ?? throw new ArgumentNullException(nameof(generationClientFactory));
+        App.Settings.NormalizeProductModes();
+        App.Settings.NormalizeProviderProfiles();
+        App.Settings.NormalizePromptSettings();
+        _currentMode = App.Settings.DefaultMode;
+        _scenario = App.Settings.DefaultPolishScenario;
+        _selectedCategory = App.Settings.GetDefaultCategory();
+        _selectedDepth = App.Settings.GetDefaultDepth();
+        _showDiff = App.Settings.ShowDiff;
+        _selectedPreset = App.Settings.OptimizationPresets.FirstOrDefault(preset => preset.Id == App.Settings.ActivePresetId);
+        if (_draftStore.Load() is { } draft) RestoreWorkspace(draft);
+        RefreshHistory();
+    }
+
+    partial void OnSelectedCategoryChanged(PromptCategory value) => MarkDraftDirty();
+    partial void OnSelectedDepthChanged(PromptDepth value) => MarkDraftDirty();
+    partial void OnRecipientChanged(string value) => MarkDraftDirty();
+    partial void OnChannelChanged(string value) => MarkDraftDirty();
+    partial void OnPurposeChanged(string value) => MarkDraftDirty();
+    partial void OnFormalityChanged(string value) => MarkDraftDirty();
+    partial void OnScenarioChanged(string value) => MarkDraftDirty();
+
+    public void ReloadPreferences()
+    {
+        _showDiff = App.Settings.ShowDiff;
+        OnPropertyChanged(nameof(ShowDiff));
+    }
+
+    public void SetSourceApplicationContext(SourceApplicationContext? context) => _sourceApplicationContext = context;
+
+    [RelayCommand]
+    private void SelectMode(ApplicationMode mode)
+    {
+        if (IsBusy || !App.Settings.EnabledModes.Contains(mode) || mode == CurrentMode) return;
+        RecordWorkspaceUndo();
+        CurrentMode = mode;
+    }
+
+    [RelayCommand]
+    private void SelectProvider(ProviderProfile? profile)
+    {
+        if (profile is null || !App.Settings.ProviderProfiles.Any(item => item.Id == profile.Id)) return;
+        App.Settings.ActiveProviderProfileId = profile.Id;
+        MarkDraftDirty();
+        OnPropertyChanged(nameof(ActiveProviderProfile));
+        OnPropertyChanged(nameof(ActiveProviderLabel));
+    }
+
+    [RelayCommand] private void ToggleContext() => IsContextExpanded = !IsContextExpanded;
+    [RelayCommand] private void SelectCategory(PromptCategory category) => SelectedCategory = category;
+    [RelayCommand] private void SelectDepth(PromptDepth depth) => SelectedDepth = depth;
+
+    [RelayCommand]
+    private void SetViewMode(ViewMode mode)
+    {
+        if (mode == ViewMode.Optimized && string.IsNullOrEmpty(OptimizedResult)) return;
+        ViewMode = mode;
+    }
+
+    /// <summary>历史条目点击：把历史原文载入编辑器。</summary>
+    [RelayCommand]
+    private void UseHistory(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        UserInput = text;
+        ResetResultState();
+        ViewMode = ViewMode.Original;
+    }
+
+    [RelayCommand]
+    private void ClearInput()
+    {
+        RecordWorkspaceUndo();
+        UserInput = string.Empty;
+        ResetResultState();
+        ErrorMessage = string.Empty;
+        HasError = false;
+    }
+
+    [RelayCommand]
+    private void CopyResult()
+    {
+        if (string.IsNullOrEmpty(OptimizedResult)) return;
+        try { App.ClipboardService.CopyText(OptimizedResult); }
+        catch (Exception ex) { ShowError($"复制失败：{ex.Message}"); }
+    }
+
+    [RelayCommand]
+    private void PasteFromClipboard()
+    {
+        try
+        {
+            var text = App.ClipboardService.GetText();
+            if (!string.IsNullOrEmpty(text)) UserInput = text;
+        }
+        catch (Exception ex) { ShowError($"读取剪贴板失败：{ex.Message}"); }
+    }
+
+    [RelayCommand]
+    private void MinimizeToBall() =>
+        App.Current.Dispatcher.Invoke(() => ((App)App.Current).CollapseToFloatingBall());
+
+    [RelayCommand]
+    private void Cancel()
+    {
+        Interlocked.Increment(ref _requestVersion);
+        _requestCancellation?.Cancel();
+        IsBusy = false;
+        ArchiveStatus = "已取消";
+    }
+
+    [RelayCommand]
+    private void UndoWorkspace()
+    {
+        if (_undoWorkspace.Count == 0) return;
+        _redoWorkspace.Push(CaptureWorkspace());
+        RestoreWorkspace(_undoWorkspace.Pop());
+        NotifyWorkspaceHistoryChanged();
+    }
+
+    [RelayCommand]
+    private void RedoWorkspace()
+    {
+        if (_redoWorkspace.Count == 0) return;
+        _undoWorkspace.Push(CaptureWorkspace());
+        RestoreWorkspace(_redoWorkspace.Pop());
+        NotifyWorkspaceHistoryChanged();
+    }
+
+    [RelayCommand]
+    private void LoadRevision(ContentRevision? revision)
+    {
+        if (revision is null) return;
+        RecordWorkspaceUndo();
+        _restoringWorkspace = true;
+        try
+        {
+            UserInput = revision.OriginalText;
+            OptimizedResult = revision.FinalText;
+            ViewMode = ViewMode.Optimized;
+            CurrentMode = revision.Mode;
+            _currentItemId = revision.ItemId;
+            _currentScenario = revision.Scenario;
+            _currentTopic = revision.Topic;
+            ArchiveStatus = $"已载入 {revision.Topic} · v{revision.Version:00}";
+        }
+        finally
+        {
+            _restoringWorkspace = false;
+            MarkDraftDirty();
+        }
+    }
+
+    [RelayCommand]
+    private void RefreshHistory()
+    {
+        RecentRevisions.Clear();
+        foreach (var revision in _archiveService.Search(null).Take(50)) RecentRevisions.Add(revision);
+    }
+
+    public void SaveDraftIfDirty()
+    {
+        if (!_draftDirty) return;
+        if (App.Settings.IncognitoMode)
+        {
+            _draftStore.Clear();
+            _draftDirty = false;
+            DraftStatus = "无痕模式：未保存草稿";
+            return;
+        }
+        try
+        {
+            _draftStore.Save(CaptureWorkspace());
+            _draftDirty = false;
+            DraftStatus = $"已自动保存 {DateTime.Now:HH:mm}";
+        }
+        catch (Exception ex)
+        {
+            DraftStatus = $"自动保存失败：{ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public async Task OptimizeAsync()
+    {
+        if (IsBusy) return;
+        if (string.IsNullOrWhiteSpace(UserInput))
+        {
+            ShowError(CurrentMode == ApplicationMode.Polish ? "请先输入想润色的原文。" : "请先输入你的原始需求。");
+            return;
+        }
+
+        HasError = false;
+        ErrorMessage = string.Empty;
+        HasClarification = false;
+        ClarificationQuestions = [];
+        IsBusy = true;
+        var requestVersion = Interlocked.Increment(ref _requestVersion);
+        var requestMode = CurrentMode;
+        _requestCancellation?.Dispose();
+        _requestCancellation = new CancellationTokenSource();
+        var requestCancellation = _requestCancellation;
+
+        try
+        {
+            var parsedInput = InputContextParser.Parse(_clarificationSubmission ?? UserInput);
+            var profile = App.Settings.GetActiveProviderProfile();
+            var key = App.SecretStore.Read(profile.SecretId);
+            var client = _generationClientFactory(profile, key);
+            using var clientDisposal = client as IDisposable;
+
+            if (requestMode == ApplicationMode.Polish)
+            {
+                var workflow = new PolishWorkflowService(client, App.PolishPromptBuilder, _archiveService);
+                var polishRequest = CreatePolishRequest(parsedInput);
+                var shouldArchive = ShouldArchive();
+                var result = await workflow.ExecuteAsync(
+                    polishRequest,
+                    App.Settings.ClarificationEnabled,
+                    autoArchive: false,
+                    _currentItemId,
+                    DateTimeOffset.Now,
+                    requestCancellation.Token);
+                ThrowIfRequestIsStale(requestVersion, requestCancellation.Token);
+                if (shouldArchive && result.Response.Kind == PolishResponseKind.Final)
+                {
+                    result = new PolishWorkflowResult
+                    {
+                        Response = result.Response,
+                        SavedRevision = SavePolishRevision(polishRequest, result.Response, profile)
+                    };
+                }
+                ApplyPolishResult(result);
+            }
+            else
+            {
+                var request = new PromptRequest
+                {
+                    UserInput = parsedInput.Body,
+                    Category = SelectedCategory,
+                    Depth = SelectedDepth,
+                    Persona = App.Settings.UserPersona,
+                    CustomSystemPrompt = EffectiveCustomSystemPrompt(),
+                    PreferenceInstructions = BuildPreferenceInstructions(parsedInput.Instructions)
+                };
+                var result = await client.GenerateAsync(
+                    App.PromptBuilder.Build(request), App.PromptBuilder.BuildUserMessage(request), requestCancellation.Token);
+                ThrowIfRequestIsStale(requestVersion, requestCancellation.Token);
+                if (string.IsNullOrWhiteSpace(result))
+                {
+                    ShowError("模型返回为空，请重试。");
+                    return;
+                }
+                RecordWorkspaceUndo();
+                OptimizedResult = result;
+                ViewMode = ViewMode.Optimized;
+                AddHistory(UserInput.Trim());
+                if (ShouldArchive())
+                {
+                    var revision = _archiveService.SaveRevision(new ArchiveDraft
+                    {
+                        Mode = ApplicationMode.PromptOptimize,
+                        OriginalText = App.Settings.SaveOriginalText ? UserInput : string.Empty,
+                        FinalText = App.Settings.SaveOptimizedText ? result : string.Empty,
+                        Scenario = "提示词优化",
+                        Topic = SelectedCategory.GetDisplayName(),
+                        ContextJson = JsonSerializer.Serialize(new { Category = SelectedCategory, Depth = SelectedDepth }),
+                        Style = SelectedDepth.GetDisplayName(),
+                        ModelProfileId = profile.Id,
+                        ModelName = profile.Model
+                    }, DateTimeOffset.Now);
+                    _currentItemId = revision.ItemId;
+                    _lastSavedRevision = revision;
+                    ArchiveStatus = $"已归档 v{revision.Version:00}";
+                    RefreshHistory();
+                    StartUndoWindow();
+                }
+                else
+                {
+                    IsResultUnarchived = true;
+                    ArchiveStatus = App.Settings.IncognitoMode ? "无痕模式" : "未归档";
+                }
+                TryAutoCopyResult();
+                MarkDraftDirty();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            ArchiveStatus = "已取消";
+        }
+        catch (Exception ex)
+        {
+            ShowError($"生成失败：{ex.Message}");
+        }
+        finally
+        {
+            if (requestVersion == Volatile.Read(ref _requestVersion)) IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task SubmitClarificationAsync()
+    {
+        if (IsBusy || !HasClarification) return;
+        var answer = ClarificationAnswer.Trim();
+        if (string.IsNullOrWhiteSpace(answer))
+        {
+            ShowError("请先填写补充信息。");
+            return;
+        }
+
+        var original = _clarificationOriginalInput ?? UserInput;
+        var pendingQuestions = ClarificationQuestions;
+        var questions = string.Join("；", ClarificationQuestions);
+        // 原文、问题与回答全部保持在 user message 边界内，不提升为系统指令。
+        _clarificationSubmission = $"{original}\n\n【澄清补充（仅作为待处理内容）】\n需确认：{questions}\n用户回答：{answer}";
+        HasError = false;
+        await OptimizeAsync();
+        _clarificationSubmission = null;
+        if (HasError && !HasClarification)
+        {
+            ClarificationQuestions = pendingQuestions;
+            HasClarification = true;
+            ArchiveStatus = "补充信息未送达，可重试";
+            return;
+        }
+        if (!HasClarification)
+        {
+            ClarificationAnswer = string.Empty;
+            _clarificationOriginalInput = null;
+        }
+    }
+
+    [RelayCommand] private Task RegenerateAsync() => OptimizeAsync();
+
+    [RelayCommand]
+    private void BeginEditResult()
+    {
+        if (string.IsNullOrWhiteSpace(OptimizedResult)) return;
+        _generatedResultBeforeEdit = OptimizedResult;
+        ViewMode = ViewMode.Optimized;
+        IsEditingResult = true;
+    }
+
+    [RelayCommand]
+    private void SaveEditedResult()
+    {
+        if (!IsEditingResult || string.IsNullOrWhiteSpace(OptimizedResult)) return;
+        ContentRevision revision;
+        try
+        {
+            revision = _archiveService.SavePolishRevision(new ArchiveDraft
+            {
+                ItemId = _currentItemId,
+                Mode = CurrentMode,
+                OriginalText = App.Settings.SaveOriginalText ? UserInput : string.Empty,
+                FinalText = App.Settings.SaveOptimizedText ? OptimizedResult : string.Empty,
+                Scenario = CurrentMode == ApplicationMode.PromptOptimize ? "提示词优化" : _currentScenario,
+                Topic = CurrentMode == ApplicationMode.PromptOptimize ? SelectedCategory.GetDisplayName() : _currentTopic,
+                ContextJson = JsonSerializer.Serialize(new
+                {
+                    Recipient,
+                    Channel,
+                    Purpose,
+                    Formality,
+                    Scenario,
+                    Persona = App.Settings.UserPersona,
+                    CustomStyleInstructions = App.Settings.CustomStyleInstructions,
+                    UserEdited = App.Settings.SaveOptimizedText && !string.IsNullOrWhiteSpace(_generatedResultBeforeEdit),
+                    GeneratedText = App.Settings.SaveOptimizedText ? _generatedResultBeforeEdit : string.Empty
+                }),
+                Style = App.Settings.OutputStyle,
+                ModelProfileId = App.Settings.GetActiveProviderProfile().Id,
+                ModelName = App.Settings.GetActiveProviderProfile().Model
+            }, DateTimeOffset.Now);
+        }
+        catch (Exception ex)
+        {
+            ShowError($"保存归档失败：{ex.Message}");
+            return;
+        }
+        _currentItemId = revision.ItemId;
+        _lastSavedRevision = revision;
+        IsEditingResult = false;
+        _generatedResultBeforeEdit = string.Empty;
+        ArchiveStatus = $"已归档 v{revision.Version:00}";
+        RefreshHistory();
+        StartUndoWindow();
+    }
+
+    [RelayCommand]
+    private void UndoArchive()
+    {
+        if (_lastSavedRevision is null || !CanUndoArchive) return;
+        try
+        {
+            _archiveService.SoftDeleteRevision(_lastSavedRevision.Id, DateTimeOffset.Now);
+        }
+        catch (Exception ex)
+        {
+            ShowError($"撤销归档失败：{ex.Message}");
+            return;
+        }
+        CanUndoArchive = false;
+        ArchiveStatus = "已撤销归档";
+    }
+
+    private PolishRequest CreatePolishRequest(ParsedInputContext parsed)
+    {
+        var intelligence = _contextAnalyzer.Analyze(parsed.Body, _sourceApplicationContext);
+        _sourceApplicationContext = null;
+        var requestedScenario = FirstNonEmpty(parsed.Scenario, Scenario);
+        if (string.Equals(requestedScenario, "其他", StringComparison.Ordinal)) requestedScenario = string.Empty;
+        var explicitContext = new ParsedInputContext(
+            parsed.Body,
+            FirstNonEmpty(parsed.Recipient, Recipient),
+            FirstNonEmpty(parsed.Channel, Channel),
+            FirstNonEmpty(parsed.Purpose, Purpose),
+            FirstNonEmpty(parsed.Formality, Formality),
+            requestedScenario,
+            parsed.Weight,
+            parsed.Instructions);
+        var resolved = SmartContextAnalyzer.Merge(explicitContext, intelligence, App.Settings.DefaultPolishScenario);
+        return new PolishRequest
+        {
+            OriginalText = parsed.Body,
+            Recipient = resolved.Recipient,
+            Channel = resolved.Channel,
+            Purpose = resolved.Purpose,
+            Formality = resolved.Formality,
+            Scenario = resolved.Scenario,
+            OutputStyle = App.Settings.OutputStyle,
+            CustomStyleInstructions = App.Settings.CustomStyleInstructions,
+            Persona = App.Settings.UserPersona,
+            CustomSystemPrompt = EffectiveCustomSystemPrompt(),
+            PreferenceInstructions = BuildPreferenceInstructions(parsed.Instructions),
+            Intelligence = intelligence,
+            ModelProfileId = App.Settings.GetActiveProviderProfile().Id,
+            ModelName = App.Settings.GetActiveProviderProfile().Model,
+            SaveOriginalText = App.Settings.SaveOriginalText,
+            SaveOptimizedText = App.Settings.SaveOptimizedText
+        };
+    }
+
+    private void ThrowIfRequestIsStale(long requestVersion, CancellationToken cancellationToken)
+    {
+        if (requestVersion != Volatile.Read(ref _requestVersion)) throw new OperationCanceledException(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    private ContentRevision SavePolishRevision(PolishRequest request, PolishResponse response, ProviderProfile profile) =>
+        _archiveService.SavePolishRevision(new ArchiveDraft
+        {
+            ItemId = _currentItemId,
+            OriginalText = request.SaveOriginalText ? request.OriginalText : string.Empty,
+            FinalText = request.SaveOptimizedText ? response.Content : string.Empty,
+            Scenario = response.Scenario,
+            Topic = response.Topic,
+            ContextJson = JsonSerializer.Serialize(new
+            {
+                request.Recipient,
+                request.Channel,
+                request.Purpose,
+                request.Formality,
+                request.Scenario,
+                request.Persona,
+                request.CustomStyleInstructions
+            }),
+            Style = request.OutputStyle,
+            ModelProfileId = profile.Id,
+            ModelName = profile.Model
+        }, DateTimeOffset.Now);
+
+    private void ApplyPolishResult(PolishWorkflowResult result)
+    {
+        switch (result.Response.Kind)
+        {
+            case PolishResponseKind.Final:
+                RecordWorkspaceUndo();
+                OptimizedResult = result.Response.Content;
+                _generatedResultBeforeEdit = result.Response.Content;
+                _currentScenario = string.IsNullOrWhiteSpace(result.Response.Scenario) ? "其他" : result.Response.Scenario;
+                _currentTopic = string.IsNullOrWhiteSpace(result.Response.Topic) ? "未命名表达" : result.Response.Topic;
+                ViewMode = ViewMode.Optimized;
+                AddHistory(UserInput.Trim());
+                if (result.SavedRevision is { } revision)
+                {
+                    _lastSavedRevision = revision;
+                    _currentItemId = revision.ItemId;
+                    ArchiveStatus = $"已归档 v{revision.Version:00}";
+                    StartUndoWindow();
+                    RefreshHistory();
+                }
+                else
+                {
+                    IsResultUnarchived = true;
+                    ArchiveStatus = App.Settings.IncognitoMode ? "无痕模式" : "未归档";
+                }
+                TryAutoCopyResult();
+                break;
+            case PolishResponseKind.NeedsClarification:
+                ClarificationQuestions = result.Response.Questions;
+                HasClarification = true;
+                _clarificationOriginalInput ??= UserInput;
+                ArchiveStatus = "需要补充信息";
+                break;
+            default:
+                OptimizedResult = result.ValidationIssues.Count == 0 ? result.Response.RawText : string.Empty;
+                IsResultUnarchived = true;
+                ViewMode = string.IsNullOrEmpty(OptimizedResult) ? ViewMode.Original : ViewMode.Optimized;
+                ShowError(result.ValidationIssues.Count > 0
+                    ? "成稿未通过事实保真检查，系统已阻止展示和归档。请重试或补充关键信息。"
+                    : "模型返回格式异常，当前内容未归档。请重试或检查模型能力。");
+                break;
+        }
+    }
+
+    private void StartUndoWindow()
+    {
+        _undoCancellation?.Cancel();
+        _undoCancellation?.Dispose();
+        _undoCancellation = new CancellationTokenSource();
+        CanUndoArchive = true;
+        _ = ExpireUndoAsync(_undoCancellation.Token);
+    }
+
+    private async Task ExpireUndoAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(10), token);
+            CanUndoArchive = false;
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void ResetResultState()
+    {
+        OptimizedResult = string.Empty;
+        ViewMode = ViewMode.Original;
+        ClarificationQuestions = [];
+        HasClarification = false;
+        ClarificationAnswer = string.Empty;
+        _clarificationSubmission = null;
+        _clarificationOriginalInput = null;
+        ArchiveStatus = string.Empty;
+        CanUndoArchive = false;
+        IsResultUnarchived = false;
+        IsEditingResult = false;
+        _showDiff = false;
+        _lastSavedRevision = null;
+        _currentItemId = null;
+        _generatedResultBeforeEdit = string.Empty;
+    }
+
+    private void ShowError(string message)
+    {
+        ErrorMessage = message;
+        HasError = true;
+    }
+
+    private void AddHistory(string text)
+    {
+        if (!App.Settings.HistoryEnabled || App.Settings.IncognitoMode) return;
+        if (string.IsNullOrEmpty(text)) return;
+        var list = App.Settings.History;
+        list.RemoveAll(x => x == text);
+        list.Insert(0, text);
+        while (list.Count > App.Settings.PromptHistoryLimit) list.RemoveAt(list.Count - 1);
+        OnPropertyChanged(nameof(History));
+    }
+
+    private WorkspaceDraft CaptureWorkspace() => new()
+    {
+        UserInput = UserInput,
+        OptimizedResult = OptimizedResult,
+        CurrentMode = CurrentMode,
+        ViewMode = ViewMode,
+        SelectedCategory = SelectedCategory,
+        SelectedDepth = SelectedDepth,
+        ActiveProviderProfileId = App.Settings.ActiveProviderProfileId,
+        Recipient = Recipient,
+        Channel = Channel,
+        Purpose = Purpose,
+        Formality = Formality,
+        Scenario = Scenario,
+        UpdatedAt = DateTimeOffset.UtcNow
+    };
+
+    private void RestoreWorkspace(WorkspaceDraft draft)
+    {
+        _restoringWorkspace = true;
+        try
+        {
+            UserInput = draft.UserInput ?? string.Empty;
+            OptimizedResult = draft.OptimizedResult ?? string.Empty;
+            CurrentMode = App.Settings.EnabledModes.Contains(draft.CurrentMode)
+                ? draft.CurrentMode
+                : App.Settings.DefaultMode;
+            ViewMode = draft.ViewMode == ViewMode.Optimized && !string.IsNullOrEmpty(OptimizedResult)
+                ? ViewMode.Optimized
+                : ViewMode.Original;
+            SelectedCategory = App.Settings.EnabledPromptCategories.Contains(draft.SelectedCategory)
+                ? draft.SelectedCategory
+                : App.Settings.GetDefaultCategory();
+            SelectedDepth = PromptDepthMetadata.AllDepths.Contains(draft.SelectedDepth)
+                ? draft.SelectedDepth
+                : App.Settings.GetDefaultDepth();
+            Recipient = draft.Recipient ?? string.Empty;
+            Channel = draft.Channel ?? string.Empty;
+            Purpose = draft.Purpose ?? string.Empty;
+            Formality = draft.Formality ?? string.Empty;
+            Scenario = draft.Scenario ?? string.Empty;
+            if (App.Settings.ProviderProfiles.Any(profile => profile.Id == draft.ActiveProviderProfileId))
+            {
+                App.Settings.ActiveProviderProfileId = draft.ActiveProviderProfileId;
+            }
+            OnPropertyChanged(nameof(ActiveProviderLabel));
+            OnPropertyChanged(nameof(ActiveProviderProfile));
+        }
+        finally
+        {
+            _restoringWorkspace = false;
+            _draftDirty = false;
+        }
+    }
+
+    private void RecordWorkspaceUndo()
+    {
+        if (_restoringWorkspace) return;
+        var snapshot = CaptureWorkspace();
+        if (_undoWorkspace.TryPeek(out var previous) && SameWorkspace(previous, snapshot)) return;
+        _undoWorkspace.Push(snapshot);
+        _redoWorkspace.Clear();
+        NotifyWorkspaceHistoryChanged();
+    }
+
+    private static bool SameWorkspace(WorkspaceDraft left, WorkspaceDraft right) =>
+        left.UserInput == right.UserInput &&
+        left.OptimizedResult == right.OptimizedResult &&
+        left.CurrentMode == right.CurrentMode &&
+        left.ViewMode == right.ViewMode &&
+        left.SelectedCategory == right.SelectedCategory &&
+        left.SelectedDepth == right.SelectedDepth &&
+        left.ActiveProviderProfileId == right.ActiveProviderProfileId &&
+        left.Recipient == right.Recipient &&
+        left.Channel == right.Channel &&
+        left.Purpose == right.Purpose &&
+        left.Formality == right.Formality &&
+        left.Scenario == right.Scenario;
+
+    private void NotifyWorkspaceHistoryChanged()
+    {
+        OnPropertyChanged(nameof(CanUndoWorkspace));
+        OnPropertyChanged(nameof(CanRedoWorkspace));
+        UndoWorkspaceCommand.NotifyCanExecuteChanged();
+        RedoWorkspaceCommand.NotifyCanExecuteChanged();
+    }
+
+    private void MarkDraftDirty()
+    {
+        if (!_restoringWorkspace) _draftDirty = true;
+    }
+
+    private string EffectiveCustomSystemPrompt() =>
+        string.IsNullOrWhiteSpace(SelectedPreset?.CustomSystemPrompt)
+            ? App.Settings.CustomSystemPrompt
+            : SelectedPreset.CustomSystemPrompt;
+
+    private string BuildPreferenceInstructions(string? inlineInstructions = null)
+    {
+        var preferences = new List<string>();
+        if (App.Settings.PreserveMeaning) preferences.Add("必须保留原意、事实与立场");
+        if (App.Settings.MinimalRewrite) preferences.Add("减少非必要改写，只调整影响理解和表达的问题");
+        if (App.Settings.ProfessionalTone) preferences.Add("表达专业、准确、克制");
+        if (!string.IsNullOrWhiteSpace(SelectedPreset?.Instructions)) preferences.Add(SelectedPreset.Instructions.Trim());
+        if (!string.IsNullOrWhiteSpace(inlineInstructions)) preferences.Add(inlineInstructions.Trim());
+        if (App.Settings.HistoryEnabled && !App.Settings.IncognitoMode)
+        {
+            var learned = _preferenceService.BuildInstructions(_archiveService.Search(null).Take(100));
+            if (!string.IsNullOrWhiteSpace(learned)) preferences.Add(learned);
+        }
+        return string.Join("；", preferences);
+    }
+
+    private static string FirstNonEmpty(string first, string fallback)
+        => string.IsNullOrWhiteSpace(first) ? fallback : first;
+
+    private bool ShouldArchive() =>
+        App.Settings.HistoryEnabled &&
+        App.Settings.AutoArchive &&
+        !App.Settings.IncognitoMode &&
+        (App.Settings.SaveOriginalText || App.Settings.SaveOptimizedText);
+
+    private void TryAutoCopyResult()
+    {
+        if (!App.Settings.AutoCopyAfterOptimize || string.IsNullOrWhiteSpace(OptimizedResult)) return;
+        try { App.ClipboardService.CopyText(OptimizedResult); }
+        catch (Exception ex) { DraftStatus = $"自动复制失败：{ex.Message}"; }
+    }
+}
