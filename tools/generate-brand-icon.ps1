@@ -76,6 +76,64 @@ function Resize-PngBytes([System.Drawing.Bitmap]$SourceBitmap, [int]$Size) {
     }
 }
 
+function Convert-PngToDib([byte[]]$PngBytes, [int]$Size) {
+    $pngStream = [System.IO.MemoryStream]::new($PngBytes, $false)
+    $bitmap = [System.Drawing.Bitmap]::new($pngStream)
+    $xorStride = $Size * 4
+    $andStride = [int]([Math]::Ceiling($Size / 32.0) * 4)
+    $stream = [System.IO.MemoryStream]::new()
+    $writer = [System.IO.BinaryWriter]::new($stream)
+    try {
+        # BITMAPINFOHEADER; the doubled height reserves the second half for the AND mask.
+        $writer.Write([uint32]40)
+        $writer.Write([int32]$Size)
+        $writer.Write([int32]($Size * 2))
+        $writer.Write([uint16]1)
+        $writer.Write([uint16]32)
+        $writer.Write([uint32]0)
+        $writer.Write([uint32]($xorStride * $Size))
+        $writer.Write([int32]0)
+        $writer.Write([int32]0)
+        $writer.Write([uint32]0)
+        $writer.Write([uint32]0)
+
+        for ($y = $Size - 1; $y -ge 0; $y--) {
+            for ($x = 0; $x -lt $Size; $x++) {
+                $pixel = $bitmap.GetPixel($x, $y)
+                if ($pixel.A -ge 128) {
+                    $writer.Write([byte]$pixel.B)
+                    $writer.Write([byte]$pixel.G)
+                    $writer.Write([byte]$pixel.R)
+                    $writer.Write([byte]255)
+                } else {
+                    $writer.Write([byte]0)
+                    $writer.Write([byte]0)
+                    $writer.Write([byte]0)
+                    $writer.Write([byte]0)
+                }
+            }
+        }
+
+        for ($y = $Size - 1; $y -ge 0; $y--) {
+            $maskRow = [byte[]]::new($andStride)
+            for ($x = 0; $x -lt $Size; $x++) {
+                if ($bitmap.GetPixel($x, $y).A -lt 128) {
+                    $byteIndex = [int][Math]::Floor($x / 8.0)
+                    $maskRow[$byteIndex] = [byte]($maskRow[$byteIndex] -bor (1 -shl (7 - ($x % 8))))
+                }
+            }
+            $writer.Write($maskRow)
+        }
+
+        return [byte[]]$stream.ToArray()
+    } finally {
+        $writer.Dispose()
+        $stream.Dispose()
+        $bitmap.Dispose()
+        $pngStream.Dispose()
+    }
+}
+
 $sourceBitmap = [System.Drawing.Bitmap]::new((Resolve-Path $Source).Path)
 $cleanBitmap = [System.Drawing.Bitmap]::new($sourceBitmap.Width, $sourceBitmap.Height, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
 for ($x = 0; $x -lt $sourceBitmap.Width; $x++) {
@@ -156,7 +214,8 @@ $sizes = @(16, 20, 24, 32, 40, 48, 64, 128, 256)
 $frames = @()
 try {
     foreach ($size in $sizes) {
-        $frames += ,([byte[]](Resize-PngBytes $cleanBitmap $size))
+        $pngFrame = [byte[]](Resize-PngBytes $cleanBitmap $size)
+        $frames += ,([byte[]](Convert-PngToDib $pngFrame $size))
     }
 } finally {
     $cleanBitmap.Dispose()
