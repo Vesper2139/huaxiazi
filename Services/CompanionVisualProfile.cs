@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>
 /// 与具体猫形象无关的角色呈现配置。业务状态机只使用

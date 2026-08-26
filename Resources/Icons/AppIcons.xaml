@@ -22,7 +22,7 @@
     <!-- 品牌标记：向下收束的双翼 V 与珊瑚星芒，全部为可缩放填充 Geometry。 -->
     <Geometry x:Key="IconBrandWings">M3,6 C6.5,10 9.5,12.5 12,22 C11,15.5 8,10 3,6 Z M21,6 C17.5,10 14.5,12.5 12,22 C13,15.5 16,10 21,6 Z</Geometry>
     <Geometry x:Key="IconBrandSpark">M12,1.5 C12.8,5.8 14.2,7.2 18.5,8 C14.2,8.8 12.8,10.2 12,14.5 C11.2,10.2 9.8,8.8 5.5,8 C9.8,7.2 11.2,5.8 12,1.5 Z</Geometry>
-<!-- Vesper UI 增补图标 -->
+<!-- Huaxiazi UI 增补图标 -->
     <Geometry x:Key="IconPin">M9,4 L15,4 L15,5 L13,7 V11 L16,14 H8 L11,11 V7 L9,5 Z M8,18 H16</Geometry>
     <Geometry x:Key="IconMinimize">M6,12 H18</Geometry>
     <Geometry x:Key="IconHistory">M12,4 A8,8 0 1 0 20,12 M12,7 V12 L15,14</Geometry>

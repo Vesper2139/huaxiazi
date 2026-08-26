@@ -3,9 +3,9 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>
 /// 提示词组装服务。

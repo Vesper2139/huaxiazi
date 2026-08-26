@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>
 /// 皮肤清单。描述一套可完整替换的样式资源字典。

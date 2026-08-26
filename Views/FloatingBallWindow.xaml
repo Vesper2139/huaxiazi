@@ -1,15 +1,15 @@
-<Window x:Class="PromptFloat.Views.FloatingBallWindow"
+<Window x:Class="Huaxiazi.Views.FloatingBallWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:PromptFloat.Views"
-        Title="Vesper" Icon="pack://siteoforigin:,,,/Resources/Brand/Vesper.ico" Width="60" Height="60"
+        xmlns:local="clr-namespace:Huaxiazi.Views"
+        Title="话匣子" Icon="pack://siteoforigin:,,,/Resources/Brand/Huaxiazi.ico" Width="60" Height="60"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
         ToolTipService.InitialShowDelay="250" Loaded="FloatingBall_OnLoaded">
     <Window.ContextMenu>
         <ContextMenu Style="{StaticResource AppContextMenu}">
-            <MenuItem Header="打开 Vesper" Style="{StaticResource AppMenuItem}" Click="OpenMenu_OnClick" />
+            <MenuItem Header="打开话匣子" Style="{StaticResource AppMenuItem}" Click="OpenMenu_OnClick" />
             <MenuItem Header="设置" Style="{StaticResource AppMenuItem}" Click="SettingsMenu_OnClick" />
             <Separator Style="{StaticResource AppMenuSeparator}" />
             <MenuItem Header="退出" Style="{StaticResource AppMenuItem}" Click="ExitMenu_OnClick" />
@@ -18,7 +18,7 @@
 
     <Border x:Name="Orb" Width="{DynamicResource SkinCompanionSize}" Height="{DynamicResource SkinCompanionSize}" HorizontalAlignment="Center" VerticalAlignment="Center"
             Background="Transparent" Cursor="SizeAll"
-            ToolTip="双击展开 · 拖动移动 · 右键菜单" AutomationProperties.Name="Vesper 精灵拖动入口">
+            ToolTip="双击展开 · 拖动移动 · 右键菜单" AutomationProperties.Name="话匣子精灵拖动入口">
         <local:CompanionFace x:Name="CompanionFace" />
     </Border>
 </Window>

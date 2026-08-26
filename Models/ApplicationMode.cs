@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 [JsonConverter(typeof(JsonStringEnumConverter<ApplicationMode>))]
 public enum ApplicationMode

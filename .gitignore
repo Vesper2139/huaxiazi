@@ -12,9 +12,9 @@ deploy/out/
 
 # release/ 只允许可直接交付的包入库；不提交展开发布目录、PDB 或中间文件
 release/*
-!release/Vesper.exe
-!release/Vesper-Portable.zip
-!release/Vesper-Setup.exe
+!release/Huaxiazi.exe
+!release/Huaxiazi-Portable.zip
+!release/Huaxiazi-Setup.exe
 
 # ===== Visual Studio / IDE =====
 .vs/

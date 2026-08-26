@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public interface ITextGenerationClient
 {

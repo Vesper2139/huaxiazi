@@ -1,7 +1,7 @@
 using System;
 using System.Text.Json.Serialization;
 
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 [JsonConverter(typeof(JsonStringEnumConverter<CompanionDriverMode>))]
 public enum CompanionDriverMode

@@ -1,6 +1,6 @@
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 /// <summary>
 /// 一次提示词优化请求的输入模型。

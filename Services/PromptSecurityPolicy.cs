@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 internal static class PromptSecurityPolicy
 {

@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Input;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public readonly record struct HotkeyCombination(ModifierKeys Modifiers, Key Key);
 

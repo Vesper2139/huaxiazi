@@ -5,9 +5,9 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public enum HealthCheckScope { Local, External }
 public enum HealthCheckStatus { Healthy, Warning, Failed }

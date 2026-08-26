@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public sealed record SourceApplicationContext(string Channel, string Scenario, string Evidence);
 

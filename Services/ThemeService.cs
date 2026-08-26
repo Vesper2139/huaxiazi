@@ -1,9 +1,9 @@
 using System;
 using System.Windows;
 using System.Windows.Media;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>
 /// 主题服务：解析系统主题偏好并委托 SkinService 完成整套皮肤字典替换。

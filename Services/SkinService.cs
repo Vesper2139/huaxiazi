@@ -4,9 +4,9 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>
 /// 皮肤服务：维护皮肤注册表并执行整套 ResourceDictionary 替换。

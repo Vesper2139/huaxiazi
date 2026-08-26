@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>
 /// 逐行 Diff（LCS）。用于「原文 / 优化稿」的差异视图，区分新增与删除行。

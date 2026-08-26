@@ -3,11 +3,11 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
-using PromptFloat.Models;
-using PromptFloat.Services;
-using PromptFloat.ViewModels;
+using Huaxiazi.Models;
+using Huaxiazi.Services;
+using Huaxiazi.ViewModels;
 
-namespace PromptFloat.Views;
+namespace Huaxiazi.Views;
 
 /// <summary>
 /// 将 SelectedCategory 与某个 ToggleButton 的类别参数比较，返回是否选中。

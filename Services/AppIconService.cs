@@ -2,11 +2,11 @@ using System;
 using System.Drawing;
 using System.IO;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public static class AppIconService
 {
-    public static string IconPath => Path.Combine(AppContext.BaseDirectory, "Resources", "Brand", "Vesper.ico");
+    public static string IconPath => Path.Combine(AppContext.BaseDirectory, "Resources", "Brand", "Huaxiazi.ico");
 
     public static Icon LoadTrayIcon()
     {

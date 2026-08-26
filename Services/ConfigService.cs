@@ -4,9 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>
 /// 配置读写服务。
@@ -16,21 +16,15 @@ public sealed class ConfigService
 {
     internal const int MaxCorruptBackups = 3;
     /// <summary>
-    /// 当前配置结构版本号。每当默认值或字段语义发生破坏性变更时递增；
-    /// 旧配置在 Load 时由 Migrate() 平滑升级到该版本，保证对终端用户与外部调用方的向后兼容。
+    /// 当前配置结构版本号。2.0.0 是全新数据边界；版本不匹配的文件不会被读取或迁移。
     /// </summary>
-    public const int CurrentConfigVersion = 11;
+    public const int CurrentConfigVersion = 20;
 
-    // 注意：此处未用 readonly，以便单元测试通过反射把路径重定向到临时目录做隔离（见 PromptFloat.Tests/TestHelpers.cs）。
+    // 注意：此处未用 readonly，以便单元测试通过反射把路径重定向到临时目录做隔离（见 Huaxiazi.Tests/TestHelpers.cs）。
     private static string AppDataFolder =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Huaxiazi");
 
     private static string ConfigFilePath = Path.Combine(AppDataFolder, "config.json");
-
-    private static string LegacyConfigFilePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "PromptFloat",
-        "config.json");
 
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -57,16 +51,9 @@ public sealed class ConfigService
     {
         AppSettings? settings = null;
         var sourcePath = ConfigFilePath;
-        var importingLegacyLocation = false;
 
         try
         {
-            if (!File.Exists(sourcePath) && File.Exists(LegacyConfigFilePath))
-            {
-                sourcePath = LegacyConfigFilePath;
-                importingLegacyLocation = true;
-            }
-
             if (File.Exists(sourcePath))
             {
                 var raw = File.ReadAllText(sourcePath);
@@ -84,42 +71,35 @@ public sealed class ConfigService
         }
 
         // 反序列化为 null、历史字段被显式写为 null 等情况下做防御，避免后续 NRE
+        // A 2.0.0 installation is intentionally a clean break. Do not reinterpret
+        // an older config or move secrets from it; leave the file untouched and
+        // start with a fresh profile instead.
+        if (settings is not null && settings.ConfigVersion != CurrentConfigVersion)
+        {
+            PreserveObsoleteConfig(sourcePath, settings.ConfigVersion);
+            settings = null;
+        }
+
+        // Plaintext keys are never accepted in the 2.0.0 config contract.
+        if (settings is not null && !string.IsNullOrWhiteSpace(settings.ApiKey))
+        {
+            PreserveObsoleteConfig(sourcePath, settings.ConfigVersion);
+            settings = null;
+        }
+
         if (settings is not null)
         {
             settings.History ??= new List<string>();
-            var needsConfigRewrite = settings.ConfigVersion < CurrentConfigVersion;
-            var legacyProductConfig = settings.ConfigVersion < 2;
-            var hadPlaintextSecret = !string.IsNullOrWhiteSpace(settings.ApiKey);
-            settings = Migrate(settings);
-            if (!DataDirectoryPolicy.TryResolve(settings.DataDirectory, AppDataFolder, verifyWritable: false, out var dataRoot, out _))
+            if (!DataDirectoryPolicy.TryResolve(settings.DataDirectory, AppDataFolder, verifyWritable: false, out _, out _))
             {
                 settings.DataDirectory = string.Empty;
-                dataRoot = Path.GetFullPath(AppDataFolder);
-                needsConfigRewrite = true;
             }
-            var secretMigrated = MigrateLegacySecret(settings, legacyProductConfig, dataRoot);
-
-            // 加密失败时不写新位置、不改旧文件，避免产生一份半迁移配置或丢失密钥。
-            if (hadPlaintextSecret && !secretMigrated)
-            {
-                return settings;
-            }
-
-            if (needsConfigRewrite || secretMigrated || importingLegacyLocation)
-            {
-                try
-                {
-                    Save(settings);
-                    if (importingLegacyLocation)
-                    {
-                        SanitizeLegacyConfig(settings);
-                    }
-                }
-                catch
-                {
-                    // 旧文件只有在新配置完整写入后才会脱敏；失败时原配置保持不变。
-                }
-            }
+            settings.NormalizeProductModes();
+            settings.NormalizeProviderProfiles();
+            settings.NormalizeResidentEntrypoints();
+            settings.NormalizePromptSettings();
+            settings.NormalizeDisplaySettings();
+            settings.ExpressionPreferenceProfile ??= new ExpressionPreferenceProfile();
             return settings;
         }
 
@@ -151,6 +131,24 @@ public sealed class ConfigService
         catch (Exception)
         {
             // 保全失败不应阻断回退默认配置。
+        }
+    }
+
+    private static void PreserveObsoleteConfig(string sourcePath, int version)
+    {
+        try
+        {
+            if (!File.Exists(sourcePath)) return;
+            var backupPath = $"{sourcePath}.v{version}.ignored";
+            if (!File.Exists(backupPath))
+            {
+                var raw = File.ReadAllText(sourcePath);
+                File.WriteAllText(backupPath, RedactSensitiveJson(raw) ?? "{\"notice\":\"旧配置未导入\"}");
+            }
+        }
+        catch
+        {
+            // A backup is best effort; the active 2.0.0 config still starts cleanly.
         }
     }
 
@@ -230,6 +228,7 @@ public sealed class ConfigService
         try
         {
             Directory.CreateDirectory(AppDataFolder);
+            settings.ConfigVersion = CurrentConfigVersion;
             SanitizeCoordinates(settings);
             var json = JsonSerializer.Serialize(settings, _jsonOptions);
             var temporaryPath = ConfigFilePath + ".tmp";
@@ -338,173 +337,4 @@ public sealed class ConfigService
         };
     }
 
-    /// <summary>
-    /// 配置迁移：把任意旧版/外部来源的配置平滑升级到 <see cref="CurrentConfigVersion"/>。
-    /// 这是预留的清晰扩展点——未来字段变更只需在此追加对应版本的迁移分支，
-    /// 既保持对终端用户已有 config.json 的向后兼容，也避免破坏性变更。
-    /// </summary>
-    private static AppSettings Migrate(AppSettings settings)
-    {
-        // v0 → v1：将旧的 double.NaN 窗口坐标归一化为 null（旧版哨兵值），确保语义与默认值一致。
-        if (settings.ConfigVersion < 1)
-        {
-            if (settings.WindowLeft is { } lx && double.IsNaN(lx))
-            {
-                settings.WindowLeft = null;
-            }
-            if (settings.WindowTop is { } ty && double.IsNaN(ty))
-            {
-                settings.WindowTop = null;
-            }
-            settings.ConfigVersion = 1;
-        }
-
-        if (settings.ConfigVersion < 2)
-        {
-            settings.ConfigVersion = 2;
-        }
-
-        if (settings.ConfigVersion < 3)
-        {
-            settings.ThemeMode = "Dark";
-            settings.ConfigVersion = 3;
-        }
-
-        if (settings.ConfigVersion < 4)
-        {
-            settings.BallLeft ??= settings.WindowLeft;
-            settings.BallTop ??= settings.WindowTop;
-            settings.MainWindowWidth = NormalizeDimension(settings.MainWindowWidth, 520, 300);
-            settings.MainWindowHeight = NormalizeDimension(settings.MainWindowHeight, 120, 112);
-            settings.ConfigVersion = 4;
-        }
-
-        if (settings.ConfigVersion < 5)
-        {
-            settings.ConfigVersion = 5;
-        }
-
-        if (settings.ConfigVersion < 6)
-        {
-            // 1.1.3 及以前的出厂尺寸会被运行时抬高到 176/190；仅迁移这些旧默认值，保留用户自定义尺寸。
-            var usesLegacyFactoryDisplay =
-                (Math.Abs(settings.MainWindowHeight - 176) < 0.5 || Math.Abs(settings.MainWindowHeight - 190) < 0.5)
-                && Math.Abs(settings.EditorDefaultHeight - 120) < 0.5
-                && string.Equals(settings.ThemeMode, "Dark", StringComparison.OrdinalIgnoreCase);
-            if (Math.Abs(settings.MainWindowHeight - 176) < 0.5 || Math.Abs(settings.MainWindowHeight - 190) < 0.5)
-                settings.MainWindowHeight = 120;
-            if (Math.Abs(settings.EditorDefaultHeight - 120) < 0.5)
-                settings.EditorDefaultHeight = 36;
-            if (usesLegacyFactoryDisplay)
-                settings.ThemeMode = "System";
-            settings.ConfigVersion = 6;
-        }
-
-        if (settings.ConfigVersion < 7)
-        {
-            // 旧版出厂时默认占用四组系统热键。只迁移仍等于旧出厂值的字段，保留用户自定义选择。
-            if (string.Equals(settings.Hotkey, "Ctrl+Shift+P", StringComparison.OrdinalIgnoreCase))
-                settings.Hotkey = "Ctrl+Shift+H";
-            if (string.Equals(settings.QuickPolishHotkey, "Ctrl+Alt+1", StringComparison.OrdinalIgnoreCase))
-                settings.QuickPolishHotkey = string.Empty;
-            if (string.Equals(settings.QuickPromptHotkey, "Ctrl+Alt+2", StringComparison.OrdinalIgnoreCase))
-                settings.QuickPromptHotkey = string.Empty;
-            if (string.Equals(settings.CopyResultHotkey, "Ctrl+Alt+3", StringComparison.OrdinalIgnoreCase))
-                settings.CopyResultHotkey = string.Empty;
-            settings.ConfigVersion = 7;
-        }
-
-        if (settings.ConfigVersion < 8)
-        {
-            // v8 的精灵便笺工作区需要稳定的标题、编辑区和快捷栏高度；只迁移旧出厂尺寸。
-            if (Math.Abs(settings.MainWindowWidth - 520) < 0.5) settings.MainWindowWidth = 560;
-            if (Math.Abs(settings.MainWindowHeight - 120) < 0.5) settings.MainWindowHeight = 210;
-            settings.FloatingBallSize = 44;
-            settings.ConfigVersion = 8;
-        }
-
-        if (settings.ConfigVersion < 9)
-        {
-            // 仅放宽旧出厂宽度，为标题品牌、模型选择和窗口操作留出稳定节奏。
-            if (Math.Abs(settings.MainWindowWidth - 560) < 0.5) settings.MainWindowWidth = 600;
-            settings.ConfigVersion = 9;
-        }
-
-        if (settings.ConfigVersion < 10)
-        {
-            settings.SkinId = "default";
-            if (Math.Abs(settings.MainWindowWidth - 600) < 0.5) settings.MainWindowWidth = 520;
-            if (Math.Abs(settings.MainWindowHeight - 210) < 0.5) settings.MainWindowHeight = 176;
-            settings.ConfigVersion = 10;
-        }
-
-        if (settings.ConfigVersion < 11)
-        {
-            // v1.5 stops all knowledge retrieval. Legacy database files remain untouched and dormant.
-            settings.ExternalStrategiesEnabled = true;
-            settings.PreferenceLearningEnabled = true;
-            settings.ExpressionPreferenceProfile ??= new ExpressionPreferenceProfile();
-            settings.PolishStrategyId = "text-polisher";
-            settings.PromptStrategyId = "prompt-optimizer";
-            settings.ConfigVersion = 11;
-        }
-
-        settings.NormalizeProductModes();
-        settings.NormalizeProviderProfiles();
-        settings.NormalizeResidentEntrypoints();
-        settings.NormalizePromptSettings();
-        settings.NormalizeDisplaySettings();
-        settings.ExpressionPreferenceProfile ??= new ExpressionPreferenceProfile();
-
-        return settings;
-    }
-
-    private static double NormalizeDimension(double value, double fallback, double minimum)
-        => double.IsFinite(value) && value >= minimum ? value : fallback;
-
-    private static bool MigrateLegacySecret(AppSettings settings, bool legacyProductConfig, string dataRoot)
-    {
-        settings.NormalizeProviderProfiles();
-        var profile = legacyProductConfig
-            ? settings.ProviderProfiles[0]
-            : settings.GetActiveProviderProfile();
-        if (legacyProductConfig)
-        {
-            profile.ApiBase = string.IsNullOrWhiteSpace(settings.ApiBase)
-                ? "https://api.openai.com/v1"
-                : settings.ApiBase;
-            profile.Model = string.IsNullOrWhiteSpace(settings.Model) ? "gpt-4o-mini" : settings.Model;
-            if (Uri.TryCreate(profile.ApiBase, UriKind.Absolute, out var uri) && uri.IsLoopback)
-            {
-                profile.Type = ProviderType.Local;
-            }
-            settings.ActiveProviderProfileId = profile.Id;
-        }
-
-        if (string.IsNullOrWhiteSpace(settings.ApiKey)) return false;
-        try
-        {
-            var store = new DpapiSecretStore(Path.Combine(dataRoot, "secrets"));
-            store.Save(profile.SecretId, settings.ApiKey);
-            settings.ApiKey = string.Empty;
-            return true;
-        }
-        catch
-        {
-            // 加密写入失败时保留原字段，避免密钥丢失；下次加载会再次尝试迁移。
-            return false;
-        }
-    }
-
-    private void SanitizeLegacyConfig(AppSettings settings)
-    {
-        var legacyDirectory = Path.GetDirectoryName(LegacyConfigFilePath);
-        if (string.IsNullOrWhiteSpace(legacyDirectory)) return;
-
-        Directory.CreateDirectory(legacyDirectory);
-        var temporaryPath = LegacyConfigFilePath + ".migrating";
-        var json = JsonSerializer.Serialize(settings, _jsonOptions);
-        File.WriteAllText(temporaryPath, json);
-        File.Move(temporaryPath, LegacyConfigFilePath, true);
-    }
 }

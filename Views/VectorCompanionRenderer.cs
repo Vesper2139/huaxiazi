@@ -6,10 +6,10 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
-using PromptFloat.Models;
-using PromptFloat.Services;
+using Huaxiazi.Models;
+using Huaxiazi.Services;
 
-namespace PromptFloat.Views;
+namespace Huaxiazi.Views;
 
 /// <summary>纯 WPF 分层矢量角色呈现器。素材只提供几何和关键帧数据。</summary>
 public sealed class VectorCompanionRenderer : Canvas

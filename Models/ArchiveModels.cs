@@ -1,6 +1,6 @@
 using System;
 
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 public sealed class ArchiveDraft
 {

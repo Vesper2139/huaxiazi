@@ -3,9 +3,9 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text.Json;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public sealed record DataStatistics(int RevisionCount, long TotalBytes, DateTimeOffset? LastUpdatedAt);
 
@@ -32,7 +32,7 @@ public sealed class DataManagementService
         var record = JsonSerializer.Deserialize<ImportedRecord>(File.ReadAllText(jsonPath), new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
-        }) ?? throw new InvalidDataException("导入文件不是有效的 Vesper JSON 记录。");
+        }) ?? throw new InvalidDataException("导入文件不是有效的话匣子 JSON 记录。");
         if (string.IsNullOrWhiteSpace(record.FinalText)) throw new InvalidDataException("导入记录缺少优化稿。 ");
         return archive.SaveRevision(new ArchiveDraft
         {
@@ -57,7 +57,7 @@ public sealed class DataManagementService
             ".json" => ImportJson(path, archive),
             ".md" => ImportMarkdown(path, archive),
             ".txt" => ImportPlainText(path, archive),
-            _ => throw new InvalidDataException("仅支持导入 Vesper JSON、Markdown 或纯文本文件。")
+            _ => throw new InvalidDataException("仅支持导入话匣子 JSON、Markdown 或纯文本文件。")
         };
     }
 

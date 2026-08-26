@@ -5,12 +5,12 @@ using System.Windows;
 using System.Windows.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
-using PromptFloat.Models;
-using PromptFloat.Services;
-using PromptFloat.Views;
+using Huaxiazi.Models;
+using Huaxiazi.Services;
+using Huaxiazi.Views;
 using Microsoft.Win32;
 
-namespace PromptFloat;
+namespace Huaxiazi;
 
 /// <summary>
 /// 应用程序入口。
@@ -90,7 +90,7 @@ public partial class App : System.Windows.Application
     /// <summary>应用启动：加载配置、注册热键、显示悬浮球。</summary>
     private void App_OnStartup(object sender, StartupEventArgs e)
     {
-        var instanceResult = SingleInstanceGuard.Acquire("Vesper.Huaxiazi");
+        var instanceResult = SingleInstanceGuard.Acquire("Huaxiazi.SingleInstance");
         if (instanceResult.Status == SingleInstanceAcquireStatus.AlreadyRunning)
         {
             Shutdown();
@@ -203,7 +203,7 @@ public partial class App : System.Windows.Application
                 .Where(item => item.Scope == HealthCheckScope.Local && item.Status == HealthCheckStatus.Failed)
                 .Select(item => $"• {item.Name}: {item.Message}"));
             MessageBox.Show("本地健康检查未通过：\n" + failures + "\n\n详细结果已写入数据目录的 health-check.json。",
-                "Vesper 健康检查", MessageBoxButton.OK, MessageBoxImage.Warning);
+                "话匣子健康检查", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         return report;
     }
@@ -224,8 +224,8 @@ public partial class App : System.Windows.Application
             var result = await new UpdateChecker().CheckAsync(Settings.UpdateCheckUrl);
             if (result.Status != UpdateStatus.UpdateAvailable) return;
             var notes = string.IsNullOrWhiteSpace(result.ReleaseNotes) ? string.Empty : $"\n\n{result.ReleaseNotes}";
-            MessageBox.Show($"发现 Vesper {result.LatestVersion}。可在设置的‘关于与更新’中下载。{notes}",
-                "Vesper 更新", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show($"发现话匣子 {result.LatestVersion}。可在设置的‘关于与更新’中下载。{notes}",
+                "话匣子更新", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch
         {
@@ -277,7 +277,7 @@ public partial class App : System.Windows.Application
         _fatalDialogShown = true;
         try
         {
-            MessageBox.Show("Vesper 遇到不可恢复错误，即将退出。详细信息已写入数据目录中的 errors.log。", "Vesper", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show("话匣子遇到不可恢复错误，即将退出。详细信息已写入数据目录中的 errors.log。", "话匣子", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         catch { }
     }
@@ -292,7 +292,7 @@ public partial class App : System.Windows.Application
 
     private void OnHotkeyActionPressed(object? sender, GlobalHotkeyEventArgs e)
     {
-        // 必须在显示 Vesper 之前读取，否则前台进程会变成 Vesper 自身，丢失来源上下文。
+        // 必须在显示 Huaxiazi 之前读取，否则前台进程会变成 Huaxiazi 自身，丢失来源上下文。
         var sourceContext = e.Action == GlobalHotkeyAction.QuickPolish
             ? ForegroundApplicationContextService.Capture()
             : null;

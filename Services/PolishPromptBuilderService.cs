@@ -1,15 +1,15 @@
 using System.Collections.Generic;
 using System.Text;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public sealed class PolishPromptBuilderService
 {
     public string BuildSystemPrompt(PolishRequest request, bool clarificationEnabled)
     {
         var builder = new StringBuilder();
-        builder.AppendLine("你是 Vesper 中文表达助手。把用户想说的话润色成一份可直接发送的中文成稿。");
+        builder.AppendLine("你是话匣子中文表达助手。把用户想说的话润色成一份可直接发送的中文成稿。");
         builder.AppendLine("必须保留原意、立场、事实、情绪和个人语言习惯；不得虚构信息、强化承诺或擅自替用户决策。");
         builder.AppendLine("去除套话、模板化排比、空泛升华、生硬书面腔和不必要总结。只生成一份最佳成稿。");
         builder.AppendLine("仅输出一个 JSON 对象，不要 Markdown、代码围栏或解释。");

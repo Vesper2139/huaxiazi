@@ -10,10 +10,10 @@ using System.Windows;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using PromptFloat.Models;
-using PromptFloat.Services;
+using Huaxiazi.Models;
+using Huaxiazi.Services;
 
-namespace PromptFloat.ViewModels;
+namespace Huaxiazi.ViewModels;
 
 /// <summary>连接测试状态类别（用于颜色编码反馈）。</summary>
 public enum ConnectionStatusKind
@@ -772,7 +772,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly LegacyKnowledgeDataService _legacyKnowledge = new(App.DataRoot);
     public bool LegacyKnowledgeDetected => _legacyKnowledge.Exists;
     public string LegacyKnowledgeStatus => LegacyKnowledgeDetected
-        ? "检测到旧版知识数据。Vesper 不会读取或注入这些内容；你可以导出备份或明确永久删除。"
+        ? "检测到旧版知识数据。话匣子不会读取或注入这些内容；你可以导出备份或明确永久删除。"
         : string.Empty;
 
     public void ExportLegacyKnowledge(string destination)
@@ -1024,15 +1024,15 @@ public sealed partial class SettingsViewModel : ObservableObject
             SelectedAgentSkill = AgentSkillItems.FirstOrDefault();
             _strategiesLoaded = true;
             StrategyStatus = AgentSkillItems.Count == 0
-                ? "尚未安装扩展能力；Vesper 默认表达仍可正常使用。"
+                ? "尚未安装扩展能力；话匣子默认表达仍可正常使用。"
                 : "已加载表达能力。启停状态会在下一次处理时生效。";
         }
         catch (Exception exception)
         {
             var detail = string.IsNullOrWhiteSpace(exception.Message) ? "本地能力文件未能完整读取。" : exception.Message;
             StrategyStatus = AgentSkillItems.Count > 0
-                ? $"已保留 {AgentSkillItems.Count} 项能力；Vesper 默认表达仍可用。"
-                : $"能力暂不可用，Vesper 默认表达仍可用：{detail}";
+                ? $"已保留 {AgentSkillItems.Count} 项能力；话匣子默认表达仍可用。"
+                : $"能力暂不可用，话匣子默认表达仍可用：{detail}";
             _strategiesLoadFailed = true;
             _strategiesLoaded = true;
             OnPropertyChanged(nameof(IsStrategiesLoadFailed));
@@ -1373,7 +1373,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void BackupData()
     {
-        var path = Path.Combine(App.DataRoot, "backups", $"Vesper-data-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
+        var path = Path.Combine(App.DataRoot, "backups", $"Huaxiazi-data-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
         _dataManagement.CreateBackup(App.DataRoot, path, ConfigService.ConfigPath);
         DataStatus = $"备份已创建：{path}";
     }
@@ -1389,7 +1389,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         _dataManagement.RestoreBackup(path, App.DataRoot);
         LoadArchive();
-        DataStatus = "备份已恢复；请重新启动 Vesper 以重新载入资料库。";
+        DataStatus = "备份已恢复；请重新启动话匣子以重新载入资料库。";
     }
 
     public void MigrateData(string destination)
@@ -1422,7 +1422,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         HealthSummary = "正在检查 Local / External…";
         if (System.Windows.Application.Current is not App app)
         {
-            HealthSummary = "健康检查仅可在 Vesper 应用内运行。";
+            HealthSummary = "健康检查仅可在话匣子应用内运行。";
             return;
         }
         LoadHealthReport(await app.RunHealthChecksAsync());
@@ -1629,7 +1629,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (!string.Equals(previousDataRoot, App.DataRoot, StringComparison.OrdinalIgnoreCase))
         {
             ValidationMessage = string.IsNullOrWhiteSpace(ValidationMessage)
-                ? "数据目录已保存，将在重启 Vesper 后生效；本次会话仍使用原目录。"
+                ? "数据目录已保存，将在重启话匣子后生效；本次会话仍使用原目录。"
                 : ValidationMessage + "；数据目录将在重启后生效。";
         }
         ThemeService.Apply(settings, App.SkinService, System.Windows.Application.Current?.Resources);

@@ -39,8 +39,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$MainProj  = Join-Path $ScriptDir "PromptFloat.csproj"
-$TestProj  = Join-Path (Join-Path $ScriptDir "PromptFloat.Tests") "PromptFloat.Tests.csproj"
+$MainProj  = Join-Path $ScriptDir "Huaxiazi.csproj"
+$TestProj  = Join-Path (Join-Path $ScriptDir "Huaxiazi.Tests") "Huaxiazi.Tests.csproj"
 $DistSc    = Join-Path $ScriptDir "out\publish\win-x64"
 $DistFd    = Join-Path $ScriptDir "out\publish\win-x64-framework-dependent"
 $ReportsDir = Join-Path $ScriptDir "out\reports"

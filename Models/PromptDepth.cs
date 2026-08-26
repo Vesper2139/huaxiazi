@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 /// <summary>
 /// 提示词深度，控制结构复杂度（不只是字数）。

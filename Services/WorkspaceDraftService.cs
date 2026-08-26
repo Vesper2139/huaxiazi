@@ -3,9 +3,9 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>以原子替换方式保存工作区草稿；损坏文件会被隔离，避免阻断应用启动。</summary>
 public sealed class WorkspaceDraftService

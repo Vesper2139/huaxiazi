@@ -4,7 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Controls;
 
-namespace PromptFloat.Views;
+namespace Huaxiazi.Views;
 
 /// <summary>
 /// Gives a nested, non-scrolling selector one clear scroll owner. WPF ListBox handles

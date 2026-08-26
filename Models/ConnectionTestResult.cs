@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 public enum ConnectionTestStatus
 {

@@ -1,4 +1,4 @@
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 /// <summary>
 /// 主文本框的视图模式：

@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Generate release/version.json update manifest with real version / SHA-256 / URL.
 
@@ -6,7 +6,7 @@
     Renders deploy/update-manifest.template.json and injects the single-source
     values for the auto-update channel:
 
-        version      - the app <Version> from PromptFloat.csproj (passed in)
+        version      - the app <Version> from Huaxiazi.csproj (passed in)
         sha256       - SHA-256 of the delivered installer / portable package
         url          - HTTPS download URL (pass -DownloadUrl; empty allowed)
         publishedAt  - UTC timestamp (default: now)
@@ -39,7 +39,7 @@
     Destination file path (default: release/version.json relative to repo root).
 
 .EXAMPLE
-    .\deploy\generate-manifest.ps1 -Version 1.2.2 -Sha256 (Get-FileHash release\HuaxiaziSetup.exe -Algorithm SHA256).Hash
+    .\deploy\generate-manifest.ps1 -Version 2.0.0 -Sha256 (Get-FileHash release\Huaxiazi-Setup.exe -Algorithm SHA256).Hash
 #>
 
 [CmdletBinding()]
@@ -84,7 +84,7 @@ if (-not $PublishedAt) {
     $PublishedAt = [DateTimeOffset]::UtcNow.ToString("o")
 }
 if (-not $ReleaseNotes) {
-    $ReleaseNotes = "Vesper / PromptFloat $Version 已发布。"
+    $ReleaseNotes = "话匣子 / Huaxiazi $Version 已发布。"
 }
 
 # ---------- Render ----------

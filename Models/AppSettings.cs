@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
 using System.Text.Json;
-using PromptFloat.Services;
+using Huaxiazi.Services;
 
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 /// <summary>
 /// 应用配置（持久化到 %LocalAppData%\Huaxiazi\config.json）。

@@ -6,7 +6,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public enum UpdateDownloadStatus
 {
@@ -39,7 +39,7 @@ internal sealed class AuthenticodeVerifier : IAuthenticodeVerifier
             chain.ChainPolicy.VerificationFlags = X509VerificationFlags.NoFlag;
             return chain.Build(certificate) &&
                    !string.IsNullOrWhiteSpace(publisher) &&
-                   publisher.Contains("Vesper", StringComparison.OrdinalIgnoreCase);
+                   publisher.Contains("Huaxiazi", StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
@@ -147,7 +147,7 @@ public sealed class UpdateDownloadService
                 return new UpdateDownloadResult
                 {
                     Status = UpdateDownloadStatus.SignatureInvalid,
-                    Message = "安装包未通过 Vesper 发布者签名校验，文件已删除。"
+                    Message = "安装包未通过话匣子发布者签名校验，文件已删除。"
                 };
             }
 

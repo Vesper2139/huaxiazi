@@ -2,7 +2,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public sealed class TrayIconService : IDisposable
 {
@@ -12,7 +12,7 @@ public sealed class TrayIconService : IDisposable
     {
         _notifyIcon = new NotifyIcon
         {
-            Text = "Vesper",
+            Text = "话匣子",
             Icon = AppIconService.LoadTrayIcon(),
             Visible = false,
             ContextMenuStrip = new ContextMenuStrip()

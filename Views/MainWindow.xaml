@@ -1,10 +1,10 @@
-<Window x:Class="PromptFloat.Views.MainWindow"
+<Window x:Class="Huaxiazi.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:models="clr-namespace:PromptFloat.Models"
-        xmlns:local="clr-namespace:PromptFloat.Views"
+        xmlns:models="clr-namespace:Huaxiazi.Models"
+        xmlns:local="clr-namespace:Huaxiazi.Views"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-        Title="Vesper" Icon="pack://siteoforigin:,,,/Resources/Brand/Vesper.ico" Width="520" Height="176" MinWidth="420" MinHeight="158"
+        Title="话匣子" Icon="pack://siteoforigin:,,,/Resources/Brand/Huaxiazi.ico" Width="520" Height="176" MinWidth="420" MinHeight="158"
         WindowStyle="None" AllowsTransparency="False" Background="{DynamicResource BgBrush}"
         ResizeMode="CanResize" ShowInTaskbar="False" Topmost="True"
         FontFamily="{StaticResource AppFont}" UseLayoutRounding="True" SnapsToDevicePixels="True"
@@ -243,7 +243,7 @@
 
                 <Grid x:Name="TitleBand" Grid.Row="0" MinHeight="{DynamicResource SkinTitleBarHeight}" MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <StackPanel x:Name="VesperWordmark" Margin="52,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
+                    <StackPanel x:Name="HuaxiaziWordmark" Margin="52,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center">
                             <Run Text="VES" /><Run Text="PER" Foreground="{DynamicResource BrandBrush}" />
                         </TextBlock>
@@ -288,7 +288,7 @@
                         <!-- 编辑区与澄清区互斥占用同一内容行，避免弹层覆盖正文和底部工具栏。 -->
                         <Grid x:Name="EditorContentHost" Grid.Row="0"
                               Visibility="{Binding HasClarification, Converter={StaticResource BoolToVisibility}, ConverterParameter=Inverse}">
-                            <TextBox x:Name="MainTextBox" Style="{StaticResource VesperTextEditor}" Padding="12,8,12,8" FontSize="{DynamicResource EditorFontSize}" Tag="{Binding EditorPlaceholderText}"
+                            <TextBox x:Name="MainTextBox" Style="{StaticResource HuaxiaziTextEditor}" Padding="12,8,12,8" FontSize="{DynamicResource EditorFontSize}" Tag="{Binding EditorPlaceholderText}"
                                      Visibility="{Binding ShowDiff, Converter={StaticResource BoolToVisibility}, ConverterParameter=Inverse}"
                                      Text="{Binding DisplayText, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsReadOnly}"
                                      AcceptsReturn="True" AutomationProperties.Name="正文输入或生成结果"

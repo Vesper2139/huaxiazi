@@ -4,7 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 
-namespace PromptFloat.Views;
+namespace Huaxiazi.Views;
 
 /// <summary>
 /// 附加行为：ComboBox 下拉关闭时，把鼠标滚轮转发给最近的外层 ScrollViewer，

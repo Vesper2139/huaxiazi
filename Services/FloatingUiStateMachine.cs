@@ -1,7 +1,7 @@
 using System;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public sealed class FloatingUiStateMachine
 {

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public enum SecretMutationKind
 {

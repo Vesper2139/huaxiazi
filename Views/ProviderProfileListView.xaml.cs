@@ -1,10 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using PromptFloat.Models;
-using PromptFloat.ViewModels;
+using Huaxiazi.Models;
+using Huaxiazi.ViewModels;
 
-namespace PromptFloat.Views;
+namespace Huaxiazi.Views;
 
 public partial class ProviderProfileListView : UserControl
 {

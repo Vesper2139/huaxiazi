@@ -3,7 +3,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public sealed class DpapiSecretStore : ISecretStore
 {

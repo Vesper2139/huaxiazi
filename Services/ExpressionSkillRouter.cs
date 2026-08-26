@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public sealed class ExpressionSkillRouter(string installRoot) : IExpressionSkillRouter
 {
@@ -83,7 +83,7 @@ public sealed class ExpressionSkillRouter(string installRoot) : IExpressionSkill
 
     private static ExpressionSkillRouteResult Fallback() => new()
     {
-        DisplayName = "Vesper 默认表达",
+        DisplayName = "话匣子默认表达",
         Reason = "没有已启用且适配当前场景的 Skill",
         UsedFallback = true
     };

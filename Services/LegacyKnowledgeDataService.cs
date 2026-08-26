@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>Manages dormant v1.4 knowledge data without opening or querying its database.</summary>
 public sealed class LegacyKnowledgeDataService

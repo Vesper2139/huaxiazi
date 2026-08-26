@@ -1,8 +1,8 @@
 using System;
 using System.Linq;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public sealed class StructuredPreferenceService
 {

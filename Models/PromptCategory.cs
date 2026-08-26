@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 /// <summary>
 /// 提示词方向（任务类别）。共 6 类，固定不变。

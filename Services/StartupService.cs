@@ -1,7 +1,7 @@
 using System;
 using Microsoft.Win32;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public static class StartupService
 {

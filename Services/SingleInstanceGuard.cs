@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public enum SingleInstanceAcquireStatus { Acquired, AlreadyRunning, Unavailable }
 
@@ -71,7 +71,7 @@ public sealed class SingleInstanceGuard : IDisposable
             {
                 creation.Mutex.Dispose();
                 SignalExisting(eventName);
-                return new(SingleInstanceAcquireStatus.AlreadyRunning, null, "Vesper 已在当前桌面会话运行。");
+                return new(SingleInstanceAcquireStatus.AlreadyRunning, null, "话匣子已在当前桌面会话运行。");
             }
 
             return new(SingleInstanceAcquireStatus.Acquired,

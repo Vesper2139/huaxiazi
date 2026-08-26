@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>Composes optional user context once, below facts and the current request.</summary>
 public static class PromptContextComposer

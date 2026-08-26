@@ -1,6 +1,6 @@
 using System;
 
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 /// <summary>主工作区的可恢复快照。它不包含 API Key 等机密信息。</summary>
 public sealed record WorkspaceDraft

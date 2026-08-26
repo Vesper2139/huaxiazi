@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 [JsonConverter(typeof(JsonStringEnumConverter<ProviderType>))]
 public enum ProviderType

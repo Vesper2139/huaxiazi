@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 internal static class DataDirectoryPolicy
 {
@@ -40,7 +40,7 @@ internal static class DataDirectoryPolicy
             if (verifyWritable)
             {
                 Directory.CreateDirectory(candidate);
-                var probe = Path.Combine(candidate, ".vesper-write-probe-" + Guid.NewGuid().ToString("N"));
+                var probe = Path.Combine(candidate, ".huaxiazi-write-probe-" + Guid.NewGuid().ToString("N"));
                 using (File.Create(probe, 1, FileOptions.DeleteOnClose)) { }
             }
 

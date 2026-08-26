@@ -91,7 +91,7 @@ if (-not (Test-Path $SourceExe -PathType Leaf)) {
 }
 
 # Read display version from the executable (falls back to 1.0.0).
-$displayVersion = "1.0.0"
+$displayVersion = "2.0.0"
 try {
     $vi = (Get-Item $SourceExe).VersionInfo
     if (-not [string]::IsNullOrWhiteSpace($vi.FileVersion)) { $displayVersion = $vi.FileVersion }

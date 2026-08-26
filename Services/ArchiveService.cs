@@ -5,9 +5,9 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Microsoft.Data.Sqlite;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public sealed record ArchiveIntegrityResult(bool IsHealthy, string Message);
 

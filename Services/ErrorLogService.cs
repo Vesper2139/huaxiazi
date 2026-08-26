@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>有界、节流的错误日志。避免同一 UI 故障在消息循环中无限放大日志。</summary>
 public sealed class ErrorLogService

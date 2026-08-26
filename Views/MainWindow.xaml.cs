@@ -10,11 +10,11 @@ using System.Windows.Shell;
 using System.Windows.Threading;
 using System.Windows.Media.Animation;
 using System.Threading.Tasks;
-using PromptFloat.Models;
-using PromptFloat.Services;
-using PromptFloat.ViewModels;
+using Huaxiazi.Models;
+using Huaxiazi.Services;
+using Huaxiazi.ViewModels;
 
-namespace PromptFloat.Views;
+namespace Huaxiazi.Views;
 
 /// <summary>
 /// 主窗口（展开态，深色透明玻璃）。
@@ -394,7 +394,7 @@ public partial class MainWindow : Window
         var view = new SettingsView();
         _settingsWindow = new Window
         {
-            Title = "Vesper 设置",
+            Title = "话匣子设置",
             Owner = this,
             Content = view,
             Width = 900,
@@ -522,7 +522,7 @@ public partial class MainWindow : Window
         base.OnClosing(e);
     }
 
-    internal void ApplyDisplayPreferences(PromptFloat.Models.AppSettings settings)
+    internal void ApplyDisplayPreferences(Huaxiazi.Models.AppSettings settings)
     {
         settings.NormalizeDisplaySettings();
         Opacity = settings.WindowOpacity;
@@ -645,12 +645,12 @@ public partial class MainWindow : Window
         switch (action)
         {
             case GlobalHotkeyAction.QuickPolish:
-                _vm.SelectModeCommand.Execute(PromptFloat.Models.ApplicationMode.Polish);
+                _vm.SelectModeCommand.Execute(Huaxiazi.Models.ApplicationMode.Polish);
                 _vm.PasteFromClipboardCommand.Execute(null);
                 if (!string.IsNullOrWhiteSpace(_vm.UserInput)) _ = _vm.OptimizeCommand.ExecuteAsync(null);
                 break;
             case GlobalHotkeyAction.QuickPromptOptimize:
-                _vm.SelectModeCommand.Execute(PromptFloat.Models.ApplicationMode.PromptOptimize);
+                _vm.SelectModeCommand.Execute(Huaxiazi.Models.ApplicationMode.PromptOptimize);
                 _vm.PasteFromClipboardCommand.Execute(null);
                 if (!string.IsNullOrWhiteSpace(_vm.UserInput)) _ = _vm.OptimizeCommand.ExecuteAsync(null);
                 break;

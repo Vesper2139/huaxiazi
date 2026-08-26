@@ -6,11 +6,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Threading.Tasks;
-using PromptFloat.Services;
-using PromptFloat.ViewModels;
-using PromptFloat.Models;
+using Huaxiazi.Services;
+using Huaxiazi.ViewModels;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Views;
+namespace Huaxiazi.Views;
 
 public partial class SettingsView : UserControl
 {
@@ -31,13 +31,13 @@ public partial class SettingsView : UserControl
 
     private void ExportLegacyKnowledge_OnClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new Microsoft.Win32.SaveFileDialog { Filter = "SQLite 数据库|*.db", FileName = "vesper-legacy-knowledge.db", AddExtension = true };
+        var dialog = new Microsoft.Win32.SaveFileDialog { Filter = "SQLite 数据库|*.db", FileName = "huaxiazi-legacy-knowledge.db", AddExtension = true };
         if (dialog.ShowDialog() == true) _vm.ExportLegacyKnowledge(dialog.FileName);
     }
 
     private void DeleteLegacyKnowledge_OnClick(object sender, RoutedEventArgs e)
     {
-        if (MessageBox.Show("永久删除旧版知识数据？此操作无法撤销，建议先导出备份。", "Vesper",
+        if (MessageBox.Show("永久删除旧版知识数据？此操作无法撤销，建议先导出备份。", "话匣子",
             MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes)
             _vm.DeleteLegacyKnowledge();
     }
@@ -114,7 +114,7 @@ public partial class SettingsView : UserControl
         }
         catch (Exception exception)
         {
-            MessageBox.Show($"设置自动保存失败：{exception.Message}", "Vesper", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show($"设置自动保存失败：{exception.Message}", "话匣子", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
     }
@@ -141,7 +141,7 @@ public partial class SettingsView : UserControl
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Filter = "Vesper 可导入记录 (*.json;*.md;*.txt)|*.json;*.md;*.txt|JSON (*.json)|*.json|Markdown (*.md)|*.md|纯文本 (*.txt)|*.txt"
+            Filter = "话匣子可导入记录 (*.json;*.md;*.txt)|*.json;*.md;*.txt|JSON (*.json)|*.json|Markdown (*.md)|*.md|纯文本 (*.txt)|*.txt"
         };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
         try { _vm.ImportRecord(dialog.FileName); }
@@ -152,7 +152,7 @@ public partial class SettingsView : UserControl
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Filter = "Vesper 皮肤包 (*.vesperskin;*.zip)|*.vesperskin;*.zip"
+            Filter = "话匣子皮肤包 (*.huaxiaziskin;*.zip)|*.huaxiaziskin;*.zip"
         };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
         try
@@ -163,21 +163,21 @@ public partial class SettingsView : UserControl
         }
         catch (Exception exception)
         {
-            MessageBox.Show("皮肤导入失败：" + exception.Message, "Vesper 皮肤", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("皮肤导入失败：" + exception.Message, "话匣子皮肤", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
     private void RemoveSkinButton_OnClick(object sender, RoutedEventArgs e)
     {
-        if (MessageBox.Show("移除当前导入皮肤并切回默认外观？", "Vesper 皮肤", MessageBoxButton.YesNo,
+        if (MessageBox.Show("移除当前导入皮肤并切回默认外观？", "话匣子皮肤", MessageBoxButton.YesNo,
             MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         try { _vm.UninstallSelectedSkin(); }
-        catch (Exception exception) { MessageBox.Show("皮肤移除失败：" + exception.Message, "Vesper 皮肤", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        catch (Exception exception) { MessageBox.Show("皮肤移除失败：" + exception.Message, "话匣子皮肤", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
 
     private void RestoreBackupButton_OnClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new Microsoft.Win32.OpenFileDialog { Filter = "Vesper 资料库备份 (*.zip)|*.zip" };
+        var dialog = new Microsoft.Win32.OpenFileDialog { Filter = "话匣子资料库备份 (*.zip)|*.zip" };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
         if (MessageBox.Show("恢复会覆盖同名资料库文件。继续吗？", "恢复资料库", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         try { _vm.RestoreBackup(dialog.FileName); }
@@ -186,7 +186,7 @@ public partial class SettingsView : UserControl
 
     private void MigrateDataButton_OnClick(object sender, RoutedEventArgs e)
     {
-        using var dialog = new System.Windows.Forms.FolderBrowserDialog { Description = "选择新的 Vesper 资料库目录", UseDescriptionForTitle = true };
+        using var dialog = new System.Windows.Forms.FolderBrowserDialog { Description = "选择新的话匣子资料库目录", UseDescriptionForTitle = true };
         if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
         try { _vm.MigrateData(dialog.SelectedPath); }
         catch (Exception exception) { _vm.DataStatus = "迁移失败：" + exception.Message; }
@@ -227,8 +227,8 @@ public partial class SettingsView : UserControl
     {
         if (_downloadCancellation is not null) { _downloadCancellation.Cancel(); return; }
         if (DownloadUpdateButton.Tag is not UpdateCheckResult manifest || string.IsNullOrWhiteSpace(manifest.DownloadUrl) || string.IsNullOrWhiteSpace(manifest.Sha256)) return;
-        if (MessageBox.Show($"下载并校验 Vesper {manifest.LatestVersion}？", "下载更新", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
-        var installerPath = Path.Combine(App.DataRoot, "updates", $"HuaxiaziSetup-{manifest.LatestVersion}.exe");
+        if (MessageBox.Show($"下载并校验话匣子 {manifest.LatestVersion}？", "下载更新", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        var installerPath = Path.Combine(App.DataRoot, "updates", $"Huaxiazi-Setup-{manifest.LatestVersion}.exe");
         _downloadCancellation = new CancellationTokenSource();
         CheckUpdateButton.IsEnabled = false;
         DownloadUpdateButton.Content = "取消下载";
@@ -238,7 +238,7 @@ public partial class SettingsView : UserControl
             var result = await _updateDownloader.DownloadAsync(manifest.DownloadUrl, manifest.Sha256, installerPath, progress, _downloadCancellation.Token);
             UpdateStatusText.Text = result.Message;
             if (result.Status != UpdateDownloadStatus.Success || string.IsNullOrWhiteSpace(result.FilePath)) return;
-            if (MessageBox.Show("安装包已通过完整性与 Vesper 发布者签名校验。现在退出并启动安装程序吗？", "安装更新", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show("安装包已通过完整性与话匣子发布者签名校验。现在退出并启动安装程序吗？", "安装更新", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
             Process.Start(new ProcessStartInfo(result.FilePath) { UseShellExecute = true });
             ((App)Application.Current).ExitApp();
         }

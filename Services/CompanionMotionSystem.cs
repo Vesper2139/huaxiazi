@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public interface IRandomSource
 {
@@ -302,13 +302,13 @@ public sealed class IdleBehaviorScheduler(IRandomSource random, IAnimationClock 
 
 public static class AssistantEmotionProtocol
 {
-    private const string OpenTag = "<VESPER_EMOTION>";
-    private const string CloseTag = "</VESPER_EMOTION>";
+    private const string OpenTag = "<HUAXIAZI_EMOTION>";
+    private const string CloseTag = "</HUAXIAZI_EMOTION>";
 
     public static string DecorateSystemPrompt(string prompt, CompanionDriverMode mode)
     {
         if (mode != CompanionDriverMode.EmotionAssistant) return prompt;
-        return prompt + "\n\n在正文最后另起一行输出 <VESPER_EMOTION>{\"emotion\":\"Neutral|Attentive|Supportive|Encouraging|Concerned|Cautious\",\"intensity\":0.0}</VESPER_EMOTION>。情绪只表达对用户的共情，不得附和攻击、危险、违规或错误事实。";
+        return prompt + "\n\n在正文最后另起一行输出 <HUAXIAZI_EMOTION>{\"emotion\":\"Neutral|Attentive|Supportive|Encouraging|Concerned|Cautious\",\"intensity\":0.0}</HUAXIAZI_EMOTION>。情绪只表达对用户的共情，不得附和攻击、危险、违规或错误事实。";
     }
 
     public static CompanionAnnotatedText ParseContent(string content, CompanionDriverMode mode)

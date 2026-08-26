@@ -1,12 +1,12 @@
-# Vesper / 话匣子
+# 话匣子 / Huaxiazi
 
-当前版本：1.5.0
+当前版本：2.0.0
 
-Vesper（中文名“话匣子”）是面向 Windows 10/11 x64 的轻量桌面表达工具。它不替用户虚构事实，而是把口语化、零散或不专业的表达整理成可直接使用的专业成稿或专业提示词。
+话匣子（技术标识 Huaxiazi）是面向 Windows 10/11 x64 的轻量桌面表达工具。它不替用户虚构事实，而是把口语化、零散或不专业的表达整理成可直接使用的专业成稿或专业提示词。
 
 ## 产品定位
 
-Vesper 包含两个可独立使用的核心任务：
+话匣子包含两个可独立使用的核心任务：
 
 - 表达润色（默认）：把原始想法整理成自然、保真、可直接发送的中文成稿；遇到关键歧义时先提最多 3 个澄清问题。
 - 提示词优化：保留原有类别、深度和历史能力，把模糊需求整理为可直接交给 AI 的提示词。
@@ -33,7 +33,7 @@ Vesper 包含两个可独立使用的核心任务：
 所有用户数据位于 `%LocalAppData%\Huaxiazi`：
 
 ```text
-config.json                 非敏感配置（当前 schema v9）
+config.json                 非敏感配置（2.0.0 schema v20）
 secrets\                    DPAPI 加密的 API Key
 data\huaxiazi.db            SQLite 索引、原文、背景与版本关系
 data\drafts\                可直接使用的最终 .txt 成稿
@@ -41,7 +41,7 @@ data\trash\                 软删除文件（默认保留 30 天）
 updates\                    已下载并校验的更新安装包
 ```
 
-旧 `%AppData%\PromptFloat\config.json` 会在首次启动时以事务式顺序迁移：先加密密钥并写入新配置，成功后才脱敏旧文件。
+2.0.0 是全新品牌与工程体系，不读取旧版本配置、旧 Skill 元数据或旧更新清单；升级后需要重新填写 API Key。旧目录不会被程序自动删除。
 
 ## 构建与测试
 
@@ -50,14 +50,14 @@ updates\                    已下载并校验的更新安装包
 ```powershell
 dotnet restore .\Huaxiazi.sln
 dotnet build .\Huaxiazi.sln -c Release --no-restore
-dotnet test .\PromptFloat.Tests\PromptFloat.Tests.csproj -c Release --no-build
+dotnet test .\Huaxiazi.Tests\Huaxiazi.Tests.csproj -c Release --no-build
 .\publish.ps1 -Clean
 ```
 
 完整验证应使用：
 
 ```powershell
-dotnet test .\PromptFloat.Tests\PromptFloat.Tests.csproj -c Release
+dotnet test .\Huaxiazi.Tests\Huaxiazi.Tests.csproj -c Release
 ```
 
 发布过程只临时使用 `out/`，成功后自动清理。对外交付物保留在 `release/`：直接启动 EXE、便携 ZIP 和 Windows 安装包。源码目录不长期保留展开发布副本、编译缓存或测试运行目录。

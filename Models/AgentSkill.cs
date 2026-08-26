@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 public enum SkillCompatibilityStatus { Ready, NeedsMapping, RequiresTools, ReviewRequired, Invalid }
 
@@ -39,7 +39,7 @@ public sealed class ExpressionSkillRoutingContext
 public sealed class ExpressionSkillRouteResult
 {
     public string SkillId { get; init; } = string.Empty;
-    public string DisplayName { get; init; } = "Vesper 默认表达";
+    public string DisplayName { get; init; } = "话匣子默认表达";
     public string Instructions { get; init; } = string.Empty;
     public string Reason { get; init; } = string.Empty;
     public bool UsedFallback { get; init; }

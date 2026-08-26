@@ -7,9 +7,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>Imports Agent Skills as inert prompt-only snapshots. It never executes package content.</summary>
 public sealed class AgentSkillPackageService
@@ -99,8 +99,6 @@ public sealed class AgentSkillPackageService
                 }
                 Install(candidate, manifest.Mode, AgentSkillSource.Preset, enabled, manifest.Id, manifest);
             }
-            RetireLegacyPreset("text-polisher");
-            RetireLegacyPreset("prompt-optimizer");
             return ListInstalled().Where(item => item.Source == AgentSkillSource.Preset).ToArray();
         }
         foreach (var directory in Directory.EnumerateDirectories(root).OrderBy(Path.GetFileName, StringComparer.Ordinal))
@@ -247,7 +245,7 @@ public sealed class AgentSkillPackageService
         var source = AgentSkillSource.User;
         var enabled = true;
         var packageSha256 = candidate.Sha256;
-        var manifest = Path.Combine(directory, ".vesper.json");
+        var manifest = Path.Combine(directory, ".huaxiazi.json");
         if (File.Exists(manifest))
         {
             using var document = JsonDocument.Parse(File.ReadAllText(manifest, Encoding.UTF8));
@@ -316,7 +314,7 @@ public sealed class AgentSkillPackageService
             routingTags = manifest?.RoutingTags ?? [],
             excludedSections = manifest?.ExcludedSections ?? []
         });
-        File.WriteAllText(Path.Combine(directory, ".vesper.json"), json, Encoding.UTF8);
+        File.WriteAllText(Path.Combine(directory, ".huaxiazi.json"), json, Encoding.UTF8);
     }
 
     private IReadOnlyList<AgentSkillCandidate> InspectZip(string zipPath)
@@ -362,7 +360,7 @@ public sealed class AgentSkillPackageService
         metadata.TryGetValue("license", out var license);
         metadata.TryGetValue("metadata.author", out var author);
         metadata.TryGetValue("metadata.version", out var version);
-        metadata.TryGetValue("metadata.vesper.modes", out var modeValue);
+        metadata.TryGetValue("metadata.huaxiazi.modes", out var modeValue);
         metadata.TryGetValue("allowed-tools", out var allowedTools);
         var validName = !string.IsNullOrWhiteSpace(name) && Regex.IsMatch(name, "^[a-z0-9]+(?:-[a-z0-9]+)*$");
         var modes = ParseModes(modeValue);
@@ -438,7 +436,7 @@ public sealed class AgentSkillPackageService
         var remaining = 16_000;
         foreach (var file in Directory.EnumerateFiles(packageRoot, "*", SearchOption.AllDirectories)
                      .Where(path => !string.Equals(Path.GetFileName(path), "SKILL.md", StringComparison.OrdinalIgnoreCase)
-                                    && !string.Equals(Path.GetFileName(path), ".vesper.json", StringComparison.OrdinalIgnoreCase)
+                                    && !string.Equals(Path.GetFileName(path), ".huaxiazi.json", StringComparison.OrdinalIgnoreCase)
                                     && !Path.GetFileName(path).StartsWith("LICENSE", StringComparison.OrdinalIgnoreCase)
                                     && AllowedExtensions.Contains(Path.GetExtension(path)))
                      .OrderBy(path => Path.GetRelativePath(packageRoot, path), StringComparer.Ordinal)
@@ -499,7 +497,7 @@ public sealed class AgentSkillPackageService
     {
         using var sha = SHA256.Create();
         foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
-                     .Where(path => !string.Equals(Path.GetFileName(path), ".vesper.json", StringComparison.OrdinalIgnoreCase))
+                     .Where(path => !string.Equals(Path.GetFileName(path), ".huaxiazi.json", StringComparison.OrdinalIgnoreCase))
                      .OrderBy(path => Path.GetRelativePath(root, path), StringComparer.Ordinal))
         {
             var relative = Encoding.UTF8.GetBytes(Path.GetRelativePath(root, file).Replace('\\', '/'));
@@ -523,19 +521,6 @@ public sealed class AgentSkillPackageService
         RoutingTags = record.RoutingTags,
         ExcludedSections = record.ExcludedSections
     };
-
-    private void RetireLegacyPreset(string id)
-    {
-        var directory = SafeChild(_installRoot, id);
-        if (!Directory.Exists(directory)) return;
-        try
-        {
-            if (RequireInstalled(id).Source == AgentSkillSource.Preset) Directory.Delete(directory, recursive: true);
-        }
-        catch (InvalidDataException) { }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
-    }
 
     private void CleanupInspectionSnapshot(string packageRoot)
     {

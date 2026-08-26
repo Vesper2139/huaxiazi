@@ -1,8 +1,8 @@
 using System;
 using System.Text.Json;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public static class DiagnosticInfoService
 {

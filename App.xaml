@@ -1,7 +1,7 @@
-<Application x:Class="PromptFloat.App"
+<Application x:Class="Huaxiazi.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:PromptFloat"
+             xmlns:local="clr-namespace:Huaxiazi"
              Startup="App_OnStartup"
              Exit="App_OnExit">
     <Application.Resources>

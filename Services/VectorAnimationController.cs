@@ -1,6 +1,6 @@
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>角色动画的统一优先级规则；呈现器和交互层共享这套判定。</summary>
 public static class VectorAnimationController

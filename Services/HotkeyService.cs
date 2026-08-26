@@ -6,7 +6,7 @@ using System.Windows.Interop;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public enum GlobalHotkeyAction
 {

@@ -1,4 +1,4 @@
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 public sealed class PolishRequest
 {

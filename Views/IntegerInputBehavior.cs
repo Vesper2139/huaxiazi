@@ -7,7 +7,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Automation;
 
-namespace PromptFloat.Views;
+namespace Huaxiazi.Views;
 
 /// <summary>Prevents silent WPF integer binding failures and normalizes declared ranges on blur.</summary>
 public static class IntegerInputBehavior

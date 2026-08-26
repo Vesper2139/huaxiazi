@@ -1,4 +1,4 @@
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public enum UnhandledExceptionOrigin
 {

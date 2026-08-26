@@ -1,7 +1,7 @@
-<UserControl x:Class="PromptFloat.Views.CompanionFace"
+<UserControl x:Class="Huaxiazi.Views.CompanionFace"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:PromptFloat.Views"
+             xmlns:local="clr-namespace:Huaxiazi.Views"
              Width="{DynamicResource SkinCompanionSize}" Height="{DynamicResource SkinCompanionSize}" Focusable="False"
              IsHitTestVisible="True" Cursor="SizeAll" SnapsToDevicePixels="True"
              UseLayoutRounding="True">

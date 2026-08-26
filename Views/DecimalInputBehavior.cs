@@ -7,7 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 
-namespace PromptFloat.Views;
+namespace Huaxiazi.Views;
 
 /// <summary>Provides bounded decimal editing with immediate, visible validation feedback.</summary>
 public static class DecimalInputBehavior

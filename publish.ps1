@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Self-contained publish for Huaxiazi (win-x64).
 
@@ -64,8 +64,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$MainProj  = Join-Path $ScriptDir "PromptFloat.csproj"
-$TestProj  = Join-Path (Join-Path $ScriptDir "PromptFloat.Tests") "PromptFloat.Tests.csproj"
+$MainProj  = Join-Path $ScriptDir "Huaxiazi.csproj"
+$TestProj  = Join-Path (Join-Path $ScriptDir "Huaxiazi.Tests") "Huaxiazi.Tests.csproj"
 $DistDir   = Join-Path $ScriptDir $OutputDir
 $SingleFileDir = Join-Path $ScriptDir "out/publish/single-file-$Runtime"
 $PackagesDir = Join-Path $ScriptDir "release"
@@ -116,7 +116,7 @@ if (-not $SkipTests) {
     # host crash during process teardown even when all assertions pass. Isolate UI-heavy classes
     # in short-lived hosts while keeping the rest in one fast group.
     $testGroups = @(
-        @{ Name = "core"; Filter = "FullyQualifiedName!~WpfViewSmokeTests&FullyQualifiedName!~BrandIconTests&FullyQualifiedName!~CompanionUiContractTests&FullyQualifiedName!~ThemeSwapRegressionTests&FullyQualifiedName!~AcceptanceDefectTests&FullyQualifiedName!~InteractionLayoutReverifyTests&FullyQualifiedName!~ResponsiveLayoutRegressionTests&FullyQualifiedName!~ScrollBehaviorTests&FullyQualifiedName!~IntegerInputBehaviorTests" },
+        @{ Name = "core"; Filter = "FullyQualifiedName!~WpfViewSmokeTests&FullyQualifiedName!~BrandIconTests&FullyQualifiedName!~CompanionUiContractTests&FullyQualifiedName!~ThemeSwapRegressionTests&FullyQualifiedName!~AcceptanceDefectTests&FullyQualifiedName!~InteractionLayoutReverifyTests&FullyQualifiedName!~ResponsiveLayoutRegressionTests&FullyQualifiedName!~ScrollBehaviorTests&FullyQualifiedName!~IntegerInputBehaviorTests&FullyQualifiedName!~DecimalInputBehaviorTests&FullyQualifiedName!~ExceptionPresentationPolicyTests&FullyQualifiedName!~HotkeyParserTests&FullyQualifiedName!~SettingsViewModelTests&FullyQualifiedName!~ThemeServiceTests&FullyQualifiedName!~WindowPlacementServiceTests" },
         @{ Name = "brand"; Filter = "FullyQualifiedName~BrandIconTests" },
         @{ Name = "companion-ui"; Filter = "FullyQualifiedName~CompanionUiContractTests" },
         @{ Name = "theme-swap"; Filter = "FullyQualifiedName~ThemeSwapRegressionTests" },
@@ -186,12 +186,12 @@ else {
 # ---------- 5. Stable client delivery files ----------
 Write-Step "Package standalone EXE"
 New-Item -ItemType Directory -Path $PackagesDir -Force | Out-Null
-$standaloneExe = Join-Path $PackagesDir "Vesper.exe"
+$standaloneExe = Join-Path $PackagesDir "Huaxiazi.exe"
 Copy-Item -LiteralPath $singleFileSource -Destination $standaloneExe -Force
 Write-Host "Standalone EXE: $standaloneExe" -ForegroundColor Green
 
 Write-Step "Package portable ZIP"
-$portableZip = Join-Path $PackagesDir "Vesper-Portable.zip"
+$portableZip = Join-Path $PackagesDir "Huaxiazi-Portable.zip"
 if (Test-Path $portableZip) { Remove-Item -LiteralPath $portableZip -Force }
 Compress-Archive -Path (Join-Path $DistDir "*") -DestinationPath $portableZip -CompressionLevel Optimal
 Write-Host "Portable ZIP: $portableZip" -ForegroundColor Green
@@ -207,7 +207,7 @@ if ($iscc) {
     Write-Step "Build Inno Setup installer"
     & $iscc (Join-Path $ScriptDir "deploy\installer.iss")
     if (-not $?) { throw "Installer build failed." }
-    $installer = Join-Path $PackagesDir "Vesper-Setup.exe"
+    $installer = Join-Path $PackagesDir "Huaxiazi-Setup.exe"
     if (Test-Path $installer) {
         Write-Host "Installer: $installer" -ForegroundColor Green
     }
@@ -217,7 +217,7 @@ else {
 }
 
 # release/ is a client handoff folder, not an artifact archive.
-$deliveryNames = @("Vesper.exe", "Vesper-Portable.zip", "Vesper-Setup.exe")
+$deliveryNames = @("Huaxiazi.exe", "Huaxiazi-Portable.zip", "Huaxiazi-Setup.exe")
 Get-ChildItem -LiteralPath $PackagesDir -File |
     Where-Object { $_.Name -notin $deliveryNames } |
     Remove-Item -Force
@@ -231,7 +231,7 @@ if (Test-Path (Join-Path $ScriptDir "out")) {
 }
 # Remove an accidentally expanded copy left by older packaging workflows. The
 # ZIP/installer packages are the supported delivery artifacts in release/.
-$expandedPackage = Join-Path $PackagesDir "Vesper-Portable"
+$expandedPackage = Join-Path $PackagesDir "Huaxiazi-Portable"
 if (Test-Path $expandedPackage -PathType Container) {
     Remove-Item -LiteralPath $expandedPackage -Recurse -Force
 }

@@ -4,7 +4,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public enum ExpansionDirection
 {

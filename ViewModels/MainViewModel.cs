@@ -7,10 +7,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using PromptFloat.Models;
-using PromptFloat.Services;
+using Huaxiazi.Models;
+using Huaxiazi.Services;
 
-namespace PromptFloat.ViewModels;
+namespace Huaxiazi.ViewModels;
 
 public sealed partial class MainViewModel : ObservableObject
 {

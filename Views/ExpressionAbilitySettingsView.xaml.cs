@@ -1,9 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
-using PromptFloat.ViewModels;
+using Huaxiazi.ViewModels;
 
-namespace PromptFloat.Views;
+namespace Huaxiazi.Views;
 
 public partial class ExpressionAbilitySettingsView : UserControl
 {

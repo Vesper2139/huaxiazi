@@ -3,9 +3,9 @@ using System.Text.Json;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public sealed class PolishWorkflowService
 {

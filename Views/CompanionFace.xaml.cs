@@ -6,10 +6,10 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
-using PromptFloat.Models;
-using PromptFloat.Services;
+using Huaxiazi.Models;
+using Huaxiazi.Services;
 
-namespace PromptFloat.Views;
+namespace Huaxiazi.Views;
 
 public partial class CompanionFace : UserControl
 {
@@ -75,7 +75,7 @@ public partial class CompanionFace : UserControl
     public void PlayHoverFeedback()
     {
         if (State is not (CompanionVisualState.Idle or CompanionVisualState.Sleeping or CompanionVisualState.Happy)) return;
-        if (!PromptFloat.Services.VectorAnimationController.CanInterrupt(State, CompanionVisualState.Curious)) return;
+        if (!Huaxiazi.Services.VectorAnimationController.CanInterrupt(State, CompanionVisualState.Curious)) return;
         PlayOperationFeedback(new CompanionEvent(CompanionEventKind.HoverStarted, BaseState: State));
         SetCurrentValue(StateProperty, CompanionVisualState.Curious);
     }
@@ -611,7 +611,7 @@ public partial class CompanionFace : UserControl
             if (!string.Equals(_loadedVectorSkin, skinId, StringComparison.Ordinal))
             {
                 using var stream = LoadVectorResource(manifest);
-                VectorSpriteHost.Load(PromptFloat.Services.VectorCharacterManifest.Parse(stream));
+                VectorSpriteHost.Load(Huaxiazi.Services.VectorCharacterManifest.Parse(stream));
                 _loadedVectorSkin = skinId;
             }
             VectorSpriteHost.ApplyState(state, animate: App.Settings.AnimationsEnabled);
@@ -678,7 +678,7 @@ public partial class CompanionFace : UserControl
         SkinSpriteBrush.Viewbox = new Rect((double)col / columns, 0, 1d / columns, 1);
     }
 
-    private static string? ResolveExternalSkinPath(PromptFloat.Services.SkinManifest manifest, string relativePath)
+    private static string? ResolveExternalSkinPath(Huaxiazi.Services.SkinManifest manifest, string relativePath)
     {
         if (manifest.InstallPath is null) return null;
         var installRoot = System.IO.Path.GetFullPath(manifest.InstallPath).TrimEnd(System.IO.Path.DirectorySeparatorChar) + System.IO.Path.DirectorySeparatorChar;
@@ -686,7 +686,7 @@ public partial class CompanionFace : UserControl
         return candidate.StartsWith(installRoot, StringComparison.OrdinalIgnoreCase) ? candidate : null;
     }
 
-    private static Stream LoadVectorResource(PromptFloat.Services.SkinManifest manifest)
+    private static Stream LoadVectorResource(Huaxiazi.Services.SkinManifest manifest)
     {
         var relativePath = manifest.CompanionVectorPath;
         if (string.IsNullOrWhiteSpace(relativePath)) throw new InvalidDataException("矢量角色资源路径为空。");

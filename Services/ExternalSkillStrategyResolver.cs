@@ -1,8 +1,8 @@
 using System;
 using System.IO;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>Single runtime boundary for preset and user-managed prompt-only Skills.</summary>
 public static class ExternalSkillStrategyResolver

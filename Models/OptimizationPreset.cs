@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 public sealed class OptimizationPreset
 {

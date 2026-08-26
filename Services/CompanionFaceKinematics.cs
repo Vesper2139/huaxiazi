@@ -1,7 +1,7 @@
 using System;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 /// <summary>
 /// Projects the continuous companion pose into a nested face rig. The orb, head, eyes and mouth

@@ -73,7 +73,7 @@
     <SolidColorBrush x:Key="DangerBrush" Color="#F06B74" />
     <SolidColorBrush x:Key="GlassBrush" Color="#16151B" />
     <SolidColorBrush x:Key="GlassBorderBrush" Color="#36323C" />
-    <SolidColorBrush x:Key="VesperEdgeBrush" Color="#36323C" />
+    <SolidColorBrush x:Key="HuaxiaziEdgeBrush" Color="#36323C" />
     <SolidColorBrush x:Key="EditorBrush" Color="#201E25" />
     <SolidColorBrush x:Key="CapsuleBrush" Color="#12FFFFFF" />
     <SolidColorBrush x:Key="CapsuleBorderBrush" Color="#3A3541" />

@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using PromptFloat.Models;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Services;
+namespace Huaxiazi.Services;
 
 public sealed class ProfessionalizationPlanner
 {
@@ -25,7 +25,7 @@ public sealed class ProfessionalizationPlanner
             request.Mode == ApplicationMode.PromptOptimize ? request.Category.GetDisplayName() : "通用表达");
         var strategyId = request.Mode == ApplicationMode.Polish ? "text-polisher" : "prompt-optimizer";
         var strategyName = string.IsNullOrWhiteSpace(request.PreferredStrategyId)
-            ? "Vesper 默认表达"
+            ? "话匣子默认表达"
             : string.IsNullOrWhiteSpace(request.PreferredStrategyName) ? request.PreferredStrategyId.Trim() : request.PreferredStrategyName.Trim();
         var questions = BuildClarificationQuestions(input, request.Mode);
         var instructions = BuildInstructions(request, scenario);

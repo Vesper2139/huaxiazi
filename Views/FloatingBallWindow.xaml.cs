@@ -2,10 +2,10 @@ using System;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
-using PromptFloat.Services;
-using PromptFloat.Models;
+using Huaxiazi.Services;
+using Huaxiazi.Models;
 
-namespace PromptFloat.Views;
+namespace Huaxiazi.Views;
 
 /// <summary>
 /// 收缩态悬浮球。双击展开主窗口；长按/拖动移动位置。

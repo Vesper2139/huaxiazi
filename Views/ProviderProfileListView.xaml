@@ -1,7 +1,7 @@
-<UserControl x:Class="PromptFloat.Views.ProviderProfileListView"
+<UserControl x:Class="Huaxiazi.Views.ProviderProfileListView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:PromptFloat.Views"
+             xmlns:local="clr-namespace:Huaxiazi.Views"
              FontFamily="{StaticResource AppFont}">
     <UserControl.Resources>
         <local:CountZeroToVisibilityConverter x:Key="CountZeroToVisibility" />

@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace PromptFloat.Models;
+namespace Huaxiazi.Models;
 
 public enum PolishResponseKind
 {
