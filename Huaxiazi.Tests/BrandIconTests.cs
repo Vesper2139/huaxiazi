@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -48,6 +49,39 @@ public sealed class BrandIconTests
         }
 
         Assert.True(new[] { 16, 20, 24, 32, 40, 48, 64, 128, 256 }.All(sizes.Contains));
+    }
+
+    [Fact]
+    public void WindowsIcon_DoesNotCarryABlackMatteAtTheCorners()
+    {
+        var path = Path.Combine(RepoRoot(), "Resources", "Brand", "Huaxiazi.ico");
+        using var stream = File.OpenRead(path);
+        using var reader = new BinaryReader(stream);
+        Assert.Equal((ushort)0, reader.ReadUInt16());
+        Assert.Equal((ushort)1, reader.ReadUInt16());
+        var count = reader.ReadUInt16();
+        for (var index = 0; index < count; index++)
+        {
+            reader.ReadByte();
+            reader.ReadByte();
+            reader.ReadByte();
+            reader.ReadByte();
+            reader.ReadUInt16();
+            reader.ReadUInt16();
+            var length = reader.ReadUInt32();
+            var offset = reader.ReadUInt32();
+            var returnPosition = stream.Position;
+            stream.Position = offset;
+            using var frame = new MemoryStream(reader.ReadBytes(checked((int)length)), writable: false);
+            using var bitmap = new Bitmap(frame);
+            foreach (var point in new[] { new System.Drawing.Point(0, 0), new System.Drawing.Point(bitmap.Width - 1, 0), new System.Drawing.Point(0, bitmap.Height - 1), new System.Drawing.Point(bitmap.Width - 1, bitmap.Height - 1) })
+            {
+                var pixel = bitmap.GetPixel(point.X, point.Y);
+                Assert.True(pixel.A == 0 || Math.Max(pixel.R, Math.Max(pixel.G, pixel.B)) > 80, $"Dark matte detected in {bitmap.Width}px frame at {point}.");
+            }
+
+            stream.Position = returnPosition;
+        }
     }
 
     [Fact]
