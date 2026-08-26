@@ -16,12 +16,23 @@ namespace PromptFloat.Tests;
 ///  - OptimizedResult setter 会 raise ShowResultToggle 通知。
 /// 不触发任何网络请求（不调用 OptimizeAsync）。
 /// </summary>
-public class MainViewModelTests
+public class MainViewModelTests : IDisposable
 {
+    private readonly string _testDataRoot = Path.Combine(Path.GetTempPath(), "VesperMainVmClass_" + Guid.NewGuid().ToString("N"));
+
+    public MainViewModelTests() => ResetSettings();
+
+    private void ResetSettings() => App.ReplaceSettings(new AppSettings { DataDirectory = _testDataRoot });
+
+    public void Dispose()
+    {
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        try { if (Directory.Exists(_testDataRoot)) Directory.Delete(_testDataRoot, true); } catch { }
+    }
     [Fact]
     public void NewViewModel_DefaultsToPolishModeAndShowsModeSwitcher()
     {
-        App.ReplaceSettings(new AppSettings());
+        ResetSettings();
         var root = Path.Combine(Path.GetTempPath(), "VesperMainVm_" + Guid.NewGuid().ToString("N"));
         try
         {
@@ -57,6 +68,113 @@ public class MainViewModelTests
         vm.SelectModeCommand.Execute(ApplicationMode.PromptOptimize);
 
         Assert.Equal(ApplicationMode.Polish, vm.CurrentMode);
+    }
+
+    [Fact]
+    public void UndoRedo_AreIsolatedPerMode_AndModeSwitchDoesNotPolluteHistory()
+    {
+        ResetSettings();
+        var root = Path.Combine(Path.GetTempPath(), "VesperMainVm_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var vm = new MainViewModel(new WorkspaceDraftService(root), new ArchiveService(root));
+            Assert.Equal(ApplicationMode.Polish, vm.CurrentMode);
+
+            // 润色模式：两次输入→清空，润色栈应积累两条撤回
+            vm.UserInput = "同一输入";
+            vm.ClearInputCommand.Execute(null);
+            vm.UserInput = "润色草稿";
+            vm.ClearInputCommand.Execute(null);
+            Assert.True(vm.CanUndoWorkspace);
+
+            // 切到提示词模式：润色的撤回不得跟随 → 提示词栈为空
+            vm.SelectModeCommand.Execute(ApplicationMode.PromptOptimize);
+            Assert.Equal(ApplicationMode.PromptOptimize, vm.CurrentMode);
+            Assert.False(vm.CanUndoWorkspace);
+            Assert.False(vm.CanRedoWorkspace);
+
+            // 提示词模式操作一次
+            vm.UserInput = "同一输入";
+            vm.ClearInputCommand.Execute(null);
+            Assert.True(vm.CanUndoWorkspace);
+
+            // 提示词内撤回：恢复该模式自己的输入，且不跳到润色模式
+            vm.UndoWorkspaceCommand.Execute(null);
+            Assert.Equal(ApplicationMode.PromptOptimize, vm.CurrentMode);
+            Assert.Equal("同一输入", vm.UserInput);
+
+            // 切回润色：润色历史仍在，撤回恢复润色状态且不跳模式
+            vm.SelectModeCommand.Execute(ApplicationMode.Polish);
+            Assert.True(vm.CanUndoWorkspace);
+            vm.UndoWorkspaceCommand.Execute(null);
+            Assert.Equal(ApplicationMode.Polish, vm.CurrentMode);
+            Assert.Equal("润色草稿", vm.UserInput);
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void RegenerateCommand_CanExecute_FollowsInputAndBusy()
+    {
+        ResetSettings();
+        var vm = new MainViewModel();
+
+        Assert.False(vm.RegenerateCommand.CanExecute(null)); // 无输入不可重新生成
+        vm.UserInput = "原文";
+        Assert.True(vm.RegenerateCommand.CanExecute(null));
+        vm.IsBusy = true;
+        Assert.False(vm.RegenerateCommand.CanExecute(null)); // 忙时不可
+        vm.IsBusy = false;
+        Assert.True(vm.RegenerateCommand.CanExecute(null));
+        Assert.True(vm.CanRegenerate);
+    }
+
+    [Fact]
+    public void ModeToggleLabel_Target_ReflectCurrentMode()
+    {
+        ResetSettings();
+        var vm = new MainViewModel { CurrentMode = ApplicationMode.Polish };
+
+        Assert.Equal("润色", vm.ModeToggleLabel);
+        Assert.Equal(ApplicationMode.PromptOptimize, vm.ToggleModeTarget);
+
+        vm.SelectModeCommand.Execute(ApplicationMode.PromptOptimize);
+
+        Assert.Equal(ApplicationMode.PromptOptimize, vm.CurrentMode);
+        Assert.Equal("提示词", vm.ModeToggleLabel);
+        Assert.Equal(ApplicationMode.Polish, vm.ToggleModeTarget);
+    }
+
+    [Fact]
+    public void ViewToggleLabel_Target_ReflectCurrentView()
+    {
+        ResetSettings();
+        var vm = new MainViewModel { ViewMode = ViewMode.Original };
+
+        Assert.Equal("优化稿", vm.ViewToggleLabel);
+        Assert.Equal(ViewMode.Optimized, vm.ViewToggleTarget);
+
+        vm.OptimizedResult = "结果";
+        vm.SetViewModeCommand.Execute(ViewMode.Optimized);
+
+        Assert.Equal(ViewMode.Optimized, vm.ViewMode);
+        Assert.Equal("原文", vm.ViewToggleLabel);
+        Assert.Equal(ViewMode.Original, vm.ViewToggleTarget);
+    }
+
+    [Fact]
+    public void ViewToggle_OptimizedWithoutResult_IsGuarded()
+    {
+        ResetSettings();
+        var vm = new MainViewModel();
+
+        vm.SetViewModeCommand.Execute(ViewMode.Optimized);
+
+        Assert.Equal(ViewMode.Original, vm.ViewMode); // 无结果时切不到优化稿
     }
 
     [Fact]

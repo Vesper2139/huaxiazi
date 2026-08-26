@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "skills": [
+    {
+      "id": "github-prompt-optimizer",
+      "packagePath": "prompt-optimizer",
+      "displayName": "提示词优化",
+      "displayDescription": "将模糊需求整理为清晰、可执行、结构完整的提示词。",
+      "mode": "PromptOptimize",
+      "defaultEnabled": true,
+      "sourceRepository": "https://github.com/github/awesome-copilot",
+      "sourceRevision": "4742f265959bf025882314564b364d9d7af6e2d5",
+      "license": "MIT",
+      "routingTags": ["prompt", "通用"],
+      "excludedSections": ["What you output", "Output format", "Examples"]
+    },
+    {
+      "id": "anthropic-internal-comms",
+      "packagePath": "internal-comms",
+      "displayName": "职场沟通",
+      "displayDescription": "用于周报、项目进展、内部通知、FAQ 等职场沟通，按清晰、专业的结构组织内容。",
+      "mode": "Polish",
+      "defaultEnabled": true,
+      "sourceRepository": "https://github.com/anthropics/skills",
+      "sourceRevision": "3b3fad96af16a10759d930941b4520ba0c40edae",
+      "license": "Apache-2.0",
+      "routingTags": ["职场沟通", "汇报", "周报", "项目进展", "内部通知", "FAQ", "领导"],
+      "excludedSections": ["Tools Available"]
+    },
+    {
+      "id": "github-documentation-writer",
+      "packagePath": "documentation-writer",
+      "displayName": "技术文档",
+      "displayDescription": "用于 README、教程、API 参考与操作说明等技术文档，强调准确、清晰和可维护性。",
+      "mode": "Polish",
+      "defaultEnabled": true,
+      "sourceRepository": "https://github.com/github/awesome-copilot",
+      "sourceRevision": "4742f265959bf025882314564b364d9d7af6e2d5",
+      "license": "MIT",
+      "routingTags": ["技术文档", "README", "教程", "操作说明", "API", "参考文档", "使用说明"],
+      "excludedSections": ["WORKFLOW"]
+    }
+  ]
+}

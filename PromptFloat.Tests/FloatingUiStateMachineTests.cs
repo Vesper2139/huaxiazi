@@ -55,4 +55,29 @@ public sealed class FloatingUiStateMachineTests
 
         Assert.Equal(FloatingUiState.Ball, machine.State);
     }
+
+    [Fact]
+    public void ResetToBall_RecoversFromAnInterruptedCollapse()
+    {
+        var machine = new FloatingUiStateMachine();
+        machine.ShowWindowDirect();
+        machine.BeginCollapse();
+
+        machine.ResetToBall();
+        machine.BeginExpand();
+
+        Assert.Equal(FloatingUiState.Expanding, machine.State);
+    }
+
+    [Fact]
+    public void CancelExpand_ReturnsToBallAndAllowsASecondAttempt()
+    {
+        var machine = new FloatingUiStateMachine();
+        machine.BeginExpand();
+
+        machine.CancelExpand();
+        machine.BeginExpand();
+
+        Assert.Equal(FloatingUiState.Expanding, machine.State);
+    }
 }

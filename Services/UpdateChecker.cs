@@ -75,7 +75,7 @@ public sealed class UpdateChecker
     /// <summary>
     /// 默认构造：每次检查创建带超时的 <see cref="HttpClient"/>，使用完毕后释放。
     /// </summary>
-    public UpdateChecker() : this(() => new HttpClient { Timeout = DefaultTimeout })
+    public UpdateChecker() : this(() => new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = DefaultTimeout })
     {
     }
 
@@ -127,6 +127,16 @@ public sealed class UpdateChecker
             };
         }
 
+        if (!Uri.TryCreate(updateCheckUrl, UriKind.Absolute, out var urlUri) || urlUri.Scheme != Uri.UriSchemeHttps)
+        {
+            return new UpdateCheckResult
+            {
+                Status = UpdateStatus.Error,
+                CurrentVersion = GetCurrentVersion(),
+                Message = "更新源必须使用 HTTPS 地址。"
+            };
+        }
+
         string raw;
         try
         {
@@ -155,7 +165,20 @@ public sealed class UpdateChecker
             };
         }
 
-        return Evaluate(raw, GetCurrentVersion());
+        var result = Evaluate(raw, GetCurrentVersion());
+        if (result.Status == UpdateStatus.UpdateAvailable &&
+            (!Uri.TryCreate(result.DownloadUrl, UriKind.Absolute, out var downloadUri) ||
+             downloadUri.Scheme != Uri.UriSchemeHttps ||
+             !string.Equals(downloadUri.Host, urlUri.Host, StringComparison.OrdinalIgnoreCase)))
+        {
+            return new UpdateCheckResult
+            {
+                Status = UpdateStatus.Error,
+                CurrentVersion = result.CurrentVersion,
+                Message = "更新包必须来自与更新清单相同的 HTTPS 主机。"
+            };
+        }
+        return result;
     }
 
     /// <summary>

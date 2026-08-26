@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using PromptFloat.Models;
@@ -46,6 +47,9 @@ public sealed class PromptBuilderService
     /// 组装最终发送给模型的 System Prompt。
     /// </summary>
     public string Build(PromptRequest request)
+        => Build(request, null);
+
+    public string Build(PromptRequest request, ProfessionalizationPlan? plan)
     {
         if (request is null)
         {
@@ -82,16 +86,13 @@ public sealed class PromptBuilderService
             result = sb.ToString();
         }
 
-        // 可选：追加用户画像 / 角色设定（见 AppSettings.UserPersona）。
-        // 仅当 Persona 非空时拼接，保证空画像时输出与旧行为完全一致（向后兼容）。
-        if (!string.IsNullOrWhiteSpace(request.Persona))
-        {
-            result += $"\n\n---\n用户画像 / 角色设定（请在优化时贴合该用户的身份与偏好）：\n{request.Persona}\n";
-        }
+        var personalized = new StringBuilder(result);
+        PromptContextComposer.AppendPersonalization(personalized, request.Persona, request.PreferenceInstructions);
+        result = personalized.ToString();
 
-        if (!string.IsNullOrWhiteSpace(request.PreferenceInstructions))
+        if (plan is not null && !string.IsNullOrWhiteSpace(plan.StrategyInstructions))
         {
-            result += $"\n\n---\n用户改写偏好（必须遵守）：\n{request.PreferenceInstructions.Trim()}\n";
+            result += $"\n\n---\n专业化执行计划（优先遵守事实保真与用户本次明确要求）：\n{plan.StrategyInstructions}\n";
         }
 
         var secured = new StringBuilder(result);
@@ -99,6 +100,13 @@ public sealed class PromptBuilderService
         result = secured.ToString();
 
         return result;
+    }
+
+    public string BuildRepairPrompt(PromptRequest request, ProfessionalizationPlan plan, System.Collections.Generic.IReadOnlyList<QualityIssue> issues)
+    {
+        var prompt = Build(request, plan);
+        var details = string.Join("\n", issues.Select(issue => "- " + issue.Message));
+        return prompt + $"\n\n---\n上一份结果未通过本地质量门禁。只修复下列问题并重新输出完整最终提示词，不解释修改过程：\n{details}\n不得遗漏原文事实锚点，不得新增业务事实。";
     }
 
     public string BuildUserMessage(PromptRequest request)

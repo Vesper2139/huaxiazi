@@ -1,5 +1,8 @@
-using System.Windows.Media;
+using System.Threading;
+using System;
+using System.IO;
 using System.Windows;
+using System.Windows.Media;
 using PromptFloat.Models;
 using PromptFloat.Services;
 using Xunit;
@@ -40,97 +43,142 @@ public sealed class ThemeServiceTests
     }
 
     [Fact]
-    public void Apply_LightModeRecolorsSecondarySurfaces()
+    public void SkinService_RegistersBuiltInSkins()
     {
+        var service = new SkinService();
+
+        Assert.Equal(4, service.AvailableSkins.Count);
+        Assert.NotNull(service.GetSkin("LightPaper"));
+        Assert.NotNull(service.GetSkin("DarkNocturne"));
+        Assert.NotNull(service.GetSkin("LuoXiaoHei"));
+        Assert.NotNull(service.GetSkin("MaoDie"));
+        Assert.NotNull(service.GetSkin("lightpaper")); // case-insensitive
+    }
+
+    [Fact]
+    public void SkinService_SpecialSkinsUseTransparentSpriteSheetProfiles()
+    {
+        var service = new SkinService();
+        var skin = service.GetSkin("LuoXiaoHei");
+
+        Assert.NotNull(skin);
+        Assert.Equal("spritesheet", skin!.CompanionKind);
+        Assert.Equal("Resources/Skins/LuoXiaoHei/sprite-sheet-v2.png", skin.CompanionSpriteSheetPath);
+        Assert.Equal("Resources/Skins/LuoXiaoHei/idle-variants-v2.png", skin.CompanionIdleVariantsPath);
+        Assert.Equal(4, skin.CompanionSpriteSheetColumns);
+        Assert.Equal(3, skin.CompanionSpriteSheetRows);
+    }
+
+    [Fact]
+    public void SkinService_AllowsCustomSkinRegistration()
+    {
+        var service = new SkinService();
+        service.Register(new SkinManifest("Custom", "自定义皮肤", "Resources/Themes/Custom.xaml"));
+
+        Assert.Equal(5, service.AvailableSkins.Count);
+        var custom = service.GetSkin("Custom");
+        Assert.NotNull(custom);
+        Assert.Equal("自定义皮肤", custom.DisplayName);
+    }
+
+    [Theory]
+    [InlineData("LuoXiaoHei", "Light", true, "LuoXiaoHei")]
+    [InlineData("MaoDie", "Dark", false, "MaoDie")]
+    [InlineData("default", "Light", false, "LightPaper")]
+    [InlineData("default", "Dark", true, "DarkNocturne")]
+    public void ResolveSkinId_SpecialSkinIsIndependentFromDefaultTheme(
+        string skinId, string themeMode, bool systemIsLight, string expected)
+    {
+        var actual = ThemeService.ResolveSkinId(
+            new AppSettings { SkinId = skinId, ThemeMode = themeMode }, systemIsLight, false);
+
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void ThemeService_SelectsCorrectSkinIdForEachMode()
+    {
+        // Light mode → LightPaper
+        var lightSettings = new AppSettings { ThemeMode = "Light" };
+        var lightIsLight = ThemeService.ResolvePalette(lightSettings, true, false);
+        Assert.Equal(Color.FromRgb(0xF5, 0xF4, 0xF1), lightIsLight.Background);
+
+        // Dark mode → DarkNocturne
+        var darkSettings = new AppSettings { ThemeMode = "Dark" };
+        var darkIsLight = ThemeService.ResolvePalette(darkSettings, false, false);
+        Assert.Equal(Color.FromRgb(0x10, 0x10, 0x14), darkIsLight.Background);
+
+        // System mode follows system preference
+        var sysLight = ThemeService.ResolvePalette(new AppSettings { ThemeMode = "System" }, true, false);
+        var sysDark = ThemeService.ResolvePalette(new AppSettings { ThemeMode = "System" }, false, false);
+        Assert.NotEqual(sysLight.Background, sysDark.Background);
+    }
+
+    [Fact]
+    public void SkinService_SwapsTheme_ChangesResolvedColors_AndDoesNotGrowDictionary()
+    {
+        // 自包含：在 STA 线程上经 Application 解析皮肤字典 pack URI（裸 ResourceDictionary
+        // 依赖全局 Application 状态，整跑时顺序变化会偶发 "URI prefix is not recognized"）。
         Exception? failure = null;
-        var thread = new System.Threading.Thread(() =>
+        var thread = new Thread(() =>
         {
             try
             {
-                var application = Application.Current ?? new Application();
-                application.Resources["GlassBaseColor"] = Color.FromRgb(0x0A, 0x16, 0x26);
-                application.Resources["EditorFillColor"] = Color.FromRgb(0x15, 0x21, 0x2D);
-                application.Resources["InputFillColor"] = Color.FromRgb(0x15, 0x21, 0x2D);
+                var app = TestHelpers.EnsureWpfApplication();
+                app.Resources.MergedDictionaries.Clear();
+                var skin = new SkinService(app.Resources);
 
-                ThemeService.Apply(new AppSettings { ThemeMode = "Light" });
+                skin.ApplySkin("DarkNocturne");
+                var dark = (Color)app.Resources["BgColor"];
 
-                Assert.Equal(Color.FromRgb(0xFF, 0xFE, 0xFB), application.Resources["GlassBaseColor"]);
-                Assert.Equal(Color.FromRgb(0xF7, 0xF5, 0xF0), application.Resources["EditorFillColor"]);
-                Assert.Equal(Color.FromRgb(0xFF, 0xFF, 0xFC), application.Resources["InputFillColor"]);
+                skin.ApplySkin("LightPaper");
+                var light = (Color)app.Resources["BgColor"];
+
+                Assert.NotEqual(dark, light);
+                Assert.Equal(Color.FromRgb(0xF3, 0xF1, 0xEC), light);
+                Assert.Equal(Color.FromRgb(0x10, 0x10, 0x14), dark);
+
+                // 反复切换后，皮肤字典仍只有一份（不会因为前缀不匹配退化为 Insert 导致集合膨胀）
+                for (var i = 0; i < 4; i++)
+                {
+                    skin.ApplySkin(i % 2 == 0 ? "LightPaper" : "DarkNocturne");
+                }
+                var themeDictCount = app.Resources.MergedDictionaries
+                    .Count(d => d.Source is not null &&
+                                d.Source.OriginalString.Contains("Themes", StringComparison.OrdinalIgnoreCase));
+                Assert.Equal(1, themeDictCount);
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
-        thread.SetApartmentState(System.Threading.ApartmentState.STA);
+        thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         thread.Join();
-
         Assert.Null(failure);
     }
 
     [Fact]
-    public void Apply_SwitchingBetweenLightAndDarkRecolorsTheLiveResourceSet()
+    public void Apply_MissingImportedSkinFallsBackToTheSavedDefaultMode()
     {
         Exception? failure = null;
-        var thread = new System.Threading.Thread(() =>
+        var thread = new Thread(() =>
         {
             try
             {
-                var application = Application.Current ?? new Application();
+                var app = TestHelpers.EnsureWpfApplication();
+                app.Resources.MergedDictionaries.Clear();
+                var settings = new AppSettings { SkinId = "missing-skin", ThemeMode = "Light" };
+                ThemeService.Apply(settings, new SkinService(app.Resources), app.Resources);
 
-                ThemeService.Apply(new AppSettings { ThemeMode = "Light" });
-                var lightBackground = Assert.IsType<Color>(application.Resources["BgColor"]);
-                var lightText = Assert.IsType<Color>(application.Resources["TextColor"]);
-                ThemeService.Apply(new AppSettings { ThemeMode = "Dark" });
-                var darkBackground = Assert.IsType<Color>(application.Resources["BgColor"]);
-                var darkText = Assert.IsType<Color>(application.Resources["TextColor"]);
-
-                Assert.NotEqual(lightBackground, darkBackground);
-                Assert.NotEqual(lightText, darkText);
-                Assert.True(lightBackground.R > darkBackground.R);
-                Assert.True(darkText.R > lightText.R);
+                Assert.Equal("default", settings.SkinId);
+                Assert.Equal("LightPaper", app.Resources["ThemeId"]);
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
-        thread.SetApartmentState(System.Threading.ApartmentState.STA);
+        thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         thread.Join();
-
-        Assert.Null(failure);
-    }
-
-    [Fact]
-    public void Apply_SwitchesOneCompleteSkinDictionaryIncludingShapeTokens()
-    {
-        Exception? failure = null;
-        var thread = new System.Threading.Thread(() =>
-        {
-            try
-            {
-                var application = Application.Current ?? new Application();
-
-                ThemeService.Apply(new AppSettings { ThemeMode = "Light" });
-                var lightSource = Assert.Single(application.Resources.MergedDictionaries,
-                    dictionary => dictionary.Source?.OriginalString.Contains("/Themes/", StringComparison.OrdinalIgnoreCase) == true).Source;
-                var lightRadius = Assert.IsType<CornerRadius>(application.TryFindResource("WindowRadius"));
-                var lightTheme = Assert.IsType<string>(application.TryFindResource("ThemeId"));
-
-                ThemeService.Apply(new AppSettings { ThemeMode = "Dark" });
-                var darkSource = Assert.Single(application.Resources.MergedDictionaries,
-                    dictionary => dictionary.Source?.OriginalString.Contains("/Themes/", StringComparison.OrdinalIgnoreCase) == true).Source;
-                var darkRadius = Assert.IsType<CornerRadius>(application.TryFindResource("WindowRadius"));
-                var darkTheme = Assert.IsType<string>(application.TryFindResource("ThemeId"));
-
-                Assert.EndsWith("/Themes/Light.xaml", lightSource.OriginalString, StringComparison.OrdinalIgnoreCase);
-                Assert.EndsWith("/Themes/Dark.xaml", darkSource.OriginalString, StringComparison.OrdinalIgnoreCase);
-                Assert.NotEqual(lightTheme, darkTheme);
-                Assert.NotEqual(lightRadius, darkRadius);
-            }
-            catch (Exception exception) { failure = exception; }
-        });
-        thread.SetApartmentState(System.Threading.ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-
         Assert.Null(failure);
     }
 }

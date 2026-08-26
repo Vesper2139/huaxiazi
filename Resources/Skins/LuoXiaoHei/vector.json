@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "canvas": { "width": 88, "height": 88 },
+  "anchor": { "x": 44, "y": 44 },
+  "layers": [
+    { "id": "leftEar", "type": "path", "path": "M14 29 L22 9 Q28 13 29 24 Z", "fill": "#211A15", "stroke": "#4A3B2D", "strokeWidth": 1.2 },
+    { "id": "rightEar", "type": "path", "path": "M59 24 Q60 13 66 9 L74 29 Z", "fill": "#211A15", "stroke": "#4A3B2D", "strokeWidth": 1.2 },
+    { "id": "leftEarInner", "type": "path", "path": "M19 23 L22 14 Q25 16 26 22 Z", "fill": "#B9C56B" },
+    { "id": "rightEarInner", "type": "path", "path": "M62 22 Q63 16 66 14 L69 23 Z", "fill": "#B9C56B" },
+    { "id": "body", "type": "path", "path": "M44 16 C25 16 13 29 13 47 C13 66 26 77 44 77 C62 77 75 66 75 47 C75 29 63 16 44 16 Z", "fill": "#211A15", "stroke": "#4A3B2D", "strokeWidth": 1.2 },
+    { "id": "leftEyeWhite", "type": "ellipse", "bounds": [23, 31, 20, 28], "fill": "#F4F0DE" },
+    { "id": "rightEyeWhite", "type": "ellipse", "bounds": [45, 31, 20, 28], "fill": "#F4F0DE" },
+    { "id": "leftPupil", "type": "ellipse", "bounds": [29, 36, 8, 17], "fill": "#211A15", "gaze": true },
+    { "id": "rightPupil", "type": "ellipse", "bounds": [51, 36, 8, 17], "fill": "#211A15", "gaze": true },
+    { "id": "mouth", "type": "path", "path": "M39 62 Q44 65 49 62", "stroke": "#F4F0DE", "strokeWidth": 2.2 },
+    { "id": "highlight", "type": "path", "path": "M22 58 Q29 70 42 72", "stroke": "#6D5A42", "strokeWidth": 1.2 }
+  ],
+  "animations": {
+    "Idle": { "durationMs": 900, "loop": true, "frames": [
+      { "timeMs": 0, "scale": 1, "offsetY": 0, "eyeScale": 1, "mouthPath": "M39 62 Q44 65 49 62" },
+      { "timeMs": 450, "scale": 1.018, "offsetY": -1, "eyeScale": 0.98, "mouthPath": "M39 62 Q44 64 49 62" },
+      { "timeMs": 900, "scale": 1, "offsetY": 0, "eyeScale": 1, "mouthPath": "M39 62 Q44 65 49 62" }
+    ]},
+    "Sleeping": { "durationMs": 1200, "loop": true, "frames": [
+      { "timeMs": 0, "scale": 1, "offsetY": 0, "eyeScale": 0.12, "mouthPath": "M40 63 L48 63" },
+      { "timeMs": 600, "scale": 1.012, "offsetY": 1, "eyeScale": 0.08, "mouthPath": "M40 63 L48 63" },
+      { "timeMs": 1200, "scale": 1, "offsetY": 0, "eyeScale": 0.12, "mouthPath": "M40 63 L48 63" }
+    ]},
+    "Happy": { "durationMs": 360, "loop": false, "frames": [
+      { "timeMs": 0, "scale": 1, "offsetY": 0, "eyeScale": 1, "mouthPath": "M38 60 Q44 67 50 60" },
+      { "timeMs": 180, "scale": 1.035, "offsetY": -2, "eyeScale": 0.3, "mouthPath": "M37 60 Q44 70 51 60" },
+      { "timeMs": 360, "scale": 1, "offsetY": 0, "eyeScale": 0.45, "mouthPath": "M38 60 Q44 67 50 60" }
+    ]},
+    "Curious": { "durationMs": 420, "loop": false, "frames": [
+      { "timeMs": 0, "scale": 1, "offsetY": 0, "rotation": 0, "eyeScale": 1, "mouthPath": "M40 63 Q44 65 48 63" },
+      { "timeMs": 210, "scale": 1.025, "offsetY": -1, "rotation": -4, "eyeScale": 1.08, "mouthPath": "M40 63 A4 4 0 1 0 48 63 A4 4 0 1 0 40 63" },
+      { "timeMs": 420, "scale": 1, "offsetY": 0, "rotation": 0, "eyeScale": 1, "mouthPath": "M40 63 Q44 65 48 63" }
+    ]},
+    "Thinking": { "durationMs": 520, "loop": false, "frames": [
+      { "timeMs": 0, "scale": 1, "offsetY": 0, "eyeScale": 1, "mouthPath": "M40 63 L48 63" },
+      { "timeMs": 260, "scale": 1.012, "offsetY": -1, "rotation": 3, "eyeScale": 0.92, "mouthPath": "M40 63 L48 63" },
+      { "timeMs": 520, "scale": 1, "offsetY": 0, "rotation": 0, "eyeScale": 1, "mouthPath": "M40 63 L48 63" }
+    ]},
+    "Listening": { "durationMs": 420, "loop": true, "frames": [
+      { "timeMs": 0, "scale": 1, "offsetY": 0, "eyeScale": 1, "mouthPath": "M40 63 L48 63" },
+      { "timeMs": 210, "scale": 1.018, "offsetY": 0, "rotation": -2, "eyeScale": 1.02, "mouthPath": "M40 63 Q44 65 48 63" },
+      { "timeMs": 420, "scale": 1, "offsetY": 0, "rotation": 0, "eyeScale": 1, "mouthPath": "M40 63 L48 63" }
+    ]},
+    "Working": { "durationMs": 700, "loop": true, "frames": [
+      { "timeMs": 0, "scale": 1, "offsetY": 0, "eyeScale": 0.9, "mouthPath": "M40 63 L48 63" },
+      { "timeMs": 350, "scale": 1.025, "offsetY": -1, "rotation": -2, "eyeScale": 1, "mouthPath": "M40 63 Q44 65 48 63" },
+      { "timeMs": 700, "scale": 1, "offsetY": 0, "rotation": 0, "eyeScale": 0.9, "mouthPath": "M40 63 L48 63" }
+    ]},
+    "Surprised": { "durationMs": 300, "loop": false, "frames": [
+      { "timeMs": 0, "scale": 1, "offsetY": 0, "eyeScale": 1, "mouthPath": "M40 63 Q44 65 48 63" },
+      { "timeMs": 150, "scale": 1.04, "offsetY": -2, "eyeScale": 1.2, "mouthPath": "M40 62 A4 5 0 1 0 48 62 A4 5 0 1 0 40 62" },
+      { "timeMs": 300, "scale": 1, "offsetY": 0, "eyeScale": 1, "mouthPath": "M40 63 Q44 65 48 63" }
+    ]},
+    "Warning": { "durationMs": 360, "loop": false, "frames": [
+      { "timeMs": 0, "scale": 1, "offsetY": 0, "eyeScale": 1, "mouthPath": "M39 63 Q44 60 49 63" },
+      { "timeMs": 180, "scale": 1.015, "offsetX": -2, "rotation": -2, "eyeScale": 0.92, "mouthPath": "M39 63 Q44 60 49 63" },
+      { "timeMs": 360, "scale": 1, "offsetY": 0, "offsetX": 0, "rotation": 0, "eyeScale": 1, "mouthPath": "M39 63 Q44 60 49 63" }
+    ]},
+    "Error": { "durationMs": 300, "loop": false, "frames": [
+      { "timeMs": 0, "scale": 1, "offsetY": 0, "eyeScale": 0.9, "mouthPath": "M39 63 Q44 60 49 63" },
+      { "timeMs": 150, "scale": 1.02, "offsetX": -2, "rotation": 2, "eyeScale": 0.86, "mouthPath": "M39 63 Q44 60 49 63" },
+      { "timeMs": 300, "scale": 1, "offsetX": 0, "rotation": 0, "eyeScale": 0.9, "mouthPath": "M39 63 Q44 60 49 63" }
+    ]},
+    "Dragging": { "durationMs": 220, "loop": true, "frames": [
+      { "timeMs": 0, "scale": 1, "offsetY": 0, "eyeScale": 0.92, "mouthPath": "M39 63 Q44 65 49 63" },
+      { "timeMs": 110, "scale": 1.08, "offsetX": 2, "offsetY": 1, "rotation": 2, "eyeScale": 0.86, "mouthPath": "M39 63 Q44 65 49 63" },
+      { "timeMs": 220, "scale": 1, "offsetX": 0, "offsetY": 0, "rotation": 0, "eyeScale": 0.92, "mouthPath": "M39 63 Q44 65 49 63" }
+    ]},
+    "Expanding": { "durationMs": 260, "loop": false, "frames": [
+      { "timeMs": 0, "scale": 1, "offsetY": 0, "eyeScale": 1, "mouthPath": "M39 63 Q44 65 49 63" },
+      { "timeMs": 130, "scale": 0.94, "offsetY": -2, "rotation": -4, "eyeScale": 1.05, "mouthPath": "M38 61 Q44 68 50 61" },
+      { "timeMs": 260, "scale": 1.02, "offsetY": 0, "rotation": 0, "eyeScale": 1, "mouthPath": "M38 61 Q44 68 50 61" }
+    ]}
+  }
+}

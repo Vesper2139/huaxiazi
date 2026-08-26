@@ -14,6 +14,7 @@
     <Color x:Key="DisabledTextColor">#68646D</Color>
     <Color x:Key="BorderColor">#36323C</Color>
     <Color x:Key="HighlightColor">#24B45CFF</Color>
+    <Color x:Key="SelectionColor">#8CB45CFF</Color>
     <Color x:Key="SuccessColor">#63D894</Color>
     <Color x:Key="DangerColor">#F06B74</Color>
     <Color x:Key="GlassTopColor">#1C1A20</Color>
@@ -45,4 +46,49 @@
     <CornerRadius x:Key="DropdownRadius">9</CornerRadius>
     <CornerRadius x:Key="SmallRadius">7</CornerRadius>
     <CornerRadius x:Key="CardRadius">11</CornerRadius>
+    <sys:Double x:Key="SkinCompanionSize">44</sys:Double>
+    <sys:Double x:Key="SkinTitleBarHeight">34</sys:Double>
+    <sys:Double x:Key="SkinToolButtonSize">24</sys:Double>
+    <sys:Double x:Key="SkinCompanionOverscan">1.18</sys:Double>
+    <sys:Double x:Key="SkinCompanionOffsetY">-14</sys:Double>
+    <sys:Double x:Key="SkinIconStrokeWidth">1.5</sys:Double>
+    <sys:Double x:Key="SkinControlHeight">34</sys:Double>
+    <Thickness x:Key="SkinContentSpacing">10</Thickness>
+
+    <!-- 画刷令牌：随整套皮肤字典一起替换，供 {DynamicResource XxxBrush} 实时换肤 -->
+    <SolidColorBrush x:Key="BrandBrush" Color="#B45CFF" />
+    <SolidColorBrush x:Key="BrandDarkBrush" Color="#9844E3" />
+    <SolidColorBrush x:Key="BrandHoverBrush" Color="#C47DFF" />
+    <SolidColorBrush x:Key="BrandGradientBrush" Color="#B45CFF" />
+    <SolidColorBrush x:Key="BgBrush" Color="#101014" />
+    <SolidColorBrush x:Key="PanelBrush" Color="#16151B" />
+    <SolidColorBrush x:Key="TextBrush" Color="#F4F1F7" />
+    <SolidColorBrush x:Key="BodyTextBrush" Color="#DFDBE4" />
+    <SolidColorBrush x:Key="MutedBrush" Color="#9993A0" />
+    <SolidColorBrush x:Key="DisabledTextBrush" Color="#68646D" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#36323C" />
+    <SolidColorBrush x:Key="HighlightBrush" Color="#24B45CFF" />
+    <SolidColorBrush x:Key="SelectionBrush" Color="#8CB45CFF" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="#63D894" />
+    <SolidColorBrush x:Key="DangerBrush" Color="#F06B74" />
+    <SolidColorBrush x:Key="GlassBrush" Color="#16151B" />
+    <SolidColorBrush x:Key="GlassBorderBrush" Color="#36323C" />
+    <SolidColorBrush x:Key="VesperEdgeBrush" Color="#36323C" />
+    <SolidColorBrush x:Key="EditorBrush" Color="#201E25" />
+    <SolidColorBrush x:Key="CapsuleBrush" Color="#12FFFFFF" />
+    <SolidColorBrush x:Key="CapsuleBorderBrush" Color="#3A3541" />
+    <SolidColorBrush x:Key="InputBrush" Color="#1D1B22" />
+    <SolidColorBrush x:Key="InputBorderBrush" Color="#3A3640" />
+    <SolidColorBrush x:Key="FocusBorderBrush" Color="#A0B45CFF" />
+    <SolidColorBrush x:Key="HoverSurfaceBrush" Color="#13FFFFFF" />
+    <SolidColorBrush x:Key="SelectedSurfaceBrush" Color="#1FB45CFF" />
+    <SolidColorBrush x:Key="PopupBrush" Color="#1B1920" />
+    <SolidColorBrush x:Key="DockBrush" Color="#1B1920" />
+    <SolidColorBrush x:Key="SwitchTrackBrush" Color="#3A3541" />
+    <SolidColorBrush x:Key="SwitchThumbBrush" Color="#E8EEF5" />
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#829A93A0" />
+    <SolidColorBrush x:Key="CompanionSurfaceBrush" Color="#101116" />
+    <SolidColorBrush x:Key="CompanionFaceBrush" Color="#F4E9FF" />
+    <SolidColorBrush x:Key="CompanionAccentBrush" Color="#B45CFF" />
+    <SolidColorBrush x:Key="CompanionBorderBrush" Color="#302B36" />
 </ResourceDictionary>

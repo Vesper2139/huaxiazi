@@ -75,7 +75,7 @@ public sealed class IntelligentOrchestrationIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task SavingManualEdit_RecordsExplicitLearningEvidence()
+    public async Task SavingManualEdit_RecordsOnlyStructuredLearningEvidence()
     {
         var generated = "感谢您的理解与支持，我们会尽快推进。";
         var client = new CapturingClient($"{{\"kind\":\"final\",\"scenario\":\"职场沟通\",\"topic\":\"进度\",\"content\":\"{generated}\"}}");
@@ -91,7 +91,9 @@ public sealed class IntelligentOrchestrationIntegrationTests : IDisposable
         var saved = Assert.Single(archive.Search(string.Empty));
         using var context = JsonDocument.Parse(saved.ContextJson);
         Assert.True(context.RootElement.GetProperty("UserEdited").GetBoolean());
-        Assert.Equal(generated, context.RootElement.GetProperty("GeneratedText").GetString());
+        Assert.False(context.RootElement.TryGetProperty("GeneratedText", out _));
+        Assert.Equal(1, App.Settings.ExpressionPreferenceProfile.EditCount);
+        Assert.True(App.Settings.ExpressionPreferenceProfile.RemovedCannedExpressions.Count > 0);
     }
 
     [Fact]
@@ -112,7 +114,7 @@ public sealed class IntelligentOrchestrationIntegrationTests : IDisposable
 
         var saved = Assert.Single(archive.Search(string.Empty));
         using var context = JsonDocument.Parse(saved.ContextJson);
-        Assert.Equal(string.Empty, context.RootElement.GetProperty("GeneratedText").GetString());
+        Assert.False(context.RootElement.TryGetProperty("GeneratedText", out _));
     }
 
     private MainViewModel Create(ITextGenerationClient client) =>

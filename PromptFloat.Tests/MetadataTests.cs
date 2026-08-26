@@ -20,11 +20,11 @@ public class MetadataTests
     }
 
     [Fact]
-    public void AssemblyMetadata_UsesAdaptiveOrchestrationMinorVersion()
+    public void AssemblyMetadata_UsesCurrentReleaseVersion()
     {
         var version = typeof(AppSettings).Assembly.GetName().Version;
 
-        Assert.Equal(new System.Version(1, 2, 2, 0), version);
+        Assert.Equal(new System.Version(1, 5, 0, 0), version);
     }
 
     [Fact]

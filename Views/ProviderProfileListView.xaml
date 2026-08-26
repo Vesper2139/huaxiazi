@@ -1,0 +1,154 @@
+<UserControl x:Class="PromptFloat.Views.ProviderProfileListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:PromptFloat.Views"
+             FontFamily="{StaticResource AppFont}">
+    <UserControl.Resources>
+        <local:CountZeroToVisibilityConverter x:Key="CountZeroToVisibility" />
+        <local:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <local:ProviderPlatformDisplayNameConverter x:Key="ProviderPlatformDisplayName" />
+        <local:ProfileApiKeyStatusConverter x:Key="ProfileApiKeyStatus" />
+        <local:ProviderActiveVisibilityConverter x:Key="ProviderActiveVisibility" />
+        <local:ProviderActiveEnabledConverter x:Key="ProviderActiveEnabled" />
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="配置管理" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" />
+                <TextBlock Text="选择一个配置继续编辑，或添加新的模型。" Style="{StaticResource LabelText}" Margin="0,4,0,0" />
+            </StackPanel>
+            <Border Grid.Column="1" Background="{DynamicResource InputBrush}" BorderBrush="{DynamicResource InputBorderBrush}"
+                    BorderThickness="1" CornerRadius="12" Padding="10,5" VerticalAlignment="Center">
+                <TextBlock Foreground="{DynamicResource MutedBrush}" FontSize="11">
+                    <Run Text="{Binding ProviderProfiles.Count, Mode=OneWay}" /><Run Text=" 个配置" />
+                </TextBlock>
+            </Border>
+        </Grid>
+
+        <!-- 搜索与配置操作统一放在列表页工具栏。 -->
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox Style="{StaticResource GlassPlainTextBox}"
+                     Text="{Binding ProviderListSearchText, UpdateSourceTrigger=PropertyChanged}"
+                     Tag="搜索配置名称或厂商…" VerticalContentAlignment="Center" Height="36" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                <Button Style="{StaticResource GlassButton}" Content="复制" Command="{Binding DuplicateProviderCommand}"
+                        IsEnabled="{Binding CanDuplicateOrEditProvider}" Padding="11,5" ToolTip="复制所选配置" />
+                <Button Style="{StaticResource GlassButton}" Content="编辑" Command="{Binding NavigateToProviderEditCommand}"
+                        CommandParameter="{Binding SelectedProviderProfile}" IsEnabled="{Binding CanDuplicateOrEditProvider}"
+                        Padding="11,5" Margin="6,0,0,0" />
+                <Button Style="{StaticResource GlassButton}" Content="删除" Click="DeleteSelectedProfile_OnClick"
+                        IsEnabled="{Binding CanRemoveProvider}" Foreground="{DynamicResource DangerBrush}"
+                        Padding="11,5" Margin="6,0,0,0" />
+                <Button Style="{StaticResource PrimaryButton}" Content="添加模型" Command="{Binding AddProviderCommand}"
+                        Margin="6,0,0,0" Padding="13,5" />
+            </StackPanel>
+        </Grid>
+
+        <!-- 配置列表 -->
+        <Border Grid.Row="2" Style="{StaticResource SettingsCard}" Padding="12">
+            <Grid>
+                <ListBox x:Name="ProfileListBox"
+                         ItemsSource="{Binding FilteredProviderProfiles}"
+                         SelectedItem="{Binding SelectedProviderProfile, Mode=TwoWay}"
+                         ItemContainerStyle="{StaticResource ProviderProfileCardItem}"
+                         Background="Transparent" BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         local:NestedScrollBehavior.ForwardMouseWheelToParent="True"
+                         MouseDoubleClick="ProfileListBox_OnMouseDoubleClick"
+                         KeyDown="ProfileListBox_OnKeyDown">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource BodyTextBrush}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis">
+                                        <Run Text="{Binding Platform, Converter={StaticResource ProviderPlatformDisplayName}}" /><Run Text="  ·  " /><Run Text="{Binding Model}" />
+                                    </TextBlock>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding Model}" FontSize="11"
+                                           Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"
+                                           Margin="12,0" TextTrimming="CharacterEllipsis" MaxWidth="140" />
+                                <Border Grid.Column="2" Style="{StaticResource ProviderStatusDot}">
+                                    <Border.Background>
+                                        <MultiBinding Converter="{StaticResource ProfileApiKeyStatus}">
+                                            <Binding />
+                                            <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                                        </MultiBinding>
+                                    </Border.Background>
+                                </Border>
+                                <StackPanel Grid.Column="3" Margin="12,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="当前使用" FontSize="10" Foreground="{DynamicResource BrandBrush}" HorizontalAlignment="Right">
+                                        <TextBlock.Visibility>
+                                            <MultiBinding Converter="{StaticResource ProviderActiveVisibility}">
+                                                <Binding />
+                                                <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                                            </MultiBinding>
+                                        </TextBlock.Visibility>
+                                    </TextBlock>
+                                    <Button Content="设为当前" Style="{StaticResource GlassButton}" Padding="8,3" FontSize="11"
+                                            Command="{Binding DataContext.SetActiveProviderCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}">
+                                        <Button.IsEnabled>
+                                            <MultiBinding Converter="{StaticResource ProviderActiveEnabled}">
+                                                <Binding />
+                                                <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                                            </MultiBinding>
+                                        </Button.IsEnabled>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- 空状态 -->
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Visibility="{Binding FilteredProviderProfiles.Count, Converter={StaticResource CountZeroToVisibility}}">
+                    <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconModel}" Width="48" Height="48"
+                          Stroke="{DynamicResource MutedBrush}" Opacity="0.6" />
+                    <TextBlock Text="还没有模型配置" FontSize="13" FontWeight="SemiBold"
+                               Foreground="{DynamicResource BodyTextBrush}" HorizontalAlignment="Center" Margin="0,14,0,4" />
+                    <TextBlock Text="添加第一个模型以开始使用" FontSize="11"
+                               Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" Margin="0,0,0,14" />
+                    <Button Style="{StaticResource PrimaryButton}" Content="添加你的第一个模型"
+                            Command="{Binding AddProviderCommand}" Padding="16,8" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 当前选择状态保持低噪声；设置页关闭时由唯一提交路径自动保存。 -->
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding SelectedProviderProfile.Name, FallbackValue='未选择'}" FontSize="12"
+                       Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="1" Text="关闭设置后自动保存" FontSize="11"
+                       Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" />
+        </Grid>
+    </Grid>
+</UserControl>

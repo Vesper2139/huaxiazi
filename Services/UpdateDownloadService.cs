@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,8 +12,40 @@ public enum UpdateDownloadStatus
 {
     Success,
     HashMismatch,
+    SignatureInvalid,
     Cancelled,
     Error
+}
+
+/// <summary>安装包发布者校验抽象，便于隔离测试且不允许仅凭哈希执行未知文件。</summary>
+internal interface IAuthenticodeVerifier
+{
+    bool Verify(string filePath, out string? publisher);
+}
+
+internal sealed class AuthenticodeVerifier : IAuthenticodeVerifier
+{
+    public bool Verify(string filePath, out string? publisher)
+    {
+        publisher = null;
+        try
+        {
+            // CreateFromSignedFile 要求 PE 带 Authenticode 签名；随后用系统证书链
+            // 验证完整性与信任链。发布者名称只作为诊断，不写入日志或用户配置。
+            using var certificate = new X509Certificate2(X509Certificate.CreateFromSignedFile(filePath));
+            publisher = certificate.GetNameInfo(X509NameType.SimpleName, false);
+            using var chain = new X509Chain();
+            chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+            chain.ChainPolicy.VerificationFlags = X509VerificationFlags.NoFlag;
+            return chain.Build(certificate) &&
+                   !string.IsNullOrWhiteSpace(publisher) &&
+                   publisher.Contains("Vesper", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
 
 public sealed class UpdateDownloadResult
@@ -23,19 +56,26 @@ public sealed class UpdateDownloadResult
 }
 
 /// <summary>
-/// 下载更新安装包并在落盘前验证 SHA-256。校验成功前只保留不可执行的临时文件。
+/// 下载更新安装包并在落盘前验证 SHA-256 与 Authenticode 发布者签名。
+/// 所有校验成功前只保留不可执行的临时文件。
 /// </summary>
 public sealed class UpdateDownloadService
 {
     private readonly HttpClient _client;
+    private readonly IAuthenticodeVerifier _signatureVerifier;
 
-    public UpdateDownloadService() : this(new HttpClient { Timeout = TimeSpan.FromMinutes(10) })
+    public UpdateDownloadService() : this(new HttpClient { Timeout = TimeSpan.FromMinutes(10) }, new AuthenticodeVerifier())
     {
     }
 
-    public UpdateDownloadService(HttpClient client)
+    public UpdateDownloadService(HttpClient client) : this(client, new AuthenticodeVerifier())
+    {
+    }
+
+    internal UpdateDownloadService(HttpClient client, IAuthenticodeVerifier signatureVerifier)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
+        _signatureVerifier = signatureVerifier ?? throw new ArgumentNullException(nameof(signatureVerifier));
     }
 
     public async Task<UpdateDownloadResult> DownloadAsync(
@@ -49,9 +89,9 @@ public sealed class UpdateDownloadService
         try
         {
             if (!Uri.TryCreate(downloadUrl, UriKind.Absolute, out var uri)
-                || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
+                || uri.Scheme != Uri.UriSchemeHttps)
             {
-                return Error("下载地址无效。");
+                return Error("下载地址必须使用 HTTPS 协议。");
             }
             if (!IsValidSha256(expectedSha256))
             {
@@ -98,6 +138,16 @@ public sealed class UpdateDownloadService
                 {
                     Status = UpdateDownloadStatus.HashMismatch,
                     Message = "安装包校验失败，文件已删除。"
+                };
+            }
+
+            if (!_signatureVerifier.Verify(temporaryPath, out _))
+            {
+                DeleteTemporaryFile(temporaryPath);
+                return new UpdateDownloadResult
+                {
+                    Status = UpdateDownloadStatus.SignatureInvalid,
+                    Message = "安装包未通过 Vesper 发布者签名校验，文件已删除。"
                 };
             }
 

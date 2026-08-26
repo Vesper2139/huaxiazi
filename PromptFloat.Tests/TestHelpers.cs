@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Windows;
 using PromptFloat.Services;
 
 namespace PromptFloat.Tests;
@@ -19,6 +20,38 @@ namespace PromptFloat.Tests;
 /// </summary>
 internal static class TestHelpers
 {
+    /// <summary>
+    /// WPF keeps Application.Current in process-wide static state, while the UI
+    /// contract tests intentionally create short-lived STA threads. Clear that
+    /// state after a test thread exits so a later STA thread never reuses a
+    /// dispatcher that has already shut down. This is test-host hygiene only;
+    /// the product still owns one Application for its lifetime.
+    /// </summary>
+    public static void ResetWpfApplication()
+    {
+        var application = Application.Current;
+        if (application is not null && ReferenceEquals(application.Dispatcher, System.Windows.Threading.Dispatcher.CurrentDispatcher))
+        {
+            foreach (Window window in application.Windows)
+            {
+                try { window.Close(); } catch { /* best effort during teardown */ }
+            }
+        }
+
+        var applicationType = typeof(Application);
+        applicationType.GetField("_appInstance", BindingFlags.NonPublic | BindingFlags.Static)?.SetValue(null, null);
+        applicationType.GetField("_appCreatedInThisAppDomain", BindingFlags.NonPublic | BindingFlags.Static)?.SetValue(null, false);
+        applicationType.GetField("_isShuttingDown", BindingFlags.NonPublic | BindingFlags.Static)?.SetValue(null, false);
+    }
+
+    public static Application EnsureWpfApplication()
+    {
+        if (Application.Current is { } existing && !ReferenceEquals(existing.Dispatcher, System.Windows.Threading.Dispatcher.CurrentDispatcher))
+            ResetWpfApplication();
+
+        return Application.Current ?? new Application();
+    }
+
     #region ConfigService —— 重定向静态配置路径
 
     public static void RedirectConfigTo(string directory, string? legacyConfigPath = null)

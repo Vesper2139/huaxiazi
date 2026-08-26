@@ -1,14 +1,14 @@
 ; Huaxiazi Inno Setup installer script
-; Builds HuaxiaziSetup.exe from out\publish\win-x64\
+; Builds Vesper-Setup.exe from out\publish\win-x64\
 ;
 ; Usage:
 ;   1) Publish the self-contained build first (publish.ps1 or dotnet publish).
 ;   2) Compile with Inno Setup Compiler:  iscc deploy\installer.iss
 ;
-; The resulting setup is placed in release\HuaxiaziSetup.exe.
+; The resulting setup is placed in release\Vesper-Setup.exe.
 
 #define MyAppName      "话匣子"
-#define MyAppVersion   "1.2.2"
+#define MyAppVersion   "1.5.0"
 #define MyAppPublisher "Huaxiazi"
 #define MyAppExeName   "Huaxiazi.exe"
 
@@ -23,7 +23,7 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 OutputDir=..\release
-OutputBaseFilename=HuaxiaziSetup
+OutputBaseFilename=Vesper-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

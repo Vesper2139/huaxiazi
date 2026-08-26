@@ -13,6 +13,7 @@ public sealed class PolishRequest
     public string Persona { get; init; } = string.Empty;
     public string CustomSystemPrompt { get; init; } = string.Empty;
     public string PreferenceInstructions { get; init; } = string.Empty;
+    public ProfessionalizationPlan? Professionalization { get; init; }
     public TextIntelligence? Intelligence { get; init; }
     public string ModelProfileId { get; init; } = string.Empty;
     public string ModelName { get; init; } = string.Empty;

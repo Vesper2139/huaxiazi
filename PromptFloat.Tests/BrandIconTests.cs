@@ -58,7 +58,7 @@ public sealed class BrandIconTests
         {
             try
             {
-                var application = Application.Current ?? new Application();
+                var application = TestHelpers.EnsureWpfApplication();
                 application.Resources.MergedDictionaries.Clear();
                 application.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Huaxiazi;component/Resources/Themes/Dark.xaml", UriKind.Relative) });
                 application.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Huaxiazi;component/Resources/Styles/GlobalStyles.xaml", UriKind.Relative) });
@@ -73,6 +73,7 @@ public sealed class BrandIconTests
                 ball.Close();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();

@@ -2,7 +2,10 @@ using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Media;
 using PromptFloat.Models;
+using PromptFloat.Services;
+using PromptFloat.ViewModels;
 
 namespace PromptFloat.Views;
 
@@ -121,6 +124,17 @@ public sealed class EnumDisplayNameConverter : IValueConverter
     }
 }
 
+public sealed class ProviderPlatformDisplayNameConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is ProviderPlatform platform
+            ? ProviderPlatformCatalog.Get(platform).DisplayName
+            : string.Empty;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        Binding.DoNothing;
+}
+
 /// <summary>
 /// 将当前 ViewMode 与某个 ToggleButton 的目标模式比较，返回是否选中。
 /// 用于「原文 / 优化后」分段切换 ToggleButton 的 IsChecked 单向绑定。
@@ -166,4 +180,65 @@ public sealed class SectionVisibilityConverter : IValueConverter
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
         Binding.DoNothing;
+}
+
+/// <summary>
+/// 将 ProviderProfileViewMode 转换为对应的视图实例，供 SettingsView 的 ContentControl 切换。
+/// </summary>
+public sealed class ProviderProfileViewModeToContentConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return value is ProviderProfileViewMode.Edit
+            ? new ProviderProfileEditView()
+            : new ProviderProfileListView();
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        Binding.DoNothing;
+}
+
+/// <summary>
+/// 将配置项与 SettingsViewModel 组合，返回该配置的 API Key 状态画刷（Set=SuccessBrush，其他=MutedBrush）。
+/// 用于配置列表卡片的密钥状态点。
+/// </summary>
+public sealed class ProfileApiKeyStatusConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values is [ProviderProfile profile, SettingsViewModel vm])
+        {
+            var kind = vm.GetApiKeyStatusKind(profile);
+            var resourceKey = kind == ApiKeyStatusKind.Set ? "SuccessBrush" : "MutedBrush";
+            return Application.Current?.TryFindResource(resourceKey) as Brush ?? Brushes.Gray;
+        }
+        return Application.Current?.TryFindResource("MutedBrush") as Brush ?? Brushes.Gray;
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>配置列表中当前生效配置的可见性。</summary>
+public sealed class ProviderActiveVisibilityConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var active = values is [ProviderProfile profile, SettingsViewModel vm] &&
+            string.Equals(profile.Id, vm.ActiveProviderProfileId, StringComparison.Ordinal);
+        return active ? Visibility.Visible : Visibility.Collapsed;
+    }
+    public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>“设为当前”按钮仅对尚未生效的配置可用。</summary>
+public sealed class ProviderActiveEnabledConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var active = values is [ProviderProfile profile, SettingsViewModel vm] &&
+            string.Equals(profile.Id, vm.ActiveProviderProfileId, StringComparison.Ordinal);
+        return !active;
+    }
+    public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }

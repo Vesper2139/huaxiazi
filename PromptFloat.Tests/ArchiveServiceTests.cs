@@ -48,6 +48,85 @@ public sealed class ArchiveServiceTests : IDisposable
     }
 
     [Fact]
+    public void Initialize_VersionOneDatabaseWithVersionTwoColumns_MigratesIdempotently()
+    {
+        var dataDirectory = Path.Combine(_root, "data");
+        Directory.CreateDirectory(dataDirectory);
+        var databasePath = Path.Combine(dataDirectory, "huaxiazi.db");
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={databasePath};Pooling=False"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                CREATE TABLE content_items (
+                    id TEXT PRIMARY KEY,
+                    mode INTEGER NOT NULL,
+                    scenario TEXT NOT NULL,
+                    topic TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    is_favorite INTEGER NOT NULL DEFAULT 0,
+                    is_archived INTEGER NOT NULL DEFAULT 0
+                );
+                PRAGMA user_version=1;
+                """;
+            command.ExecuteNonQuery();
+        }
+
+        _ = new ArchiveService(_root);
+
+        using var verify = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={databasePath};Pooling=False");
+        verify.Open();
+        using var read = verify.CreateCommand();
+        read.CommandText = "PRAGMA user_version;";
+        Assert.Equal(2L, (long)read.ExecuteScalar()!);
+    }
+
+    [Fact]
+    public void SaveRevision_WhenDestinationAlreadyExists_DoesNotDeletePreexistingFile()
+    {
+        var service = new ArchiveService(_root);
+        var timestamp = new DateTimeOffset(2026, 8, 11, 16, 31, 0, TimeSpan.FromHours(8));
+        var first = service.SaveRevision(new ArchiveDraft
+        {
+            OriginalText = "原文",
+            FinalText = "第一版",
+            Scenario = "私人沟通",
+            Topic = "聚会回复"
+        }, timestamp);
+        var occupiedPath = Path.Combine(Path.GetDirectoryName(first.FilePath)!, "20260811-1631__私人沟通__聚会回复__v02.txt");
+        File.WriteAllText(occupiedPath, "原有文件");
+
+        Assert.ThrowsAny<IOException>(() => service.SaveRevision(new ArchiveDraft
+        {
+            ItemId = first.ItemId,
+            OriginalText = "原文",
+            FinalText = "第二版"
+        }, timestamp));
+
+        Assert.True(File.Exists(occupiedPath));
+        Assert.Equal("原有文件", File.ReadAllText(occupiedPath));
+    }
+
+    [Fact]
+    public void Search_IgnoresDatabasePathsThatEscapeTheDataRoot()
+    {
+        var service = new ArchiveService(_root);
+        var saved = service.SaveRevision(new ArchiveDraft { FinalText = "正常内容" }, DateTimeOffset.UtcNow);
+        var databasePath = Path.Combine(_root, "data", "huaxiazi.db");
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={databasePath};Pooling=False"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE content_revisions SET relative_path = '..\\..\\outside.txt' WHERE id = $id;";
+            command.Parameters.AddWithValue("$id", saved.Id.ToString("D"));
+            command.ExecuteNonQuery();
+        }
+
+        Assert.Empty(service.Search(null));
+    }
+
+    [Fact]
     public void GetRevisions_ExcludesSoftDeletedByDefault()
     {
         var service = new ArchiveService(_root);
@@ -265,6 +344,35 @@ public sealed class ArchiveServiceTests : IDisposable
         Assert.True(File.Exists(refreshedFirst.FilePath));
         Assert.True(File.Exists(refreshedSecond.FilePath));
         Assert.Equal(refreshedSecond.FilePath, second.FilePath);
+    }
+
+    [Fact]
+    public void SaveRevision_AfterYearArchivingIsActive_DoesNotRescanUnrelatedRows()
+    {
+        var service = new ArchiveService(_root, yearArchiveThreshold: 1);
+        var first = service.SaveRevision(new ArchiveDraft
+        {
+            FinalText = "第一份",
+            Topic = "年度归档一"
+        }, new DateTimeOffset(2025, 12, 31, 12, 0, 0, TimeSpan.Zero));
+        var databasePath = Path.Combine(_root, "data", "huaxiazi.db");
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={databasePath};Pooling=False"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE content_revisions SET relative_path = $path WHERE id = $id;";
+            command.Parameters.AddWithValue("$path", "damaged\0path");
+            command.Parameters.AddWithValue("$id", first.Id.ToString("D"));
+            command.ExecuteNonQuery();
+        }
+
+        var second = service.SaveRevision(new ArchiveDraft
+        {
+            FinalText = "第二份",
+            Topic = "年度归档二"
+        }, new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero));
+
+        Assert.Equal("2026", new DirectoryInfo(Path.GetDirectoryName(second.FilePath)!).Name);
     }
 
     [Fact]

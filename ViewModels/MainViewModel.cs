@@ -17,8 +17,9 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly WorkspaceDraftService _draftStore;
     private readonly ArchiveService _archiveService;
     private readonly Func<ProviderProfile, string?, ITextGenerationClient> _generationClientFactory;
-    private readonly Stack<WorkspaceDraft> _undoWorkspace = new();
-    private readonly Stack<WorkspaceDraft> _redoWorkspace = new();
+    // 撤回/重做历史按模式（润色 / 提示词优化）拆分，避免切换模式污染彼此的操作栈
+    private readonly Dictionary<ApplicationMode, Stack<WorkspaceDraft>> _undoByMode = new();
+    private readonly Dictionary<ApplicationMode, Stack<WorkspaceDraft>> _redoByMode = new();
     private bool _restoringWorkspace;
     private bool _draftDirty;
     private CancellationTokenSource? _requestCancellation;
@@ -29,11 +30,20 @@ public sealed partial class MainViewModel : ObservableObject
     private string _currentScenario = "其他";
     private string _currentTopic = "未命名表达";
     private readonly SmartContextAnalyzer _contextAnalyzer = new();
-    private readonly AdaptivePreferenceService _preferenceService = new();
+    private readonly StructuredPreferenceService _preferenceService = new();
+    private readonly ProfessionalizationPlanner _professionalizationPlanner = new();
     private string _generatedResultBeforeEdit = string.Empty;
     private SourceApplicationContext? _sourceApplicationContext;
     private string? _clarificationSubmission;
     private string? _clarificationOriginalInput;
+    private AssistantEmotionHint? _assistantEmotion;
+    private CancellationTokenSource? _assistantEmotionCancellation;
+    private GenerationFailureException? _lastGenerationFailure;
+    public GenerationFailureException? LastGenerationFailure
+    {
+        get => _lastGenerationFailure;
+        private set => SetProperty(ref _lastGenerationFailure, value);
+    }
 
     public IReadOnlyList<PromptCategory> Categories => App.Settings.EnabledPromptCategories;
     public IReadOnlyList<PromptDepth> Depths => PromptDepthMetadata.AllDepths;
@@ -44,8 +54,22 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<ContentRevision> RecentRevisions { get; } = [];
     public bool ShowModeSwitcher => App.Settings.EnabledModes.Count > 1;
     public bool IsPolishMode => CurrentMode == ApplicationMode.Polish;
-    public bool CanUndoWorkspace => _undoWorkspace.Count > 0;
-    public bool CanRedoWorkspace => _redoWorkspace.Count > 0;
+    public bool IsPromptOptimizeMode => CurrentMode == ApplicationMode.PromptOptimize;
+    public bool CanUndoWorkspace => UndoStack.Count > 0;
+    public bool CanRedoWorkspace => RedoStack.Count > 0;
+    public bool CanRegenerate => !string.IsNullOrWhiteSpace(UserInput) && !IsBusy;
+
+    /// <summary>模式指示器当前显示的工作模式名称。</summary>
+    public string ModeToggleLabel => CurrentMode == ApplicationMode.Polish ? "润色" : "提示词";
+
+    /// <summary>单按钮模式轮播：点击后要切换到的目标模式。</summary>
+    public ApplicationMode ToggleModeTarget => CurrentMode == ApplicationMode.Polish ? ApplicationMode.PromptOptimize : ApplicationMode.Polish;
+
+    /// <summary>内嵌视图切换：显示"点击后切换到的视图"名称（原文/优化稿）。</summary>
+    public string ViewToggleLabel => ViewMode == ViewMode.Original ? "优化稿" : "原文";
+
+    /// <summary>内嵌视图切换：点击后要切换到的目标视图。</summary>
+    public ViewMode ViewToggleTarget => ViewMode == ViewMode.Original ? ViewMode.Optimized : ViewMode.Original;
     public string ActiveProviderLabel
     {
         get
@@ -86,6 +110,7 @@ public sealed partial class MainViewModel : ObservableObject
                 MarkDraftDirty();
                 OnPropertyChanged(nameof(DisplayText));
                 OnPropertyChanged(nameof(IsDisplayTextEmpty));
+                RegenerateCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -120,6 +145,8 @@ public sealed partial class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsEditorView));
                 OnPropertyChanged(nameof(ShowDiff));
                 OnPropertyChanged(nameof(IsDisplayTextEmpty));
+                OnPropertyChanged(nameof(ViewToggleLabel));
+                OnPropertyChanged(nameof(ViewToggleTarget));
             }
         }
     }
@@ -135,8 +162,13 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 MarkDraftDirty();
                 OnPropertyChanged(nameof(IsPolishMode));
+                OnPropertyChanged(nameof(IsPromptOptimizeMode));
                 OnPropertyChanged(nameof(EditorPlaceholderText));
                 OnPropertyChanged(nameof(PrimaryActionText));
+                OnPropertyChanged(nameof(ModeToggleLabel));
+                OnPropertyChanged(nameof(ToggleModeTarget));
+                // 撤回/重做历史按模式拆分，切换模式后可用状态随之更新
+                NotifyWorkspaceHistoryChanged();
             }
         }
     }
@@ -164,8 +196,8 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsReadOnly => ViewMode == ViewMode.Optimized && !IsEditingResult;
     public bool IsDisplayTextEmpty => string.IsNullOrEmpty(DisplayText);
     public string EditorPlaceholderText => IsPolishMode
-        ? "输入想润色的原文…\n可选：用【上下文】对象：客户；目的：说明延期；语气：专业【/上下文】补充要求"
-        : "输入你的想法或提示词…\n可选：用【上下文】对象：用户；目的：生成方案；优先级：高【/上下文】补充要求";
+        ? "粘贴或输入要润色的内容…\n可选：补充对象、目的或语气"
+        : "描述你想让 AI 完成的任务…\n可选：补充背景、限制或输出格式";
     public string PrimaryActionText => IsBusy
         ? (IsPolishMode ? "润色中…" : "优化中…")
         : (IsPolishMode ? "润色" : "优化");
@@ -175,18 +207,22 @@ public sealed partial class MainViewModel : ObservableObject
         ? CompanionVisualState.Error
         : HasClarification
             ? CompanionVisualState.Curious
-            : IsBusy
-                ? CompanionVisualState.Thinking
+                : IsBusy
+                    ? CompanionVisualState.Thinking
+                    : _assistantEmotion is not null
+                        ? CompanionEmotionMapper.ToVisualState(_assistantEmotion)
                 : ArchiveStatus.StartsWith("已归档", StringComparison.Ordinal) || ArchiveStatus == "已复制"
                     ? CompanionVisualState.Happy
                     : CompanionVisualState.Idle;
     public string OperationalNotice => HasError
         ? ErrorMessage
         : HasClarification
-            ? string.Join("  ", ClarificationQuestions)
+            ? "请补充信息后继续"
             : IsBusy
                 ? (IsPolishMode ? "正在整理表达，请稍候…" : "正在优化提示词，请稍候…")
                 : ArchiveStatus;
+    /// <summary>澄清面板中的实际问题；标题状态栏只显示概括提示，避免挤占标题并泄露长原文。</summary>
+    public string ClarificationPrompt => string.Join("  ", ClarificationQuestions);
     public bool HasOperationalNotice => !string.IsNullOrWhiteSpace(OperationalNotice);
 
     private bool _showDiff;
@@ -206,6 +242,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(PrimaryActionText));
         NotifyCompanionFeedbackChanged();
+        RegenerateCommand.NotifyCanExecuteChanged();
     }
     [ObservableProperty] private string _errorMessage = string.Empty;
     partial void OnErrorMessageChanged(string value) => NotifyCompanionFeedbackChanged();
@@ -246,10 +283,11 @@ public sealed partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CompanionState));
         OnPropertyChanged(nameof(OperationalNotice));
+        OnPropertyChanged(nameof(ClarificationPrompt));
         OnPropertyChanged(nameof(HasOperationalNotice));
     }
 
-    public MainViewModel() : this(App.WorkspaceDraftService, App.ArchiveService)
+    public MainViewModel() : this(new WorkspaceDraftService(App.DataRoot), new ArchiveService(App.DataRoot))
     {
     }
 
@@ -291,6 +329,14 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _showDiff = App.Settings.ShowDiff;
         OnPropertyChanged(nameof(ShowDiff));
+        OnPropertyChanged(nameof(Categories));
+        OnPropertyChanged(nameof(Depths));
+        OnPropertyChanged(nameof(EnabledModes));
+        OnPropertyChanged(nameof(ProviderProfiles));
+        OnPropertyChanged(nameof(Presets));
+        OnPropertyChanged(nameof(ShowModeSwitcher));
+        OnPropertyChanged(nameof(ActiveProviderProfile));
+        OnPropertyChanged(nameof(ActiveProviderLabel));
     }
 
     public void SetSourceApplicationContext(SourceApplicationContext? context) => _sourceApplicationContext = context;
@@ -299,7 +345,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void SelectMode(ApplicationMode mode)
     {
         if (IsBusy || !App.Settings.EnabledModes.Contains(mode) || mode == CurrentMode) return;
-        RecordWorkspaceUndo();
+        // 模式切换本身不产生撤回快照：每个模式保留自己的操作栈，避免同一输入反复切换时历史互相污染
         CurrentMode = mode;
     }
 
@@ -348,7 +394,15 @@ public sealed partial class MainViewModel : ObservableObject
     private void CopyResult()
     {
         if (string.IsNullOrEmpty(OptimizedResult)) return;
-        try { App.ClipboardService.CopyText(OptimizedResult); }
+        try
+        {
+            App.ClipboardService.CopyText(OptimizedResult);
+            if (CanLearnPreferences())
+            {
+                _preferenceService.RecordAcceptance(App.Settings.ExpressionPreferenceProfile);
+                SavePreferenceProfile();
+            }
+        }
         catch (Exception ex) { ShowError($"复制失败：{ex.Message}"); }
     }
 
@@ -379,18 +433,25 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void UndoWorkspace()
     {
-        if (_undoWorkspace.Count == 0) return;
-        _redoWorkspace.Push(CaptureWorkspace());
-        RestoreWorkspace(_undoWorkspace.Pop());
+        var undo = UndoStack;
+        if (undo.Count == 0) return;
+        if (CanLearnPreferences())
+        {
+            _preferenceService.RecordUndo(App.Settings.ExpressionPreferenceProfile);
+            SavePreferenceProfile();
+        }
+        RedoStack.Push(CaptureWorkspace());
+        RestoreWorkspace(undo.Pop());
         NotifyWorkspaceHistoryChanged();
     }
 
     [RelayCommand]
     private void RedoWorkspace()
     {
-        if (_redoWorkspace.Count == 0) return;
-        _undoWorkspace.Push(CaptureWorkspace());
-        RestoreWorkspace(_redoWorkspace.Pop());
+        var redo = RedoStack;
+        if (redo.Count == 0) return;
+        UndoStack.Push(CaptureWorkspace());
+        RestoreWorkspace(redo.Pop());
         NotifyWorkspaceHistoryChanged();
     }
 
@@ -398,14 +459,23 @@ public sealed partial class MainViewModel : ObservableObject
     private void LoadRevision(ContentRevision? revision)
     {
         if (revision is null) return;
+        if (IsBusy)
+        {
+            Interlocked.Increment(ref _requestVersion);
+            _requestCancellation?.Cancel();
+            IsBusy = false;
+        }
         RecordWorkspaceUndo();
         _restoringWorkspace = true;
         try
         {
             UserInput = revision.OriginalText;
             OptimizedResult = revision.FinalText;
-            ViewMode = ViewMode.Optimized;
             CurrentMode = revision.Mode;
+            var hasSavedResult = !string.IsNullOrWhiteSpace(revision.FinalText);
+            ViewMode = hasSavedResult ? ViewMode.Optimized : ViewMode.Original;
+            _generatedResultBeforeEdit = hasSavedResult ? revision.FinalText : string.Empty;
+            IsEditingResult = hasSavedResult;
             _currentItemId = revision.ItemId;
             _currentScenario = revision.Scenario;
             _currentTopic = revision.Topic;
@@ -459,6 +529,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         HasError = false;
         ErrorMessage = string.Empty;
+        LastGenerationFailure = null;
+        ApplyAssistantEmotion(null);
         HasClarification = false;
         ClarificationQuestions = [];
         IsBusy = true;
@@ -475,11 +547,18 @@ public sealed partial class MainViewModel : ObservableObject
             var key = App.SecretStore.Read(profile.SecretId);
             var client = _generationClientFactory(profile, key);
             using var clientDisposal = client as IDisposable;
-
             if (requestMode == ApplicationMode.Polish)
             {
                 var workflow = new PolishWorkflowService(client, App.PolishPromptBuilder, _archiveService);
                 var polishRequest = CreatePolishRequest(parsedInput);
+                if (App.Settings.ClarificationEnabled && polishRequest.Professionalization is { NeedsClarification: true } polishPlan)
+                {
+                    ClarificationQuestions = polishPlan.ClarificationQuestions;
+                    HasClarification = true;
+                    _clarificationOriginalInput ??= UserInput;
+                    ArchiveStatus = "需要补充关键信息";
+                    return;
+                }
                 var shouldArchive = ShouldArchive();
                 var result = await workflow.ExecuteAsync(
                     polishRequest,
@@ -494,7 +573,10 @@ public sealed partial class MainViewModel : ObservableObject
                     result = new PolishWorkflowResult
                     {
                         Response = result.Response,
-                        SavedRevision = SavePolishRevision(polishRequest, result.Response, profile)
+                        SavedRevision = SavePolishRevision(polishRequest, result.Response, profile),
+                        CompanionEmotion = result.CompanionEmotion,
+                        WasRepaired = result.WasRepaired,
+                        ValidationIssues = result.ValidationIssues
                     };
                 }
                 ApplyPolishResult(result);
@@ -510,9 +592,49 @@ public sealed partial class MainViewModel : ObservableObject
                     CustomSystemPrompt = EffectiveCustomSystemPrompt(),
                     PreferenceInstructions = BuildPreferenceInstructions(parsedInput.Instructions)
                 };
-                var result = await client.GenerateAsync(
-                    App.PromptBuilder.Build(request), App.PromptBuilder.BuildUserMessage(request), requestCancellation.Token);
+                var externalStrategy = ResolveExternalStrategy(ApplicationMode.PromptOptimize, parsedInput.Body, string.Empty, SelectedCategory);
+                var plan = _professionalizationPlanner.Create(new ProfessionalizationRequest
+                {
+                    Input = parsedInput.Body,
+                    Mode = ApplicationMode.PromptOptimize,
+                    Category = SelectedCategory,
+                    Depth = SelectedDepth,
+                    ExplicitRequirements = parsedInput.Instructions,
+                    PreferenceInstructions = request.PreferenceInstructions,
+                    PreferredStrategyId = externalStrategy.SkillId,
+                    PreferredStrategyName = externalStrategy.DisplayName,
+                    StrategyInstructions = externalStrategy.Instructions
+                });
+                if (App.Settings.ClarificationEnabled && plan.NeedsClarification)
+                {
+                    ClarificationQuestions = plan.ClarificationQuestions;
+                    HasClarification = true;
+                    _clarificationOriginalInput ??= UserInput;
+                    ArchiveStatus = "需要补充关键信息";
+                    return;
+                }
+                request = new PromptRequest
+                {
+                    UserInput = request.UserInput,
+                    Category = request.Category,
+                    Depth = request.Depth,
+                    Persona = request.Persona,
+                    CustomSystemPrompt = request.CustomSystemPrompt,
+                    PreferenceInstructions = request.PreferenceInstructions,
+                    Professionalization = plan
+                };
+                var transformation = await new PromptOptimizationWorkflowService(client, App.PromptBuilder)
+                    .ExecuteAsync(request, plan, requestCancellation.Token);
                 ThrowIfRequestIsStale(requestVersion, requestCancellation.Token);
+                if (transformation.IsBlocked)
+                {
+                    var emptyResponse = transformation.ValidationIssues.Any(issue => issue.Code == "empty-output");
+                    ShowError(emptyResponse
+                        ? "模型返回为空，请检查模型配置后重试。"
+                        : "结果未通过事实保真检查，系统已阻止展示。请重试或补充关键信息。");
+                    return;
+                }
+                var result = transformation.Content;
                 if (string.IsNullOrWhiteSpace(result))
                 {
                     ShowError("模型返回为空，请重试。");
@@ -538,22 +660,28 @@ public sealed partial class MainViewModel : ObservableObject
                     }, DateTimeOffset.Now);
                     _currentItemId = revision.ItemId;
                     _lastSavedRevision = revision;
-                    ArchiveStatus = $"已归档 v{revision.Version:00}";
+                    ArchiveStatus = $"已采用：{plan.StrategyName} · 已归档 v{revision.Version:00}";
                     RefreshHistory();
                     StartUndoWindow();
                 }
                 else
                 {
                     IsResultUnarchived = true;
-                    ArchiveStatus = App.Settings.IncognitoMode ? "无痕模式" : "未归档";
+                    ArchiveStatus = App.Settings.IncognitoMode ? $"已采用：{plan.StrategyName} · 无痕模式" : $"已采用：{plan.StrategyName}";
                 }
                 TryAutoCopyResult();
+                ApplyAssistantEmotion(transformation.CompanionEmotion);
                 MarkDraftDirty();
             }
         }
         catch (OperationCanceledException)
         {
             ArchiveStatus = "已取消";
+        }
+        catch (GenerationFailureException failure)
+        {
+            LastGenerationFailure = failure;
+            ShowError($"生成失败：{failure.Message}");
         }
         catch (Exception ex)
         {
@@ -598,7 +726,16 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand] private Task RegenerateAsync() => OptimizeAsync();
+    [RelayCommand(CanExecute = nameof(CanRegenerate))]
+    private Task RegenerateAsync()
+    {
+        if (CanLearnPreferences())
+        {
+            _preferenceService.RecordRetry(App.Settings.ExpressionPreferenceProfile);
+            SavePreferenceProfile();
+        }
+        return OptimizeAsync();
+    }
 
     [RelayCommand]
     private void BeginEditResult()
@@ -633,8 +770,7 @@ public sealed partial class MainViewModel : ObservableObject
                     Scenario,
                     Persona = App.Settings.UserPersona,
                     CustomStyleInstructions = App.Settings.CustomStyleInstructions,
-                    UserEdited = App.Settings.SaveOptimizedText && !string.IsNullOrWhiteSpace(_generatedResultBeforeEdit),
-                    GeneratedText = App.Settings.SaveOptimizedText ? _generatedResultBeforeEdit : string.Empty
+                    UserEdited = App.Settings.SaveOptimizedText && !string.IsNullOrWhiteSpace(_generatedResultBeforeEdit)
                 }),
                 Style = App.Settings.OutputStyle,
                 ModelProfileId = App.Settings.GetActiveProviderProfile().Id,
@@ -649,6 +785,15 @@ public sealed partial class MainViewModel : ObservableObject
         _currentItemId = revision.ItemId;
         _lastSavedRevision = revision;
         IsEditingResult = false;
+        if (App.Settings.PreferenceLearningEnabled && !App.Settings.IncognitoMode && !string.IsNullOrWhiteSpace(_generatedResultBeforeEdit))
+        {
+            _preferenceService.RecordEdit(
+                App.Settings.ExpressionPreferenceProfile,
+                _generatedResultBeforeEdit,
+                OptimizedResult,
+                CurrentMode == ApplicationMode.PromptOptimize ? "提示词优化" : _currentScenario);
+            SavePreferenceProfile();
+        }
         _generatedResultBeforeEdit = string.Empty;
         ArchiveStatus = $"已归档 v{revision.Version:00}";
         RefreshHistory();
@@ -688,6 +833,22 @@ public sealed partial class MainViewModel : ObservableObject
             parsed.Weight,
             parsed.Instructions);
         var resolved = SmartContextAnalyzer.Merge(explicitContext, intelligence, App.Settings.DefaultPolishScenario);
+        var preferenceInstructions = BuildPreferenceInstructions(parsed.Instructions);
+        var externalStrategy = ResolveExternalStrategy(ApplicationMode.Polish, parsed.Body, resolved.Scenario, SelectedCategory);
+        var plan = _professionalizationPlanner.Create(new ProfessionalizationRequest
+        {
+            Input = parsed.Body,
+            Mode = ApplicationMode.Polish,
+            Recipient = resolved.Recipient,
+            Scenario = resolved.Scenario,
+            Purpose = resolved.Purpose,
+            Formality = resolved.Formality,
+            ExplicitRequirements = parsed.Instructions,
+            PreferenceInstructions = preferenceInstructions,
+            PreferredStrategyId = externalStrategy.SkillId,
+            PreferredStrategyName = externalStrategy.DisplayName,
+            StrategyInstructions = externalStrategy.Instructions
+        });
         return new PolishRequest
         {
             OriginalText = parsed.Body,
@@ -700,7 +861,8 @@ public sealed partial class MainViewModel : ObservableObject
             CustomStyleInstructions = App.Settings.CustomStyleInstructions,
             Persona = App.Settings.UserPersona,
             CustomSystemPrompt = EffectiveCustomSystemPrompt(),
-            PreferenceInstructions = BuildPreferenceInstructions(parsed.Instructions),
+            PreferenceInstructions = preferenceInstructions,
+            Professionalization = plan,
             Intelligence = intelligence,
             ModelProfileId = App.Settings.GetActiveProviderProfile().Id,
             ModelName = App.Settings.GetActiveProviderProfile().Model,
@@ -743,6 +905,14 @@ public sealed partial class MainViewModel : ObservableObject
         switch (result.Response.Kind)
         {
             case PolishResponseKind.Final:
+                if (string.IsNullOrWhiteSpace(result.Response.Content))
+                {
+                    OptimizedResult = string.Empty;
+                    IsResultUnarchived = true;
+                    ViewMode = ViewMode.Original;
+                    ShowError("模型返回为空，请重试或检查模型配置。");
+                    break;
+                }
                 RecordWorkspaceUndo();
                 OptimizedResult = result.Response.Content;
                 _generatedResultBeforeEdit = result.Response.Content;
@@ -764,6 +934,7 @@ public sealed partial class MainViewModel : ObservableObject
                     ArchiveStatus = App.Settings.IncognitoMode ? "无痕模式" : "未归档";
                 }
                 TryAutoCopyResult();
+                ApplyAssistantEmotion(result.CompanionEmotion);
                 break;
             case PolishResponseKind.NeedsClarification:
                 ClarificationQuestions = result.Response.Questions;
@@ -822,8 +993,43 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void ShowError(string message)
     {
+        ApplyAssistantEmotion(null);
         ErrorMessage = message;
         HasError = true;
+    }
+
+    private void ApplyAssistantEmotion(AssistantEmotionHint? hint)
+    {
+        _assistantEmotionCancellation?.Cancel();
+        _assistantEmotionCancellation?.Dispose();
+        _assistantEmotionCancellation = null;
+        _assistantEmotion = App.Settings.CompanionDriverMode == CompanionDriverMode.EmotionAssistant ? hint : null;
+        NotifyCompanionFeedbackChanged();
+        if (_assistantEmotion is null) return;
+
+        var cancellation = new CancellationTokenSource();
+        _assistantEmotionCancellation = cancellation;
+        _ = ClearAssistantEmotionAfterDelayAsync(cancellation);
+    }
+
+    private async Task ClearAssistantEmotionAfterDelayAsync(CancellationTokenSource cancellation)
+    {
+        try
+        {
+            var intensity = _assistantEmotion?.Intensity ?? 0.5;
+            await Task.Delay(TimeSpan.FromMilliseconds(1800 + intensity * 1800), cancellation.Token);
+            if (ReferenceEquals(_assistantEmotionCancellation, cancellation))
+            {
+                _assistantEmotion = null;
+                _assistantEmotionCancellation = null;
+                NotifyCompanionFeedbackChanged();
+            }
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            if (!ReferenceEquals(_assistantEmotionCancellation, cancellation)) cancellation.Dispose();
+        }
     }
 
     private void AddHistory(string text)
@@ -896,10 +1102,28 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (_restoringWorkspace) return;
         var snapshot = CaptureWorkspace();
-        if (_undoWorkspace.TryPeek(out var previous) && SameWorkspace(previous, snapshot)) return;
-        _undoWorkspace.Push(snapshot);
-        _redoWorkspace.Clear();
+        var undo = UndoStack;
+        if (undo.TryPeek(out var previous) && SameWorkspace(previous, snapshot)) return;
+        undo.Push(snapshot);
+        RedoStack.Clear();
         NotifyWorkspaceHistoryChanged();
+    }
+
+    /// <summary>当前模式的撤回栈（惰性创建）。</summary>
+    private Stack<WorkspaceDraft> UndoStack => GetOrCreateStack(_undoByMode, CurrentMode);
+
+    /// <summary>当前模式的重做栈（惰性创建）。</summary>
+    private Stack<WorkspaceDraft> RedoStack => GetOrCreateStack(_redoByMode, CurrentMode);
+
+    private static Stack<WorkspaceDraft> GetOrCreateStack(
+        Dictionary<ApplicationMode, Stack<WorkspaceDraft>> stacks, ApplicationMode mode)
+    {
+        if (!stacks.TryGetValue(mode, out var stack))
+        {
+            stack = new Stack<WorkspaceDraft>();
+            stacks[mode] = stack;
+        }
+        return stack;
     }
 
     private static bool SameWorkspace(WorkspaceDraft left, WorkspaceDraft right) =>
@@ -942,12 +1166,23 @@ public sealed partial class MainViewModel : ObservableObject
         if (App.Settings.ProfessionalTone) preferences.Add("表达专业、准确、克制");
         if (!string.IsNullOrWhiteSpace(SelectedPreset?.Instructions)) preferences.Add(SelectedPreset.Instructions.Trim());
         if (!string.IsNullOrWhiteSpace(inlineInstructions)) preferences.Add(inlineInstructions.Trim());
-        if (App.Settings.HistoryEnabled && !App.Settings.IncognitoMode)
+        if (App.Settings.PreferenceLearningEnabled && !App.Settings.IncognitoMode)
         {
-            var learned = _preferenceService.BuildInstructions(_archiveService.Search(null).Take(100));
+            var learned = _preferenceService.BuildInstructions(App.Settings.ExpressionPreferenceProfile);
             if (!string.IsNullOrWhiteSpace(learned)) preferences.Add(learned);
         }
         return string.Join("；", preferences);
+    }
+
+    private static ExpressionSkillRouteResult ResolveExternalStrategy(ApplicationMode mode, string input, string scenario, PromptCategory category)
+    {
+        return new ExpressionSkillRouter(System.IO.Path.Combine(App.DataRoot, "agent-skills")).Route(new ExpressionSkillRoutingContext
+        {
+            Mode = mode,
+            Input = input,
+            Scenario = scenario,
+            Category = category
+        });
     }
 
     private static string FirstNonEmpty(string first, string fallback)
@@ -964,5 +1199,14 @@ public sealed partial class MainViewModel : ObservableObject
         if (!App.Settings.AutoCopyAfterOptimize || string.IsNullOrWhiteSpace(OptimizedResult)) return;
         try { App.ClipboardService.CopyText(OptimizedResult); }
         catch (Exception ex) { DraftStatus = $"自动复制失败：{ex.Message}"; }
+    }
+
+    private static bool CanLearnPreferences() => App.Settings.PreferenceLearningEnabled && !App.Settings.IncognitoMode;
+
+    private static void SavePreferenceProfile()
+    {
+        // Unit construction must never write the signed-in user's real config; the desktop app persists normally.
+        if (System.Windows.Application.Current is not App) return;
+        try { App.ConfigService.Save(App.Settings); } catch { }
     }
 }

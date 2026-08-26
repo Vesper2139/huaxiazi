@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace PromptFloat.Services;
 
@@ -17,6 +18,8 @@ public readonly record struct DiffLine(DiffLineKind Kind, string Text);
 
 public static class DiffEngine
 {
+    private const long DetailedComparisonCellLimit = 1_000_000;
+
     public static IReadOnlyList<DiffLine> Diff(string original, string optimized)
     {
         var a = Split(original);
@@ -32,6 +35,16 @@ public static class DiffEngine
     {
         var m = a.Length;
         var n = b.Length;
+        if ((long)m * n > DetailedComparisonCellLimit)
+        {
+            var simplified = new List<DiffLine>(m + n + 1)
+            {
+                new(DiffLineKind.Same, "— 内容较长，已使用简化差异预览 —")
+            };
+            simplified.AddRange(a.Select(line => new DiffLine(DiffLineKind.Removed, line)));
+            simplified.AddRange(b.Select(line => new DiffLine(DiffLineKind.Added, line)));
+            return simplified;
+        }
         var lcs = new int[m + 1, n + 1];
         for (var i = m - 1; i >= 0; i--)
         {

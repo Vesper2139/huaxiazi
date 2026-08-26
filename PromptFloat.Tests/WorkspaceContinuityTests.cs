@@ -192,7 +192,7 @@ public sealed class WorkspaceContinuityTests : IDisposable
     }
 
     [Fact]
-    public void LoadRevision_RestoresOriginalResultAndOptimizedView()
+    public void LoadRevision_RestoresSavedResultAsAnEditableDraft()
     {
         App.ReplaceSettings(new AppSettings());
         var archive = new ArchiveService(_root);
@@ -209,6 +209,56 @@ public sealed class WorkspaceContinuityTests : IDisposable
         Assert.Equal("历史原文", vm.UserInput);
         Assert.Equal("历史成稿", vm.OptimizedResult);
         Assert.Equal(ViewMode.Optimized, vm.ViewMode);
+        Assert.True(vm.IsEditingResult);
+        Assert.False(vm.IsReadOnly);
+        Assert.Equal("历史成稿", vm.DisplayText);
+    }
+
+    [Fact]
+    public async Task LoadRevision_DuringGeneration_CancelsStaleRequestAndRestoresRevisionMode()
+    {
+        var client = new DeferredGenerationClient();
+        App.ReplaceSettings(new AppSettings
+        {
+            DefaultMode = ApplicationMode.Polish,
+            AutoArchive = false,
+            HistoryEnabled = false,
+            ProviderProfiles =
+            [
+                new ProviderProfile
+                {
+                    Id = "local", Name = "本机测试", Type = ProviderType.Local,
+                    ApiBase = "http://localhost:11434/v1", Model = "test-model"
+                }
+            ],
+            ActiveProviderProfileId = "local"
+        });
+        var vm = new MainViewModel(
+            new WorkspaceDraftService(_root),
+            new ArchiveService(_root),
+            (_, _) => client)
+        {
+            UserInput = "正在处理的内容"
+        };
+        var request = vm.OptimizeCommand.ExecuteAsync(null);
+        await client.Started;
+        var revision = new ContentRevision
+        {
+            Id = Guid.NewGuid(),
+            ItemId = Guid.NewGuid(),
+            OriginalText = "历史原文",
+            FinalText = "历史提示词",
+            Mode = ApplicationMode.PromptOptimize
+        };
+
+        vm.LoadRevisionCommand.Execute(revision);
+        client.Complete("迟到结果");
+        await request;
+
+        Assert.False(vm.IsBusy);
+        Assert.Equal(ApplicationMode.PromptOptimize, vm.CurrentMode);
+        Assert.Equal("历史原文", vm.UserInput);
+        Assert.Equal("历史提示词", vm.OptimizedResult);
     }
 
     [Fact]

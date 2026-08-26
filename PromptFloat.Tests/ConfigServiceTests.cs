@@ -24,6 +24,31 @@ public class ConfigServiceTests
     }
 
     [Fact]
+    public void Load_ConfigWithInvalidDataDirectory_FallsBackToDefaultDataRoot()
+    {
+        var dir = MakeTempConfigDir();
+        try
+        {
+            TestHelpers.RedirectConfigTo(dir);
+            File.WriteAllText(Path.Combine(dir, "config.json"), """
+                {
+                  "configVersion": 11,
+                  "dataDirectory": "bad\u0000path"
+                }
+                """);
+
+            var loaded = new ConfigService().Load();
+
+            Assert.Equal(string.Empty, loaded.DataDirectory);
+        }
+        finally
+        {
+            TestHelpers.ResetConfigToDefault();
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
     public void Load_Version5FactoryDisplayDefaults_AdoptsSystemThemeAndCompactHeight()
     {
         var dir = MakeTempConfigDir();
@@ -43,7 +68,7 @@ public class ConfigServiceTests
 
             Assert.Equal("System", loaded.ThemeMode);
             Assert.Equal(36, loaded.EditorDefaultHeight);
-            Assert.Equal(210, loaded.MainWindowHeight);
+            Assert.Equal(176, loaded.MainWindowHeight);
         }
         finally
         {
@@ -133,8 +158,8 @@ public class ConfigServiceTests
             Assert.Equal(ConfigService.CurrentConfigVersion, loaded.ConfigVersion);
             Assert.Equal(1810, loaded.BallLeft);
             Assert.Equal(920, loaded.BallTop);
-            Assert.Equal(600, loaded.MainWindowWidth);
-            Assert.Equal(210, loaded.MainWindowHeight);
+            Assert.Equal(520, loaded.MainWindowWidth);
+            Assert.Equal(176, loaded.MainWindowHeight);
         }
         finally
         {
@@ -324,6 +349,36 @@ public class ConfigServiceTests
     }
 
     [Fact]
+    public void Save_NonFiniteWindowAndBallCoordinates_PersistsNulls()
+    {
+        var dir = MakeTempConfigDir();
+        try
+        {
+            TestHelpers.RedirectConfigTo(dir);
+            var settings = new AppSettings
+            {
+                WindowLeft = double.PositiveInfinity,
+                WindowTop = double.NaN,
+                BallLeft = double.NegativeInfinity,
+                BallTop = double.NaN
+            };
+
+            new ConfigService().Save(settings);
+
+            using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir, "config.json")));
+            Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("windowLeft").ValueKind);
+            Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("windowTop").ValueKind);
+            Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("ballLeft").ValueKind);
+            Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("ballTop").ValueKind);
+        }
+        finally
+        {
+            TestHelpers.ResetConfigToDefault();
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
     public void Load_LegacyNaNWindowCoords_MigratedToNull()
     {
         // 模拟旧版 (v0) 把“未记忆位置”存为 double.NaN 的 config.json；
@@ -375,8 +430,8 @@ public class ConfigServiceTests
             var loaded = new ConfigService().Load();
 
             Assert.Equal(ConfigService.CurrentConfigVersion, loaded.ConfigVersion);
-            Assert.Equal(ApplicationMode.Polish, loaded.DefaultMode);
-            Assert.Equal([ApplicationMode.Polish], loaded.EnabledModes);
+            Assert.Equal(ApplicationMode.PromptOptimize, loaded.DefaultMode);
+            Assert.Equal([ApplicationMode.Polish, ApplicationMode.PromptOptimize], loaded.EnabledModes);
             Assert.Single(loaded.ProviderProfiles);
             Assert.Equal(loaded.ProviderProfiles[0].Id, loaded.ActiveProviderProfileId);
         }
@@ -448,6 +503,41 @@ public class ConfigServiceTests
         {
             TestHelpers.ResetConfigToDefault();
             Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public void Load_V1Config_WithCustomDataDirectory_MigratesSecretToCustomPath()
+    {
+        var configDir = MakeTempConfigDir();
+        var customDataDir = Path.Combine(configDir, "custom_data");
+        Directory.CreateDirectory(customDataDir);
+        try
+        {
+            TestHelpers.RedirectConfigTo(configDir);
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                {
+                  "configVersion": 1,
+                  "dataDirectory": "${customDataDir}",
+                  "apiBase": "https://api.example.com/v1",
+                  "apiKey": "sk-custom-path-test",
+                  "model": "test-model"
+                }
+                """.Replace("${customDataDir}", customDataDir.Replace("\\", "\\\\")));
+
+            var loaded = new ConfigService().Load();
+
+            Assert.Equal(string.Empty, loaded.ApiKey);
+            var active = loaded.GetActiveProviderProfile();
+            Assert.Equal(
+                "sk-custom-path-test",
+                new DpapiSecretStore(Path.Combine(customDataDir, "secrets")).Read(active.SecretId));
+            Assert.DoesNotContain("sk-custom-path-test", File.ReadAllText(Path.Combine(configDir, "config.json")));
+        }
+        finally
+        {
+            TestHelpers.ResetConfigToDefault();
+            Directory.Delete(configDir, true);
         }
     }
 

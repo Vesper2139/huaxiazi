@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Self-contained publish for Huaxiazi (win-x64).
 
@@ -67,6 +67,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $MainProj  = Join-Path $ScriptDir "PromptFloat.csproj"
 $TestProj  = Join-Path (Join-Path $ScriptDir "PromptFloat.Tests") "PromptFloat.Tests.csproj"
 $DistDir   = Join-Path $ScriptDir $OutputDir
+$SingleFileDir = Join-Path $ScriptDir "out/publish/single-file-$Runtime"
 $PackagesDir = Join-Path $ScriptDir "release"
 $ReportsDir = Join-Path $ScriptDir "out/reports"
 
@@ -109,10 +110,28 @@ if (-not $SkipTests) {
     dotnet build $TestProj -c $Configuration --no-restore
     if (-not $?) { throw "Test project build failed." }
 
-    Write-Step "Run unit tests (xUnit)"
+    Write-Step "Run unit tests (xUnit, isolated WPF groups)"
     New-Item -ItemType Directory -Path $ReportsDir -Force | Out-Null
-    dotnet test $TestProj -c $Configuration --no-build --logger "trx;LogFileName=tests.trx" --results-directory $ReportsDir
-    if (-not $?) { throw "Unit tests failed; publish aborted." }
+    # WPF creates native HWND subclasses. Running every UI fixture in one testhost can make the
+    # host crash during process teardown even when all assertions pass. Isolate UI-heavy classes
+    # in short-lived hosts while keeping the rest in one fast group.
+    $testGroups = @(
+        @{ Name = "core"; Filter = "FullyQualifiedName!~WpfViewSmokeTests&FullyQualifiedName!~BrandIconTests&FullyQualifiedName!~CompanionUiContractTests&FullyQualifiedName!~ThemeSwapRegressionTests&FullyQualifiedName!~AcceptanceDefectTests&FullyQualifiedName!~InteractionLayoutReverifyTests&FullyQualifiedName!~ResponsiveLayoutRegressionTests&FullyQualifiedName!~ScrollBehaviorTests&FullyQualifiedName!~IntegerInputBehaviorTests" },
+        @{ Name = "brand"; Filter = "FullyQualifiedName~BrandIconTests" },
+        @{ Name = "companion-ui"; Filter = "FullyQualifiedName~CompanionUiContractTests" },
+        @{ Name = "theme-swap"; Filter = "FullyQualifiedName~ThemeSwapRegressionTests" },
+        @{ Name = "wpf-smoke"; Filter = "FullyQualifiedName~WpfViewSmokeTests" },
+        @{ Name = "acceptance"; Filter = "FullyQualifiedName~AcceptanceDefectTests" },
+        @{ Name = "layout-reverify"; Filter = "FullyQualifiedName~InteractionLayoutReverifyTests" },
+        @{ Name = "responsive-layout"; Filter = "FullyQualifiedName~ResponsiveLayoutRegressionTests" },
+        @{ Name = "scroll-behavior"; Filter = "FullyQualifiedName~ScrollBehaviorTests" },
+        @{ Name = "integer-input"; Filter = "FullyQualifiedName~IntegerInputBehaviorTests" }
+    )
+    foreach ($testGroup in $testGroups) {
+        dotnet test $TestProj -c $Configuration --no-build --filter $testGroup.Filter `
+            --logger "trx;LogFileName=tests-$($testGroup.Name).trx" --results-directory $ReportsDir
+        if (-not $?) { throw "Unit test group '$($testGroup.Name)' failed; publish aborted." }
+    }
 }
 
 # ---------- 3. Self-contained publish ----------
@@ -122,6 +141,24 @@ if (-not $?) { throw "Self-contained publish failed." }
 
 Write-Host "Publish succeeded: $DistDir\Huaxiazi.exe" -ForegroundColor Green
 
+# A separate single-file build is required for a truly direct-download EXE.
+# IncludeAllContentForSelfExtract bundles Prompts/default config together with
+# WPF, SQLite and native runtime files instead of shipping a misleading apphost.
+Write-Step "Publish: standalone single-file $Runtime"
+dotnet publish $MainProj -c $Configuration -r $Runtime --self-contained true -o $SingleFileDir `
+    -p:PublishSingleFile=true `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:IncludeAllContentForSelfExtract=true `
+    -p:EnableCompressionInSingleFile=true `
+    -p:DebugType=None `
+    -p:DebugSymbols=false
+if (-not $?) { throw "Standalone single-file publish failed." }
+$singleFileSource = Join-Path $SingleFileDir "Huaxiazi.exe"
+if (-not (Test-Path $singleFileSource -PathType Leaf)) {
+    throw "Standalone publish did not produce Huaxiazi.exe."
+}
+Write-Host "Standalone publish succeeded: $singleFileSource" -ForegroundColor Green
+
 # ---------- 4. Optional code signing ----------
 if ($CertPath -or $CertSha1) {
     Write-Step "Code signing (optional, certificate supplied)"
@@ -130,30 +167,34 @@ if ($CertPath -or $CertSha1) {
         throw "deploy/sign.ps1 not found; cannot sign."
     }
 
-    $signParams = @{ DistDir = $DistDir }
-    if ($CertPath)     { $signParams['CertPath'] = $CertPath }
-    if ($CertPassword) { $signParams['CertPassword'] = $CertPassword }
-    if ($CertSha1)     { $signParams['CertSha1'] = $CertSha1 }
-    if ($SigntoolPath) { $signParams['SigntoolPath'] = $SigntoolPath }
+    foreach ($signDirectory in @($DistDir, $SingleFileDir)) {
+        $signParams = @{ DistDir = $signDirectory }
+        if ($CertPath)     { $signParams['CertPath'] = $CertPath }
+        if ($CertPassword) { $signParams['CertPassword'] = $CertPassword }
+        if ($CertSha1)     { $signParams['CertSha1'] = $CertSha1 }
+        if ($SigntoolPath) { $signParams['SigntoolPath'] = $SigntoolPath }
 
-    & $signScript @signParams
-    if (-not $?) { throw "Code signing failed (see deploy/sign.ps1 output)." }
+        & $signScript @signParams
+        if (-not $?) { throw "Code signing failed for $signDirectory (see deploy/sign.ps1 output)." }
+    }
     Write-Host "Code signing complete." -ForegroundColor Green
 }
 else {
     Write-Host "Skipping code signing (no -CertPath / -CertSha1 provided)." -ForegroundColor Yellow
 }
 
-# ---------- 5. Portable ZIP + SHA-256 ----------
-Write-Step "Package portable ZIP"
+# ---------- 5. Stable client delivery files ----------
+Write-Step "Package standalone EXE"
 New-Item -ItemType Directory -Path $PackagesDir -Force | Out-Null
-$portableZip = Join-Path $PackagesDir "Huaxiazi-portable-$Runtime.zip"
+$standaloneExe = Join-Path $PackagesDir "Vesper.exe"
+Copy-Item -LiteralPath $singleFileSource -Destination $standaloneExe -Force
+Write-Host "Standalone EXE: $standaloneExe" -ForegroundColor Green
+
+Write-Step "Package portable ZIP"
+$portableZip = Join-Path $PackagesDir "Vesper-Portable.zip"
 if (Test-Path $portableZip) { Remove-Item -LiteralPath $portableZip -Force }
 Compress-Archive -Path (Join-Path $DistDir "*") -DestinationPath $portableZip -CompressionLevel Optimal
-$portableHash = (Get-FileHash -LiteralPath $portableZip -Algorithm SHA256).Hash.ToLowerInvariant()
-Set-Content -LiteralPath ($portableZip + ".sha256") -Value "$portableHash  $(Split-Path $portableZip -Leaf)" -Encoding ASCII
 Write-Host "Portable ZIP: $portableZip" -ForegroundColor Green
-Write-Host "SHA-256    : $portableHash" -ForegroundColor Green
 
 # ---------- 6. Optional Inno Setup installer ----------
 $isccCandidates = @(
@@ -166,17 +207,20 @@ if ($iscc) {
     Write-Step "Build Inno Setup installer"
     & $iscc (Join-Path $ScriptDir "deploy\installer.iss")
     if (-not $?) { throw "Installer build failed." }
-    $installer = Join-Path $PackagesDir "HuaxiaziSetup.exe"
+    $installer = Join-Path $PackagesDir "Vesper-Setup.exe"
     if (Test-Path $installer) {
-        $installerHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
-        Set-Content -LiteralPath ($installer + ".sha256") -Value "$installerHash  HuaxiaziSetup.exe" -Encoding ASCII
         Write-Host "Installer: $installer" -ForegroundColor Green
-        Write-Host "SHA-256 : $installerHash" -ForegroundColor Green
     }
 }
 else {
     Write-Host "Inno Setup 6 not found; portable ZIP is ready and deploy/installer.iss remains build-ready." -ForegroundColor Yellow
 }
+
+# release/ is a client handoff folder, not an artifact archive.
+$deliveryNames = @("Vesper.exe", "Vesper-Portable.zip", "Vesper-Setup.exe")
+Get-ChildItem -LiteralPath $PackagesDir -File |
+    Where-Object { $_.Name -notin $deliveryNames } |
+    Remove-Item -Force
 
 Write-Step "All done"
 
@@ -186,9 +230,8 @@ if (Test-Path (Join-Path $ScriptDir "out")) {
     Remove-Item -LiteralPath (Join-Path $ScriptDir "out") -Recurse -Force
 }
 # Remove an accidentally expanded copy left by older packaging workflows. The
-# ZIP/installer packages and their checksums are the supported delivery
-# artifacts in release/.
-$expandedPackage = Join-Path $PackagesDir "Huaxiazi-portable-$Runtime"
+# ZIP/installer packages are the supported delivery artifacts in release/.
+$expandedPackage = Join-Path $PackagesDir "Vesper-Portable"
 if (Test-Path $expandedPackage -PathType Container) {
     Remove-Item -LiteralPath $expandedPackage -Recurse -Force
 }

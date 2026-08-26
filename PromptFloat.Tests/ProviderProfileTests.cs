@@ -1,4 +1,5 @@
 using PromptFloat.Models;
+using PromptFloat.Services;
 using Xunit;
 
 namespace PromptFloat.Tests;
@@ -60,12 +61,11 @@ public sealed class ProviderProfileTests
     [InlineData("https://api.deepseek.com", ProviderPlatform.DeepSeek, ProviderProtocol.OpenAICompatible)]
     [InlineData("http://localhost:11434/v1", ProviderPlatform.Ollama, ProviderProtocol.OpenAICompatible)]
     [InlineData("http://localhost:1234/v1", ProviderPlatform.LmStudio, ProviderProtocol.OpenAICompatible)]
-    public void NormalizeProviderProfiles_LegacyProfileInfersPlatformFromApiBase(string apiBase, ProviderPlatform platform, ProviderProtocol protocol)
+    public void ExplicitLegacyMigration_InfersPlatformFromApiBase(string apiBase, ProviderPlatform platform, ProviderProtocol protocol)
     {
         var profile = new ProviderProfile { ApiBase = apiBase, Platform = ProviderPlatform.OpenAI };
-        var settings = new AppSettings { ProviderProfiles = [profile] };
 
-        settings.NormalizeProviderProfiles();
+        ProviderPlatformCatalog.InferLegacyPlatform(profile);
 
         Assert.Equal(platform, profile.Platform);
         Assert.Equal(protocol, profile.Protocol);

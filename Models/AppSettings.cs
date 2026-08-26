@@ -58,6 +58,10 @@ public sealed class AppSettings
     [JsonPropertyName("autoCopyAfterOptimize")]
     public bool AutoCopyAfterOptimize { get; set; }
 
+    /// <summary>开启后在主编辑框按 Enter 直接发送；关闭时 Enter 保留换行行为。</summary>
+    [JsonPropertyName("enterToSend")]
+    public bool EnterToSend { get; set; }
+
     [JsonPropertyName("autosaveDelayMilliseconds")]
     public int AutosaveDelayMilliseconds { get; set; } = 750;
 
@@ -78,6 +82,21 @@ public sealed class AppSettings
 
     [JsonPropertyName("customSystemPrompt")]
     public string CustomSystemPrompt { get; set; } = string.Empty;
+
+    [JsonPropertyName("externalStrategiesEnabled")]
+    public bool ExternalStrategiesEnabled { get; set; } = true;
+
+    [JsonPropertyName("preferenceLearningEnabled")]
+    public bool PreferenceLearningEnabled { get; set; } = true;
+
+    [JsonPropertyName("expressionPreferenceProfile")]
+    public ExpressionPreferenceProfile ExpressionPreferenceProfile { get; set; } = new();
+
+    [JsonPropertyName("polishStrategyId")]
+    public string PolishStrategyId { get; set; } = "text-polisher";
+
+    [JsonPropertyName("promptStrategyId")]
+    public string PromptStrategyId { get; set; } = "prompt-optimizer";
 
     [JsonPropertyName("preserveMeaning")]
     public bool PreserveMeaning { get; set; } = true;
@@ -112,6 +131,10 @@ public sealed class AppSettings
     [JsonPropertyName("themeMode")]
     public string ThemeMode { get; set; } = "System";
 
+    /// <summary>完整外观皮肤。default 表示由 ThemeMode 解析浅色/深色资源。</summary>
+    [JsonPropertyName("skinId")]
+    public string SkinId { get; set; } = "default";
+
     [JsonPropertyName("editorFontSize")]
     public double EditorFontSize { get; set; } = 13;
 
@@ -123,6 +146,9 @@ public sealed class AppSettings
 
     [JsonPropertyName("animationsEnabled")]
     public bool AnimationsEnabled { get; set; } = true;
+
+    [JsonPropertyName("companionDriverMode")]
+    public CompanionDriverMode CompanionDriverMode { get; set; } = CompanionDriverMode.Local;
 
     [JsonPropertyName("windowOpacity")]
     public double WindowOpacity { get; set; } = 1;
@@ -233,10 +259,10 @@ public sealed class AppSettings
     public double? BallTop { get; set; }
 
     [JsonPropertyName("mainWindowWidth")]
-    public double MainWindowWidth { get; set; } = 600;
+    public double MainWindowWidth { get; set; } = 520;
 
     [JsonPropertyName("mainWindowHeight")]
-    public double MainWindowHeight { get; set; } = 210;
+    public double MainWindowHeight { get; set; } = 176;
 
     [JsonPropertyName("dataDirectory")]
     public string DataDirectory { get; set; } = string.Empty;
@@ -286,10 +312,8 @@ public sealed class AppSettings
     {
         EnabledModes ??= [];
         EnabledModes = EnabledModes.Distinct().ToList();
-        if (EnabledModes.Count == 0)
-        {
-            EnabledModes.Add(ApplicationMode.Polish);
-        }
+        if (!EnabledModes.Contains(ApplicationMode.Polish)) EnabledModes.Add(ApplicationMode.Polish);
+        if (!EnabledModes.Contains(ApplicationMode.PromptOptimize)) EnabledModes.Add(ApplicationMode.PromptOptimize);
 
         if (!EnabledModes.Contains(DefaultMode))
         {
@@ -322,7 +346,6 @@ public sealed class AppSettings
             profile.TopP = System.Math.Clamp(profile.TopP, 0, 1);
             profile.MaxTokens = System.Math.Clamp(profile.MaxTokens, 128, 32768);
             if (string.IsNullOrWhiteSpace(profile.SecretId)) profile.SecretId = "provider-" + profile.Id;
-            ProviderPlatformCatalog.InferLegacyPlatform(profile);
         }
 
         if (!ProviderProfiles.Any(profile => profile.Id == ActiveProviderProfileId))
@@ -373,12 +396,13 @@ public sealed class AppSettings
 
     public void NormalizeDisplaySettings()
     {
+        if (!Enum.IsDefined(CompanionDriverMode)) CompanionDriverMode = CompanionDriverMode.Local;
         EditorFontSize = System.Math.Clamp(EditorFontSize, 10, 24);
         UiScale = System.Math.Clamp(UiScale, 0.8, 1.5);
         EditorDefaultHeight = System.Math.Clamp(EditorDefaultHeight, 28, 800);
         WindowOpacity = System.Math.Clamp(WindowOpacity, 0.65, 1);
         FloatingBallOpacity = System.Math.Clamp(FloatingBallOpacity, 0.35, 1);
-        FloatingBallSize = 44;
+        FloatingBallSize = System.Math.Clamp(FloatingBallSize, 32, 96);
         if (CloseBehavior is not ("Hide" or "Tray" or "Exit")) CloseBehavior = "Hide";
         if (EscapeBehavior is not ("Hide" or "Tray" or "None")) EscapeBehavior = "Hide";
     }

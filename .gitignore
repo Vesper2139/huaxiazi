@@ -10,12 +10,11 @@ coverage.*
 out/
 deploy/out/
 
-# release/ 只允许可直接交付的包与校验文件入库
+# release/ 只允许可直接交付的包入库；不提交展开发布目录、PDB 或中间文件
 release/*
-!release/Huaxiazi-portable-win-x64.zip
-!release/Huaxiazi-portable-win-x64.zip.sha256
-!release/HuaxiaziSetup.exe
-!release/HuaxiaziSetup.exe.sha256
+!release/Vesper.exe
+!release/Vesper-Portable.zip
+!release/Vesper-Setup.exe
 
 # ===== Visual Studio / IDE =====
 .vs/

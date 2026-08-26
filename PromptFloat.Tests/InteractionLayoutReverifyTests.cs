@@ -1,9 +1,11 @@
 using System;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Windows;
 using System.Windows.Media;
 using PromptFloat.Models;
+using PromptFloat.Services;
 using PromptFloat.Views;
 using Xunit;
 
@@ -67,10 +69,35 @@ public sealed class InteractionLayoutReverifyTests
             Assert.NotNull(method);
             method.Invoke(face, null);
 
-            var scale = Assert.IsType<ScaleTransform>(face.FindName("BodyScale"));
-            var blink = Assert.IsType<ScaleTransform>(face.FindName("BlinkScale"));
-            Assert.True(scale.HasAnimatedProperties);
-            Assert.True(blink.HasAnimatedProperties);
+            var controllerField = typeof(CompanionFace).GetField("_poseController", BindingFlags.Instance | BindingFlags.NonPublic);
+            var controller = Assert.IsType<CompanionPoseController>(controllerField?.GetValue(face));
+            Assert.True(controller.HasActiveAction);
+
+            var pose = controller.Advance(TimeSpan.FromMilliseconds(16), animationsEnabled: true, reduceMotion: false);
+            Assert.True(pose.ScaleX > 1);
+            Assert.True(pose.ScaleY > 1);
+        });
+    }
+
+    [Fact]
+    public void DiffPreview_DebouncesTextChangesInsteadOfRecomputingEveryKeystroke()
+    {
+        RunSta(() =>
+        {
+            EnsureApplicationResources();
+            App.ReplaceSettings(new AppSettings { AnimationsEnabled = false, IncognitoMode = true });
+            var window = new MainWindow();
+            var viewModelField = typeof(MainWindow).GetField("_vm", BindingFlags.Instance | BindingFlags.NonPublic);
+            var timerField = typeof(MainWindow).GetField("_diffRefreshTimer", BindingFlags.Instance | BindingFlags.NonPublic);
+            var viewModel = Assert.IsType<PromptFloat.ViewModels.MainViewModel>(viewModelField?.GetValue(window));
+
+            viewModel.ViewMode = ViewMode.Optimized;
+            viewModel.ShowDiff = true;
+            viewModel.UserInput = "正在输入";
+
+            var timer = Assert.IsType<System.Windows.Threading.DispatcherTimer>(timerField?.GetValue(window));
+            Assert.True(timer.IsEnabled);
+            window.Close();
         });
     }
 
@@ -95,16 +122,19 @@ public sealed class InteractionLayoutReverifyTests
     {
         var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "MainWindow.xaml"));
 
-        Assert.Contains("Width=\"600\" Height=\"210\"", xaml);
+        Assert.Contains("Width=\"520\" Height=\"176\"", xaml);
         Assert.Contains("x:Name=\"VesperWordmark\"", xaml);
         Assert.Contains("x:Name=\"CompanionHost\"", xaml);
         Assert.Contains("Text=\"VES\"", xaml);
         Assert.Contains("Text=\"PER\"", xaml);
         Assert.DoesNotContain("NavigationBrandIcon", xaml);
         Assert.DoesNotContain("TEXT COMPANION", xaml);
-        Assert.Contains("<Border Width=\"34\" Height=\"30\"", xaml);
-        Assert.Contains("<Viewbox Width=\"34\" Height=\"34\"", xaml);
-        Assert.DoesNotContain("<Border Width=\"44\" Height=\"44\" Background=\"Transparent\" />", xaml);
+        // 旧布局的 34×30 spacer 已移除
+        Assert.DoesNotContain("<Border Width=\"34\" Height=\"30\"", xaml);
+        // 精灵容器与 Viewbox 使用同一受约束度量；所有皮肤共享交互命中范式。
+        Assert.Contains("<Viewbox Width=\"{DynamicResource SkinCompanionSize}\" Height=\"{DynamicResource SkinCompanionSize}\"", xaml);
+        Assert.Contains("x:Name=\"CompanionDragHandle\"", xaml);
+        Assert.Contains("Background=\"Transparent\"", xaml);
     }
 
     [Fact]
@@ -115,6 +145,46 @@ public sealed class InteractionLayoutReverifyTests
         Assert.Contains("BeginExpressionTransition", code);
         Assert.Contains("close.Completed", code);
         Assert.Contains("CommitExpression", code);
+    }
+
+    [Fact]
+    public void DefaultCompanion_UsesSharedFrameClockAndExposesSemanticOperationFeedback()
+    {
+        var face = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "CompanionFace.xaml.cs"));
+        var clock = File.ReadAllText(Path.Combine(RepoRoot(), "Services", "CompanionFrameClock.cs"));
+
+        Assert.Contains("CompanionPoseController", face);
+        Assert.Contains("CompanionFrameClock.Subscribe", face);
+        Assert.Contains("PlayOperationFeedback", face);
+        Assert.Contains("CompositionTarget.Rendering", clock);
+    }
+
+    [Fact]
+    public void MainWindow_RoutesDailyEditingOperationsToTheLocalCompanionDriver()
+    {
+        var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "MainWindow.xaml"));
+        var code = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "MainWindow.xaml.cs"));
+
+        Assert.Contains("OperationButton_OnClick", xaml);
+        Assert.Contains("MainTextBox_OnTextChanged", xaml);
+        var implementation = xaml + code;
+        Assert.Contains("CompanionEventKind.Pasted", implementation);
+        Assert.Contains("CompanionEventKind.Submitted", implementation);
+        Assert.Contains("CompanionEventKind.DiffScanned", implementation);
+        Assert.Contains("CompanionEventKind.Resized", implementation);
+        Assert.Contains("CompanionEventKind.Failure", implementation);
+    }
+
+    [Fact]
+    public void DragDirection_UsesIncrementalMovementRatherThanOnlyTheOriginalQuadrant()
+    {
+        var floating = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "FloatingBallWindow.xaml.cs"));
+        var main = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "MainWindow.xaml.cs"));
+
+        Assert.Contains("_lastDragPosition", floating);
+        Assert.Contains("Left - _lastDragPosition.X", floating);
+        Assert.Contains("_companionLastDragPosition", main);
+        Assert.Contains("Left - _companionLastDragPosition.X", main);
     }
 
     [Fact]
@@ -146,16 +216,30 @@ public sealed class InteractionLayoutReverifyTests
     public void Settings_UsesVectorControlsAndHasNoDeadAccentSetting()
     {
         var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "SettingsView.xaml"));
+        var ability = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ExpressionAbilitySettingsView.xaml"));
+        var providerEditor = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileEditView.xaml"));
         var defaults = File.ReadAllText(Path.Combine(RepoRoot(), "Config", "default-config.json"));
 
         Assert.Contains("Data=\"{StaticResource IconResult}\"", xaml);
-        Assert.Contains("Data=\"{StaticResource IconPlus}\"", xaml);
-        Assert.Contains("Data=\"{StaticResource IconEye}\"", xaml);
+        Assert.Contains("Data=\"{StaticResource IconPlus}\"", ability);
+        Assert.Contains("Data=\"{StaticResource IconEye}\"", providerEditor);
         Assert.DoesNotContain("Text=\"✓\"", xaml);
         Assert.DoesNotContain("Text=\"＋\"", xaml);
         Assert.Null(typeof(AppSettings).GetProperty("AccentTheme"));
         Assert.Null(typeof(PromptFloat.ViewModels.SettingsViewModel).GetProperty("AccentTheme"));
         Assert.DoesNotContain("accentTheme", defaults, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Settings_ExplainsTheTokenCostOfEmotionAssistantMode()
+    {
+        var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "SettingsView.xaml"));
+        var defaults = File.ReadAllText(Path.Combine(RepoRoot(), "Config", "default-config.json"));
+
+        Assert.Contains("CompanionDriverMode", xaml);
+        Assert.Contains("额外请求", xaml);
+        Assert.Contains("略微增加用量", xaml);
+        Assert.Contains("\"companionDriverMode\": \"Local\"", defaults);
     }
 
     private static void RunSta(Action action)
@@ -165,6 +249,7 @@ public sealed class InteractionLayoutReverifyTests
         {
             try { action(); }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -187,6 +272,9 @@ public sealed class InteractionLayoutReverifyTests
 
     private static void EnsureApplicationResources()
     {
+        if (Application.Current is { } existing && !ReferenceEquals(existing.Dispatcher, System.Windows.Threading.Dispatcher.CurrentDispatcher))
+            TestHelpers.ResetWpfApplication();
+
         var application = Application.Current ?? new Application();
         application.Resources.MergedDictionaries.Clear();
         application.Resources.MergedDictionaries.Add(new ResourceDictionary

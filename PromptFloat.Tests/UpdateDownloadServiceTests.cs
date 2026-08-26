@@ -28,11 +28,42 @@ public sealed class UpdateDownloadServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task DownloadAsync_HttpUrl_ReturnsError()
+    {
+        using var client = new HttpClient();
+        var service = new UpdateDownloadService(client);
+        var target = Path.Combine(_root, "HuaxiaziSetup.exe");
+
+        var result = await service.DownloadAsync(
+            "http://example.com/HuaxiaziSetup.exe",
+            new string('0', 64),
+            target);
+
+        Assert.Equal(UpdateDownloadStatus.Error, result.Status);
+        Assert.Contains("HTTPS", result.Message);
+    }
+
+    [Fact]
+    public async Task DownloadAsync_InvalidUrl_ReturnsError()
+    {
+        using var client = new HttpClient();
+        var service = new UpdateDownloadService(client);
+        var target = Path.Combine(_root, "HuaxiaziSetup.exe");
+
+        var result = await service.DownloadAsync(
+            "not-a-url",
+            new string('0', 64),
+            target);
+
+        Assert.Equal(UpdateDownloadStatus.Error, result.Status);
+    }
+
+    [Fact]
     public async Task DownloadAsync_ValidHash_AtomicallyWritesInstaller()
     {
         var payload = Encoding.UTF8.GetBytes("signed installer bytes");
         using var client = new HttpClient(new Handler(payload));
-        var service = new UpdateDownloadService(client);
+        var service = new UpdateDownloadService(client, new StubAuthenticodeVerifier(true));
         var target = Path.Combine(_root, "HuaxiaziSetup.exe");
 
         var result = await service.DownloadAsync(
@@ -43,6 +74,33 @@ public sealed class UpdateDownloadServiceTests : IDisposable
         Assert.Equal(UpdateDownloadStatus.Success, result.Status);
         Assert.Equal(payload, File.ReadAllBytes(target));
         Assert.False(File.Exists(target + ".download"));
+    }
+
+    [Fact]
+    public async Task DownloadAsync_RejectsUnsignedInstallerEvenWhenHashMatches()
+    {
+        var payload = Encoding.UTF8.GetBytes("unsigned installer bytes");
+        using var client = new HttpClient(new Handler(payload));
+        var service = new UpdateDownloadService(client, new StubAuthenticodeVerifier(false));
+        var target = Path.Combine(_root, "VesperSetup.exe");
+
+        var result = await service.DownloadAsync(
+            "https://example.com/VesperSetup.exe",
+            Convert.ToHexString(SHA256.HashData(payload)),
+            target);
+
+        Assert.Equal(UpdateDownloadStatus.SignatureInvalid, result.Status);
+        Assert.False(File.Exists(target));
+        Assert.False(File.Exists(target + ".download"));
+    }
+
+    private sealed class StubAuthenticodeVerifier(bool isValid) : IAuthenticodeVerifier
+    {
+        public bool Verify(string filePath, out string? publisher)
+        {
+            publisher = isValid ? "Vesper" : null;
+            return isValid;
+        }
     }
 
     [Fact]

@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace PromptFloat.Models;
@@ -18,6 +20,19 @@ public enum ProviderPlatform
     DeepSeek,
     Qwen,
     Doubao,
+    Kimi,
+    Zhipu,
+    SiliconFlow,
+    StepFun,
+    MiniMax,
+    OpenRouter,
+    Grok,
+    Mistral,
+    Groq,
+    Baichuan,
+    Spark,
+    Yi,
+    Together,
     Ollama,
     LmStudio,
     CustomOpenAICompatible
@@ -29,6 +44,16 @@ public enum ProviderProtocol
     OpenAICompatible,
     AnthropicMessages,
     GeminiGenerateContent
+}
+
+/// <summary>模型信息：显示名称 → 实际 Model ID。</summary>
+public sealed record ModelDefinition(string DisplayName, string ModelId);
+
+/// <summary>模型映射条目：统一模型名 → 实际 Model ID（供 UI 编辑集合）。</summary>
+public sealed class ModelMappingEntry
+{
+    public string Key { get; set; } = string.Empty;
+    public string Value { get; set; } = string.Empty;
 }
 
 public sealed class ProviderProfile
@@ -45,6 +70,9 @@ public sealed class ProviderProfile
     public double TopP { get; set; } = 1.0;
     public int MaxTokens { get; set; } = 2048;
     public string SecretId { get; set; } = "provider-default";
+    public string Remark { get; set; } = string.Empty;
+    public bool EnableModelMapping { get; set; }
+    public Dictionary<string, string> ModelMapping { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public ProviderProfile Clone() => new()
     {
@@ -59,6 +87,9 @@ public sealed class ProviderProfile
         Temperature = Temperature,
         TopP = TopP,
         MaxTokens = MaxTokens,
-        SecretId = SecretId
+        SecretId = SecretId,
+        Remark = Remark,
+        EnableModelMapping = EnableModelMapping,
+        ModelMapping = new Dictionary<string, string>(ModelMapping, StringComparer.OrdinalIgnoreCase)
     };
 }

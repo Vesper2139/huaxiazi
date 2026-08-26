@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Windows;
+using System.Windows.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using PromptFloat.Models;
@@ -32,7 +33,14 @@ public partial class App : System.Windows.Application
     /// <summary>全局配置（加载一次，多处共享）。</summary>
     internal static AppSettings Settings { get; private set; } = new();
 
-    internal static void ReplaceSettings(AppSettings settings) => Settings = settings;
+    /// <summary>设置保存后通知已打开的悬浮窗刷新绑定数据。</summary>
+    internal static event EventHandler? SettingsChanged;
+
+    internal static void ReplaceSettings(AppSettings settings)
+    {
+        Settings = settings;
+        SettingsChanged?.Invoke(null, EventArgs.Empty);
+    }
 
     /// <summary>配置读写服务。</summary>
     internal static ConfigService ConfigService { get; } = new();
@@ -43,6 +51,9 @@ public partial class App : System.Windows.Application
     /// <summary>剪贴板服务。</summary>
     internal static ClipboardService ClipboardService { get; } = new();
 
+    /// <summary>皮肤服务（管理整套样式替换）。在启动时初始化。</summary>
+    internal static SkinService SkinService { get; private set; } = new();
+
     /// <summary>提示词组装服务。</summary>
     internal static PromptBuilderService PromptBuilder { get; } = new();
 
@@ -50,9 +61,7 @@ public partial class App : System.Windows.Application
 
     internal static string DefaultDataRoot { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Huaxiazi");
-    internal static string DataRoot => string.IsNullOrWhiteSpace(Settings.DataDirectory)
-        ? DefaultDataRoot
-        : Path.GetFullPath(Environment.ExpandEnvironmentVariables(Settings.DataDirectory));
+    internal static string DataRoot => DataDirectoryPolicy.ResolveOrDefault(Settings.DataDirectory, DefaultDataRoot);
 
     private static readonly Lazy<ArchiveService> ArchiveServiceInstance = new(() => new ArchiveService(DataRoot));
     internal static ArchiveService ArchiveService => ArchiveServiceInstance.Value;
@@ -101,7 +110,20 @@ public partial class App : System.Windows.Application
         // 1. 加载配置（不存在则写默认）
         Settings = ConfigService.Load();
         Settings.NormalizeResidentEntrypoints();
-        ThemeService.Apply(Settings);
+        try
+        {
+            new AgentSkillPackageService(Path.Combine(DataRoot, "agent-skills"))
+                .ImportPresets(Path.Combine(AppContext.BaseDirectory, "Presets", "Skills"));
+        }
+        catch (Exception exception) { LogUnhandled("PresetSkillImport", exception); }
+        SkinService = new(Application.Current.Resources);
+        try
+        {
+            foreach (var skin in new SkinPackageService(Path.Combine(DataRoot, "skins")).DiscoverInstalled())
+                SkinService.Register(skin);
+        }
+        catch (Exception exception) { LogUnhandled("SkinCatalog", exception); }
+        ThemeService.Apply(Settings, SkinService, Application.Current.Resources);
         _systemThemeChangedHandler = (_, args) =>
         {
             if (args.Category is not (UserPreferenceCategory.General or UserPreferenceCategory.VisualStyle or UserPreferenceCategory.Color)) return;
@@ -109,7 +131,7 @@ public partial class App : System.Windows.Application
             {
                 if (string.Equals(Settings.ThemeMode, "System", StringComparison.OrdinalIgnoreCase) || SystemParameters.HighContrast)
                 {
-                    ThemeService.Apply(Settings);
+                    ThemeService.Apply(Settings, SkinService, Application.Current.Resources);
                 }
             }));
         };
@@ -214,6 +236,17 @@ public partial class App : System.Windows.Application
     private void OnDispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
     {
         LogUnhandled("UI", e.Exception);
+        // UI 异常不能让模态对话框留下“所有按钮都失效”的半禁用状态。
+        // 在当前消息回调结束后恢复仍可见但被禁用的窗口，详细异常保留在 errors.log。
+        try
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() =>
+            {
+                foreach (Window window in Windows)
+                    if (window.IsVisible && !window.IsEnabled) window.IsEnabled = true;
+            }));
+        }
+        catch { }
         e.Handled = true;
     }
 
@@ -291,8 +324,8 @@ public partial class App : System.Windows.Application
         }
 
         var uiScale = Settings.UiScale;
-        var desiredWidth = (Settings.RememberWindowSize ? Settings.MainWindowWidth : 600) * uiScale;
-        var desiredHeight = (Settings.RememberWindowSize ? Settings.MainWindowHeight : 210) * uiScale;
+        var desiredWidth = (Settings.RememberWindowSize ? Settings.MainWindowWidth : 520) * uiScale;
+        var desiredHeight = (Settings.RememberWindowSize ? Settings.MainWindowHeight : 176) * uiScale;
 
         if (_mainWindow.WindowState == WindowState.Minimized)
         {
@@ -303,6 +336,7 @@ public partial class App : System.Windows.Application
         // 显示主窗口、置顶并聚焦；同时存在悬浮球时顺手隐藏。
         if (_floatingBall is { IsVisible: true })
         {
+            if (_floatingUi.State != FloatingUiState.Ball) _floatingUi.ResetToBall();
             _floatingUi.BeginExpand();
             var ball = _floatingBall;
             _ballOriginBeforeExpand = new Point(ball.Left, ball.Top);
@@ -345,6 +379,11 @@ public partial class App : System.Windows.Application
     {
         if (_mainWindow is { IsVisible: true })
         {
+            if (_floatingUi.State != FloatingUiState.Window)
+            {
+                _floatingUi.ResetToBall();
+                _floatingUi.ShowWindowDirect();
+            }
             _floatingUi.BeginCollapse();
             if (Settings.RememberWindowSize && _mainWindow.WindowState == WindowState.Normal)
             {

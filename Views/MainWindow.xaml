@@ -4,8 +4,8 @@
         xmlns:models="clr-namespace:PromptFloat.Models"
         xmlns:local="clr-namespace:PromptFloat.Views"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-        Title="Vesper" Icon="pack://siteoforigin:,,,/Resources/Brand/Vesper.ico" Width="600" Height="210" MinWidth="420" MinHeight="152"
-        WindowStyle="None" AllowsTransparency="False" Background="{StaticResource BgBrush}"
+        Title="Vesper" Icon="pack://siteoforigin:,,,/Resources/Brand/Vesper.ico" Width="520" Height="176" MinWidth="420" MinHeight="158"
+        WindowStyle="None" AllowsTransparency="False" Background="{DynamicResource BgBrush}"
         ResizeMode="CanResize" ShowInTaskbar="False" Topmost="True"
         FontFamily="{StaticResource AppFont}" UseLayoutRounding="True" SnapsToDevicePixels="True"
         TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"
@@ -24,15 +24,25 @@
         <local:ViewModeToBoolConverter x:Key="ViewModeToBool" />
         <local:CountZeroToVisibilityConverter x:Key="CountZeroToVisibility" />
 
+        <Style x:Key="MainWindowFocusVisual">
+            <Setter Property="Control.Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Border Margin="-2" BorderBrush="{DynamicResource FocusBorderBrush}" BorderThickness="1" CornerRadius="6" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="MiniSegmentedButton" TargetType="ToggleButton">
             <Setter Property="MinHeight" Value="22" />
             <Setter Property="Padding" Value="8,0" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource MainWindowFocusVisual}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
@@ -41,16 +51,16 @@
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <Border x:Name="Indicator" Height="2" Width="18" CornerRadius="1" Margin="0,0,0,2"
                                         HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                                        Background="{StaticResource BrandBrush}" Opacity="0" />
+                                        Background="{DynamicResource BrandBrush}" Opacity="0" />
                             </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Surface" Property="Background" Value="{StaticResource SelectedSurfaceBrush}" />
+                                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource SelectedSurfaceBrush}" />
                                 <Setter TargetName="Indicator" Property="Opacity" Value="1" />
-                                <Setter Property="Foreground" Value="{StaticResource BrandBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource BrandBrush}" />
                             </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{StaticResource HoverSurfaceBrush}" /></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource HoverSurfaceBrush}" /></Trigger>
                             <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -59,23 +69,61 @@
         </Style>
 
         <Style x:Key="EdgeToolButton" TargetType="Button" BasedOn="{StaticResource ToolIconButton}">
-            <Setter Property="Width" Value="26" />
-            <Setter Property="Height" Value="26" />
+            <Setter Property="Width" Value="{DynamicResource SkinToolButtonSize}" />
+            <Setter Property="Height" Value="{DynamicResource SkinToolButtonSize}" />
         </Style>
         <Style x:Key="CompactTitleButton" TargetType="Button" BasedOn="{StaticResource TitleBarButton}">
-            <Setter Property="Width" Value="28" />
-            <Setter Property="Height" Value="28" />
+            <Setter Property="Width" Value="{DynamicResource SkinToolButtonSize}" />
+            <Setter Property="Height" Value="{DynamicResource SkinToolButtonSize}" />
         </Style>
         <Style x:Key="TitleToggleButton" TargetType="ToggleButton">
-            <Setter Property="Width" Value="26" /><Setter Property="Height" Value="26" />
-            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" /><Setter Property="Background" Value="Transparent" />
+            <Setter Property="Width" Value="{DynamicResource SkinToolButtonSize}" /><Setter Property="Height" Value="{DynamicResource SkinToolButtonSize}" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" /><Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" /><Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value><ControlTemplate TargetType="ToggleButton">
                     <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="7"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsChecked" Value="True"><Setter TargetName="Surface" Property="Background" Value="{StaticResource SelectedSurfaceBrush}" /><Setter Property="Foreground" Value="{StaticResource BrandBrush}" /></Trigger>
-                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{StaticResource HoverSurfaceBrush}" /></Trigger>
+                        <Trigger Property="IsChecked" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource SelectedSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource BrandBrush}" /></Trigger>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource HoverSurfaceBrush}" /></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate></Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="WindowControlButton" TargetType="Button">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Margin" Value="2,0,0,0" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource MainWindowFocusVisual}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="7">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource HoverSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource TextBrush}" /></Trigger>
+                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource SelectedSurfaceBrush}" /></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="WindowPinControl" TargetType="ToggleButton" BasedOn="{StaticResource TitleToggleButton}">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Margin" Value="2,0,0,0" />
+            <Setter Property="Template">
+                <Setter.Value><ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="7"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource SelectedSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource BrandBrush}" /></Trigger>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource HoverSurfaceBrush}" /></Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate></Setter.Value>
             </Setter>
@@ -84,27 +132,90 @@
             <Setter Property="MinWidth" Value="68" /><Setter Property="MinHeight" Value="26" />
             <Setter Property="Padding" Value="11,0" /><Setter Property="FontSize" Value="12" />
         </Style>
+        <!-- 澄清回答是编辑器内的辅助动作：短而克制，不抢过问题本身的视觉权重。 -->
+        <Style x:Key="ClarificationContinueButton" TargetType="Button" BasedOn="{StaticResource GlassButton}">
+            <Setter Property="MinWidth" Value="58" />
+            <Setter Property="Width" Value="58" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+        <Style x:Key="ClarificationAnswerBox" TargetType="TextBox" BasedOn="{StaticResource GlassPlainTextBox}">
+            <Setter Property="Background" Value="{DynamicResource EditorBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource GlassBorderBrush}" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Tag" Value="补充信息（可选）" />
+        </Style>
+        <!-- 紧凑内联胶囊按钮：用于模式轮播、右下角视图切换等小控件 -->
+        <Style x:Key="InlineCapsuleButton" TargetType="Button">
+            <Setter Property="MinHeight" Value="22" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontFamily" Value="{StaticResource ButtonFont}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
+            <Setter Property="Background" Value="{DynamicResource CapsuleBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CapsuleBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource MainWindowFocusVisual}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverSurfaceBrush}" /></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- 模式分段按钮：统一应用字体、等宽居中；激活态由代码设置前景色 -->
+        <Style x:Key="ModeSegmentStyle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource MainWindowFocusVisual}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Foreground" Value="#FFFFFF" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="TitleModelSelector" TargetType="ComboBox" BasedOn="{StaticResource GlassComboBox}">
-            <Setter Property="Height" Value="24" />
-            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="MinHeight" Value="22" />
             <Setter Property="MinWidth" Value="120" />
             <Setter Property="MaxWidth" Value="180" />
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontSize" Value="10" />
             <Setter Property="Padding" Value="8,0,24,0" />
         </Style>
         <Style x:Key="PopupCard" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource PopupBrush}" /><Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource PopupBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource GlassBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="9" /><Setter Property="Padding" Value="8" />
         </Style>
 
         <ContextMenu x:Key="AppMainMenu" Style="{StaticResource AppContextMenu}"
                      DataContext="{Binding RelativeSource={RelativeSource Self}, Path=PlacementTarget.DataContext}">
-            <MenuItem Header="重新生成" Style="{StaticResource AppMenuItem}" Command="{Binding RegenerateCommand}" />
-            <MenuItem Header="复制优化稿" Style="{StaticResource AppMenuItem}" Command="{Binding CopyResultCommand}" />
-            <MenuItem Header="粘贴" Style="{StaticResource AppMenuItem}" Command="{Binding PasteFromClipboardCommand}" />
             <MenuItem Header="清空" Style="{StaticResource AppMenuItem}" Command="{Binding ClearInputCommand}" />
-            <MenuItem Header="撤销工作区操作" Style="{StaticResource AppMenuItem}" Command="{Binding UndoWorkspaceCommand}" />
-            <MenuItem Header="恢复工作区操作" Style="{StaticResource AppMenuItem}" Command="{Binding RedoWorkspaceCommand}" />
             <MenuItem Header="编辑成稿" Style="{StaticResource AppMenuItem}" Command="{Binding BeginEditResultCommand}" />
             <MenuItem Header="保存归档" Style="{StaticResource AppMenuItem}" Command="{Binding SaveEditedResultCommand}" />
             <MenuItem Header="撤销归档" Style="{StaticResource AppMenuItem}" Command="{Binding UndoArchiveCommand}" />
@@ -127,35 +238,41 @@
             <Grid Margin="4,3,4,4">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" MinHeight="111" />
+                    <RowDefinition Height="*" MinHeight="100" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" MinHeight="30" MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown">
+                <Grid x:Name="TitleBand" Grid.Row="0" MinHeight="{DynamicResource SkinTitleBarHeight}" MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Width="34" Height="30" Background="Transparent" />
-                        <StackPanel x:Name="VesperWordmark" Margin="5,0,0,0" VerticalAlignment="Center">
-                            <TextBlock FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextBrush}" LineHeight="12">
-                                <Run Text="VES" /><Run Text="PER" Foreground="{StaticResource BrandBrush}" />
-                            </TextBlock>
-                        </StackPanel>
+                    <StackPanel x:Name="VesperWordmark" Margin="52,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
+                        <TextBlock FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center">
+                            <Run Text="VES" /><Run Text="PER" Foreground="{DynamicResource BrandBrush}" />
+                        </TextBlock>
+                        <Border x:Name="TitleFeedback" Width="150" Height="20" Margin="10,0,0,0" Padding="5,0"
+                                VerticalAlignment="Center" CornerRadius="5" Background="{DynamicResource PopupBrush}"
+                                BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="1"
+                                Visibility="{Binding HasOperationalNotice, Converter={StaticResource BoolToVisibility}}"
+                                ToolTip="{Binding OperationalNotice}" ToolTipService.InitialShowDelay="180" ToolTipService.ShowDuration="60000"
+                                AutomationProperties.LiveSetting="Polite">
+                            <DockPanel LastChildFill="True">
+                                <Ellipse Width="5" Height="5" Margin="0,0,5,0" VerticalAlignment="Center" Fill="{DynamicResource BrandBrush}" />
+                                <TextBlock Text="{Binding OperationalNotice}" Foreground="{DynamicResource MutedBrush}" FontSize="11"
+                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
+                        </Border>
                     </StackPanel>
                     <ComboBox x:Name="ProviderSelector" Grid.Column="1" Style="{StaticResource TitleModelSelector}"
                               ItemsSource="{Binding ProviderProfiles}" DisplayMemberPath="Name"
                               SelectedItem="{Binding ActiveProviderProfile, Mode=TwoWay}"
                               HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0,6,0"
                               ToolTip="当前模型；切换后下一次生成立即生效" />
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <ToggleButton x:Name="PinButton" Style="{StaticResource TitleToggleButton}" Click="PinButton_OnClick" ToolTip="置顶">
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,2,0">
+                        <Button Style="{StaticResource WindowControlButton}" Click="TaskbarMinimizeButton_OnClick" ToolTip="最小化到任务栏" AutomationProperties.Name="最小化">
+                            <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconMinimize}" />
+                        </Button>
+                        <ToggleButton x:Name="PinButton" Style="{StaticResource WindowPinControl}" Click="PinButton_OnClick" ToolTip="置顶" AutomationProperties.Name="置顶">
                             <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconPin}" />
                         </ToggleButton>
-                        <Button x:Name="SettingsButton" Style="{StaticResource CompactTitleButton}" Click="SettingsMenu_OnClick" ToolTip="设置">
-                            <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconSettings}" />
-                        </Button>
-                        <Button x:Name="CollapseToBallButton" Style="{StaticResource CompactTitleButton}" Click="CollapseToBallButton_OnClick" ToolTip="收起为悬浮球">
-                            <Path Width="16" Height="12" Stretch="Uniform" Fill="{StaticResource BrandBrush}" Data="{StaticResource IconBrandWings}" />
-                        </Button>
-                        <Button Style="{StaticResource CompactTitleButton}" Click="CloseButton_OnClick" ToolTip="关闭">
+                        <Button Style="{StaticResource WindowControlButton}" Click="CloseButton_OnClick" ToolTip="收起窗口" AutomationProperties.Name="收起窗口">
                             <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconClose}" />
                         </Button>
                     </StackPanel>
@@ -168,93 +285,116 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBox x:Name="MainTextBox" Grid.Row="0" Style="{StaticResource VesperTextEditor}" Padding="14,12,14,10" FontSize="{DynamicResource EditorFontSize}" Tag="{Binding EditorPlaceholderText}"
-                                 Visibility="{Binding ShowDiff, Converter={StaticResource BoolToVisibility}, ConverterParameter=Inverse}"
-                                 Text="{Binding DisplayText, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsReadOnly}"
-                                 AcceptsReturn="True" AutomationProperties.Name="正文输入或生成结果" />
-                        <ScrollViewer Grid.Row="0" Style="{StaticResource OverlayScrollViewer}" VerticalScrollBarVisibility="Auto"
-                                      Visibility="{Binding ShowDiff, Converter={StaticResource BoolToVisibility}}" Padding="14,10">
-                            <TextBlock x:Name="DiffOverlay" TextWrapping="Wrap" Foreground="{StaticResource BodyTextBrush}" FontSize="13" />
-                        </ScrollViewer>
+                        <!-- 编辑区与澄清区互斥占用同一内容行，避免弹层覆盖正文和底部工具栏。 -->
+                        <Grid x:Name="EditorContentHost" Grid.Row="0"
+                              Visibility="{Binding HasClarification, Converter={StaticResource BoolToVisibility}, ConverterParameter=Inverse}">
+                            <TextBox x:Name="MainTextBox" Style="{StaticResource VesperTextEditor}" Padding="12,8,12,8" FontSize="{DynamicResource EditorFontSize}" Tag="{Binding EditorPlaceholderText}"
+                                     Visibility="{Binding ShowDiff, Converter={StaticResource BoolToVisibility}, ConverterParameter=Inverse}"
+                                     Text="{Binding DisplayText, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsReadOnly}"
+                                     AcceptsReturn="True" AutomationProperties.Name="正文输入或生成结果"
+                                     AutomationProperties.HelpText="{Binding EditorPlaceholderText}"
+                                     TextChanged="MainTextBox_OnTextChanged" PreviewKeyDown="MainTextBox_OnPreviewKeyDown" />
+                            <ScrollViewer Style="{StaticResource OverlayScrollViewer}" VerticalScrollBarVisibility="Auto"
+                                          Visibility="{Binding ShowDiff, Converter={StaticResource BoolToVisibility}}" Padding="14,10">
+                                <TextBlock x:Name="DiffOverlay" TextWrapping="Wrap" Foreground="{DynamicResource BodyTextBrush}" FontSize="13" />
+                            </ScrollViewer>
+                        </Grid>
 
-                        <Border x:Name="FeedbackOverlay" Grid.Row="0" Panel.ZIndex="20"
-                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10,8,10,0"
-                                MaxWidth="360" Padding="9,5" IsHitTestVisible="False"
-                                CornerRadius="{DynamicResource SmallRadius}" Background="{StaticResource PopupBrush}"
-                                BorderBrush="{StaticResource GlassBorderBrush}" BorderThickness="1"
-                                Visibility="{Binding HasOperationalNotice, Converter={StaticResource BoolToVisibility}}"
-                                AutomationProperties.LiveSetting="Polite">
-                            <DockPanel LastChildFill="True">
-                                <Ellipse Width="6" Height="6" Margin="0,0,7,0" VerticalAlignment="Center"
-                                         Fill="{StaticResource BrandBrush}" />
-                                <TextBlock Text="{Binding OperationalNotice}" Foreground="{StaticResource BodyTextBrush}"
-                                           FontSize="11" TextTrimming="CharacterEllipsis" />
-                            </DockPanel>
-                        </Border>
-
-                        <Border Grid.Row="0" Panel.ZIndex="20" HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                                Width="420" MaxWidth="420" Margin="12,12,12,10" Padding="10"
-                                CornerRadius="{DynamicResource SmallRadius}" Background="{StaticResource PopupBrush}"
-                                BorderBrush="{StaticResource BrandBrush}" BorderThickness="1"
+                        <Border x:Name="ClarificationPanel" Grid.Row="0" Padding="12,8"
+                                Background="{DynamicResource InputBrush}"
+                                BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="0,0,0,1"
                                 Visibility="{Binding HasClarification, Converter={StaticResource BoolToVisibility}}">
                             <Grid>
                                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                                <TextBlock Text="{Binding OperationalNotice}" Foreground="{StaticResource BodyTextBrush}"
-                                           FontSize="11" TextWrapping="Wrap" Margin="2,0,2,7" />
-                                <Grid Grid.Row="1">
+                                <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                    <TextBox x:Name="ClarificationAnswerBox" Text="{Binding ClarificationAnswer, UpdateSourceTrigger=PropertyChanged}"
-                                             Style="{StaticResource GlassPlainTextBox}" MinHeight="32" Padding="9,6"
-                                             AutomationProperties.Name="澄清问题的补充回答" />
+                                    <ScrollViewer MaxHeight="48" VerticalScrollBarVisibility="Auto" Margin="0,0,10,0">
+                                        <TextBlock Text="{Binding ClarificationPrompt}" Foreground="{DynamicResource BodyTextBrush}"
+                                                   FontSize="11" LineHeight="17" TextWrapping="Wrap" />
+                                    </ScrollViewer>
                                     <Button Grid.Column="1" Content="继续" Command="{Binding SubmitClarificationCommand}"
-                                            Style="{StaticResource CompactGenerateButton}" Margin="8,0,0,0"
+                                            Style="{StaticResource ClarificationContinueButton}" VerticalAlignment="Top"
                                             ToolTip="提交补充信息并继续生成" />
                                 </Grid>
+                                <TextBox Grid.Row="1" x:Name="ClarificationAnswerBox" Text="{Binding ClarificationAnswer, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource ClarificationAnswerBox}" Margin="0,8,0,0"
+                                         Tag="补充信息（可选）"
+                                         AutomationProperties.Name="澄清问题的补充回答" />
                             </Grid>
                         </Border>
 
-                        <Border x:Name="EditorDockBottom" Grid.Row="1" MinHeight="32" Background="{StaticResource DockBrush}"
-                                 BorderBrush="{StaticResource InputBorderBrush}" BorderThickness="0,1,0,0" CornerRadius="0,0,10,10" Padding="4,2">
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <ToggleButton Style="{StaticResource MiniSegmentedButton}" Content="润色"
-                                                  Visibility="{Binding ShowModeSwitcher, Converter={StaticResource BoolToVisibility}}"
-                                                  IsChecked="{Binding IsPolishMode, Mode=OneWay}" Command="{Binding SelectModeCommand}"
-                                                  CommandParameter="{x:Static models:ApplicationMode.Polish}" />
-                                    <ToggleButton Style="{StaticResource MiniSegmentedButton}" Content="提示词"
-                                                  Visibility="{Binding ShowModeSwitcher, Converter={StaticResource BoolToVisibility}}"
-                                                  IsChecked="{Binding IsPolishMode, Converter={StaticResource InverseBool}, Mode=OneWay}"
-                                                  Command="{Binding SelectModeCommand}" CommandParameter="{x:Static models:ApplicationMode.PromptOptimize}" />
-                                    <Button Style="{StaticResource EdgeToolButton}" Command="{Binding PasteFromClipboardCommand}" ToolTip="从剪贴板粘贴">
+                        <Border x:Name="EditorDockBottom" Grid.Row="1" MinHeight="34" Height="34" Background="{DynamicResource DockBrush}"
+                                 BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="0,1,0,0" CornerRadius="0,0,10,10" Padding="4,2">
+                            <Grid x:Name="EditorDockGrid">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="0" /></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Grid x:Name="ModeSwitcher" Width="92" Height="28" Grid.Column="0" ClipToBounds="True"
+                                      Visibility="{Binding ShowModeSwitcher, Converter={StaticResource BoolToVisibility}}"
+                                      Margin="0,0,10,0" MouseWheel="ModeSwitcher_OnMouseWheel"
+                                      ToolTip="点击切换任务模式">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <!-- 轨道背景：作为两个按钮状态的统一容器 -->
+                                    <Border Grid.ColumnSpan="2" Background="{DynamicResource InputBrush}" BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="1" CornerRadius="14" />
+                                    <!-- 滑动高亮：跟随当前激活的按钮状态 -->
+                                    <Border x:Name="ModeMorphIndicator" Grid.Column="0" Width="42" Height="24" HorizontalAlignment="Left" Margin="2" CornerRadius="12" Background="{DynamicResource BrandBrush}" Panel.ZIndex="1">
+                                        <Border.RenderTransform><TranslateTransform x:Name="ModeMorphTransform" X="0" /></Border.RenderTransform>
+                                    </Border>
+                                    <!-- 润色段：文字在等宽分段内居中，使用应用统一字体 -->
+                                    <ToggleButton x:Name="PolishSegment" Grid.Column="0" Panel.ZIndex="2"
+                                                  Command="{Binding SelectModeCommand}" CommandParameter="{x:Static models:ApplicationMode.Polish}"
+                                                  IsChecked="{Binding IsPolishMode, Mode=OneWay}"
+                                                  Click="ModeCarouselButton_OnClick" Style="{StaticResource ModeSegmentStyle}">
+                                        <TextBlock x:Name="PolishModeLabel" Text="润色" FontFamily="{StaticResource AppFont}" FontSize="11" FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </ToggleButton>
+                                    <!-- 提示词段：文字在等宽分段内居中，使用应用统一字体 -->
+                                    <ToggleButton x:Name="PromptSegment" Grid.Column="1" Panel.ZIndex="2"
+                                                  Command="{Binding SelectModeCommand}" CommandParameter="{x:Static models:ApplicationMode.PromptOptimize}"
+                                                  IsChecked="{Binding IsPromptOptimizeMode, Mode=OneWay}"
+                                                  Click="ModeCarouselButton_OnClick" Style="{StaticResource ModeSegmentStyle}">
+                                        <TextBlock x:Name="PromptModeLabel" Text="提示词" FontFamily="{StaticResource AppFont}" FontSize="11" FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </ToggleButton>
+                                </Grid>
+                                <StackPanel x:Name="EditingActionGroup" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Style="{StaticResource EdgeToolButton}" Command="{Binding PasteFromClipboardCommand}" Click="OperationButton_OnClick" Tag="{x:Static models:CompanionEventKind.Pasted}" ToolTip="从剪贴板粘贴 (Ctrl+V)" Margin="0,0,4,0">
                                         <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconPaste}" />
                                     </Button>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <Button x:Name="HistoryButton" Style="{StaticResource EdgeToolButton}" Click="HistoryButton_OnClick" ToolTip="历史">
-                                        <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconHistory}" />
+                                    <Button Style="{StaticResource EdgeToolButton}" Command="{Binding CopyResultCommand}" Click="OperationButton_OnClick" Tag="{x:Static models:CompanionEventKind.Confirmed}" IsEnabled="{Binding ShowResultToggle}" ToolTip="复制优化稿 (Ctrl+C)" Margin="0,0,4,0">
+                                        <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconCopy}" />
                                     </Button>
-                                    <ToggleButton Style="{StaticResource MiniSegmentedButton}" Content="原文"
-                                                  IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBool}, ConverterParameter={x:Static models:ViewMode.Original}, Mode=OneWay}"
-                                                  Command="{Binding SetViewModeCommand}" CommandParameter="{x:Static models:ViewMode.Original}" />
-                                    <ToggleButton Style="{StaticResource MiniSegmentedButton}" Content="优化稿"
-                                                  IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBool}, ConverterParameter={x:Static models:ViewMode.Optimized}, Mode=OneWay}"
-                                                  Command="{Binding SetViewModeCommand}" CommandParameter="{x:Static models:ViewMode.Optimized}" IsEnabled="{Binding ShowResultToggle}" />
-                                    <ToggleButton x:Name="DiffToggleButton" Style="{StaticResource MiniSegmentedButton}" Content="DIFF"
-                                                  IsChecked="{Binding ShowDiff, Mode=TwoWay}" IsEnabled="{Binding ShowResultToggle}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Button Style="{StaticResource EdgeToolButton}" Command="{Binding UndoWorkspaceCommand}" IsEnabled="{Binding CanUndoWorkspace}" ToolTip="撤销工作区操作">
+                                    <Button Style="{StaticResource EdgeToolButton}" Command="{Binding UndoWorkspaceCommand}" Click="OperationButton_OnClick" Tag="{x:Static models:CompanionEventKind.Undo}" IsEnabled="{Binding CanUndoWorkspace}" ToolTip="撤销工作区操作 (Ctrl+Z)" Margin="0,0,4,0">
                                         <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconUndo}" />
                                     </Button>
-                                    <Button Style="{StaticResource EdgeToolButton}" Command="{Binding RedoWorkspaceCommand}" IsEnabled="{Binding CanRedoWorkspace}" ToolTip="恢复工作区操作">
+                                    <Button Style="{StaticResource EdgeToolButton}" Command="{Binding RedoWorkspaceCommand}" Click="OperationButton_OnClick" Tag="{x:Static models:CompanionEventKind.Redo}" IsEnabled="{Binding CanRedoWorkspace}" ToolTip="恢复工作区操作 (Ctrl+Y)" Margin="0,0,4,0">
                                         <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconRedo}" />
                                     </Button>
-                                    <Button Style="{StaticResource EdgeToolButton}" Click="MenuButton_OnClick" ContextMenu="{StaticResource AppMainMenu}" ToolTip="更多">
+                                    <Button x:Name="HistoryButton" Style="{StaticResource EdgeToolButton}" Click="HistoryButton_OnClick" ToolTip="历史" Margin="0,0,4,0">
+                                        <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconHistory}" />
+                                    </Button>
+                                    <ToggleButton x:Name="DiffToggleButton" Style="{StaticResource MiniSegmentedButton}" Content="DIFF" Margin="0,0,4,0"
+                                                  Click="OperationButton_OnClick" Tag="{x:Static models:CompanionEventKind.DiffScanned}"
+                                                  IsChecked="{Binding ShowDiff, Mode=TwoWay}" IsEnabled="{Binding ShowResultToggle}" />
+                                </StackPanel>
+                                <Grid x:Name="ResultActionHost" Grid.Column="2" Margin="6,0">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <StackPanel x:Name="ResultActionGroup" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <Button Style="{StaticResource InlineCapsuleButton}" Command="{Binding SetViewModeCommand}" CommandParameter="{Binding ViewToggleTarget}"
+                                                Click="OperationButton_OnClick" Tag="{x:Static models:CompanionEventKind.ViewChanged}"
+                                                IsEnabled="{Binding ShowResultToggle}" ToolTip="{Binding ViewToggleLabel, StringFormat=切换到 {0}}">
+                                            <TextBlock Text="{Binding ViewToggleLabel}" FontSize="11" />
+                                        </Button>
+                                        <Button Style="{StaticResource EdgeToolButton}" Command="{Binding RegenerateCommand}" Click="OperationButton_OnClick" Tag="{x:Static models:CompanionEventKind.Submitted}" ToolTip="重新生成" Margin="4,0,0,0">
+                                            <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconRegenerate}" />
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                                <StackPanel x:Name="PrimaryActionGroup" Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Style="{StaticResource EdgeToolButton}" Click="MenuButton_OnClick" ContextMenu="{StaticResource AppMainMenu}" ToolTip="更多" Margin="0,0,8,0">
                                         <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconMore}" />
                                     </Button>
                                     <Button x:Name="EditorPrimaryAction" Style="{StaticResource CompactGenerateButton}"
-                                            Command="{Binding OptimizeCommand}"
+                                            Command="{Binding OptimizeCommand}" Click="OperationButton_OnClick" Tag="{x:Static models:CompanionEventKind.Submitted}"
                                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}, ConverterParameter=Inverse}">
                                         <StackPanel Orientation="Horizontal">
                                             <Path Width="11" Height="11" Margin="0,0,5,0" Stretch="Uniform" Fill="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
@@ -273,15 +413,16 @@
             </Grid>
         </Border>
 
-        <!-- 精灵与面板分层：展开/收起时精灵保持自身尺寸，便笺从其后方铺开。 -->
-        <Border x:Name="CompanionDragHandle" Panel.ZIndex="30" Width="34" Height="34" Margin="4,1,0,0"
+        <!-- 精灵与面板分层：展开/收起时精灵保持 44×44 视觉尺寸，便笺从其后方铺开。 -->
+        <Border x:Name="CompanionDragHandle" Panel.ZIndex="30" Width="{DynamicResource SkinCompanionSize}" Height="{DynamicResource SkinCompanionSize}" Margin="4,0,0,0"
                 HorizontalAlignment="Left" VerticalAlignment="Top" Background="Transparent"
-                Cursor="SizeAll" ToolTip="按住精灵拖动窗口；单击与精灵互动"
+                Cursor="SizeAll" ToolTip="双击精灵收起为悬浮球；按住拖动窗口"
+                MouseEnter="CompanionDragHandle_OnMouseEnter" MouseLeave="CompanionDragHandle_OnMouseLeave"
                 MouseLeftButtonDown="CompanionDragHandle_OnMouseLeftButtonDown">
             <Border.RenderTransform>
                 <TranslateTransform x:Name="CompanionTransitionOffset" X="0" Y="0" />
             </Border.RenderTransform>
-            <Viewbox Width="34" Height="34" Stretch="Uniform">
+            <Viewbox Width="{DynamicResource SkinCompanionSize}" Height="{DynamicResource SkinCompanionSize}" Stretch="Uniform">
                 <local:CompanionFace x:Name="CompanionHost" State="{Binding CompanionState}" />
             </Viewbox>
         </Border>
@@ -297,8 +438,8 @@
                                 <Button Style="{StaticResource GlassButton}" HorizontalContentAlignment="Left" Padding="10,5" Margin="0,2"
                                         Click="HistoryItem_OnClick" Tag="{Binding}">
                                     <StackPanel>
-                                        <TextBlock Text="{Binding Topic}" FontSize="12" Foreground="{StaticResource BodyTextBrush}" TextTrimming="CharacterEllipsis" MaxWidth="260" />
-                                        <TextBlock Text="{Binding OriginalText}" FontSize="11" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis" MaxWidth="260" />
+                                        <TextBlock Text="{Binding Topic}" FontSize="12" Foreground="{DynamicResource BodyTextBrush}" TextTrimming="CharacterEllipsis" MaxWidth="260" />
+                                        <TextBlock Text="{Binding OriginalText}" FontSize="11" Foreground="{DynamicResource MutedBrush}" TextTrimming="CharacterEllipsis" MaxWidth="260" />
                                     </StackPanel>
                                 </Button>
                             </DataTemplate></ItemsControl.ItemTemplate>

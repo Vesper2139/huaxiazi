@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using PromptFloat.Models;
 
 namespace PromptFloat.Services;
@@ -13,11 +14,12 @@ namespace PromptFloat.Services;
 /// </summary>
 public sealed class ConfigService
 {
+    internal const int MaxCorruptBackups = 3;
     /// <summary>
     /// 当前配置结构版本号。每当默认值或字段语义发生破坏性变更时递增；
     /// 旧配置在 Load 时由 Migrate() 平滑升级到该版本，保证对终端用户与外部调用方的向后兼容。
     /// </summary>
-    public const int CurrentConfigVersion = 9;
+    public const int CurrentConfigVersion = 11;
 
     // 注意：此处未用 readonly，以便单元测试通过反射把路径重定向到临时目录做隔离（见 PromptFloat.Tests/TestHelpers.cs）。
     private static string AppDataFolder =
@@ -89,7 +91,13 @@ public sealed class ConfigService
             var legacyProductConfig = settings.ConfigVersion < 2;
             var hadPlaintextSecret = !string.IsNullOrWhiteSpace(settings.ApiKey);
             settings = Migrate(settings);
-            var secretMigrated = MigrateLegacySecret(settings, legacyProductConfig);
+            if (!DataDirectoryPolicy.TryResolve(settings.DataDirectory, AppDataFolder, verifyWritable: false, out var dataRoot, out _))
+            {
+                settings.DataDirectory = string.Empty;
+                dataRoot = Path.GetFullPath(AppDataFolder);
+                needsConfigRewrite = true;
+            }
+            var secretMigrated = MigrateLegacySecret(settings, legacyProductConfig, dataRoot);
 
             // 加密失败时不写新位置、不改旧文件，避免产生一份半迁移配置或丢失密钥。
             if (hadPlaintextSecret && !secretMigrated)
@@ -133,11 +141,79 @@ public sealed class ConfigService
         {
             if (!File.Exists(sourcePath)) return;
             var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
-            File.Copy(sourcePath, $"{sourcePath}.{stamp}.corrupt", overwrite: false);
+            var backupPath = $"{sourcePath}.{stamp}.corrupt";
+            var raw = File.ReadAllText(sourcePath);
+            var redacted = RedactSensitiveJson(raw) ??
+                "{\"error\":\"配置解析失败，原文未备份\",\"capturedAtUtc\":\"" + DateTime.UtcNow.ToString("O") + "\"}";
+            File.WriteAllText(backupPath, redacted);
+            CleanupCorruptBackups(sourcePath);
         }
         catch (Exception)
         {
             // 保全失败不应阻断回退默认配置。
+        }
+    }
+
+    internal static string? RedactSensitiveJson(string raw)
+    {
+        try
+        {
+            var node = JsonNode.Parse(raw);
+            if (node is null) return null;
+            RedactSensitiveNode(node);
+            return node.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+            // 解析失败时绝不把原文写入备份；调用方会写入不含正文的元数据。
+            return null;
+        }
+    }
+
+    private static void RedactSensitiveNode(JsonNode node)
+    {
+        if (node is JsonObject obj)
+        {
+            foreach (var property in obj.ToList())
+            {
+                if (IsSensitiveProperty(property.Key))
+                {
+                    obj[property.Key] = "[REDACTED]";
+                }
+                else if (property.Value is not null)
+                {
+                    RedactSensitiveNode(property.Value);
+                }
+            }
+        }
+        else if (node is JsonArray array)
+        {
+            foreach (var item in array)
+            {
+                if (item is not null) RedactSensitiveNode(item);
+            }
+        }
+    }
+
+    private static bool IsSensitiveProperty(string name) =>
+        name.Contains("apikey", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("password", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("token", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("authorization", StringComparison.OrdinalIgnoreCase);
+
+    private static void CleanupCorruptBackups(string sourcePath)
+    {
+        var directory = Path.GetDirectoryName(sourcePath);
+        var fileName = Path.GetFileName(sourcePath);
+        if (string.IsNullOrWhiteSpace(directory) || string.IsNullOrWhiteSpace(fileName)) return;
+        var backups = Directory.GetFiles(directory, fileName + ".*.corrupt")
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .Skip(MaxCorruptBackups)
+            .ToList();
+        foreach (var backup in backups)
+        {
+            try { File.Delete(backup); } catch { }
         }
     }
 
@@ -154,6 +230,7 @@ public sealed class ConfigService
         try
         {
             Directory.CreateDirectory(AppDataFolder);
+            SanitizeCoordinates(settings);
             var json = JsonSerializer.Serialize(settings, _jsonOptions);
             var temporaryPath = ConfigFilePath + ".tmp";
             File.WriteAllText(temporaryPath, json);
@@ -164,6 +241,16 @@ public sealed class ConfigService
             throw new InvalidOperationException($"无法保存配置到 {ConfigFilePath}：{ex.Message}", ex);
         }
     }
+
+    private static void SanitizeCoordinates(AppSettings settings)
+    {
+        settings.WindowLeft = FiniteOrNull(settings.WindowLeft);
+        settings.WindowTop = FiniteOrNull(settings.WindowTop);
+        settings.BallLeft = FiniteOrNull(settings.BallLeft);
+        settings.BallTop = FiniteOrNull(settings.BallTop);
+    }
+
+    private static double? FiniteOrNull(double? value) => value is { } number && double.IsFinite(number) ? number : null;
 
     /// <summary>
     /// 从内置默认配置（Config/default-config.json）构造一份新配置。
@@ -226,6 +313,7 @@ public sealed class ConfigService
             ClipboardAutoRead = false,
             StartWithWindows = false,
             AutoArchive = true,
+            EnterToSend = false,
             ClarificationEnabled = true,
             DefaultPolishScenario = "其他",
             OutputStyle = "自然",
@@ -236,14 +324,15 @@ public sealed class ConfigService
             TrayEnabled = true,
             AlwaysOnTop = true,
             ThemeMode = "System",
+            SkinId = "default",
             ProviderProfiles = [new ProviderProfile()],
             ActiveProviderProfileId = "default",
             WindowLeft = null,
             WindowTop = null,
             BallLeft = null,
             BallTop = null,
-            MainWindowWidth = 600,
-            MainWindowHeight = 210,
+            MainWindowWidth = 520,
+            MainWindowHeight = 176,
             History = new(),
             ConfigVersion = CurrentConfigVersion
         };
@@ -341,11 +430,31 @@ public sealed class ConfigService
             settings.ConfigVersion = 9;
         }
 
+        if (settings.ConfigVersion < 10)
+        {
+            settings.SkinId = "default";
+            if (Math.Abs(settings.MainWindowWidth - 600) < 0.5) settings.MainWindowWidth = 520;
+            if (Math.Abs(settings.MainWindowHeight - 210) < 0.5) settings.MainWindowHeight = 176;
+            settings.ConfigVersion = 10;
+        }
+
+        if (settings.ConfigVersion < 11)
+        {
+            // v1.5 stops all knowledge retrieval. Legacy database files remain untouched and dormant.
+            settings.ExternalStrategiesEnabled = true;
+            settings.PreferenceLearningEnabled = true;
+            settings.ExpressionPreferenceProfile ??= new ExpressionPreferenceProfile();
+            settings.PolishStrategyId = "text-polisher";
+            settings.PromptStrategyId = "prompt-optimizer";
+            settings.ConfigVersion = 11;
+        }
+
         settings.NormalizeProductModes();
         settings.NormalizeProviderProfiles();
         settings.NormalizeResidentEntrypoints();
         settings.NormalizePromptSettings();
         settings.NormalizeDisplaySettings();
+        settings.ExpressionPreferenceProfile ??= new ExpressionPreferenceProfile();
 
         return settings;
     }
@@ -353,7 +462,7 @@ public sealed class ConfigService
     private static double NormalizeDimension(double value, double fallback, double minimum)
         => double.IsFinite(value) && value >= minimum ? value : fallback;
 
-    private static bool MigrateLegacySecret(AppSettings settings, bool legacyProductConfig)
+    private static bool MigrateLegacySecret(AppSettings settings, bool legacyProductConfig, string dataRoot)
     {
         settings.NormalizeProviderProfiles();
         var profile = legacyProductConfig
@@ -375,7 +484,7 @@ public sealed class ConfigService
         if (string.IsNullOrWhiteSpace(settings.ApiKey)) return false;
         try
         {
-            var store = new DpapiSecretStore(Path.Combine(AppDataFolder, "secrets"));
+            var store = new DpapiSecretStore(Path.Combine(dataRoot, "secrets"));
             store.Save(profile.SecretId, settings.ApiKey);
             settings.ApiKey = string.Empty;
             return true;

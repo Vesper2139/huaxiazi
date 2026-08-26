@@ -175,7 +175,7 @@ public class PromptBuilderServiceTests
     [Fact]
     public void Build_WithPersona_AppendsPersonaSection()
     {
-        // 非空用户画像应追加「用户画像 / 角色设定」段，并包含画像原文。
+        // 非空用户画像应进入统一、低优先级的个性化边界。
         var dir = CopyPromptsToTempDir();
         try
         {
@@ -187,7 +187,8 @@ public class PromptBuilderServiceTests
                 "我是后端工程师，偏好简洁、可直接运行的代码与步骤");
             var result = svc.Build(req);
 
-            Assert.Contains("用户画像 / 角色设定", result);
+            Assert.Contains("个性化参考", result);
+            Assert.Contains("用户身份：", result);
             Assert.Contains("我是后端工程师，偏好简洁、可直接运行的代码与步骤", result);
         }
         finally
@@ -199,7 +200,7 @@ public class PromptBuilderServiceTests
     [Fact]
     public void Build_WithoutPersona_DoesNotContainPersonaSection()
     {
-        // 空画像时输出必须与旧行为完全一致：不得出现「用户画像」段。
+        // 无画像和偏好时不增加个性化上下文。
         var dir = CopyPromptsToTempDir();
         try
         {
@@ -207,7 +208,7 @@ public class PromptBuilderServiceTests
             var req = PromptRequest.Create("帮我写周报", PromptCategory.General, PromptDepth.Standard);
             var result = svc.Build(req);
 
-            Assert.DoesNotContain("用户画像 / 角色设定", result);
+            Assert.DoesNotContain("个性化参考", result);
         }
         finally
         {

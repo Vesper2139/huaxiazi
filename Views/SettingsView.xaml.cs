@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Threading.Tasks;
 using PromptFloat.Services;
 using PromptFloat.ViewModels;
+using PromptFloat.Models;
 
 namespace PromptFloat.Views;
 
@@ -18,6 +19,7 @@ public partial class SettingsView : UserControl
     private readonly UpdateDownloadService _updateDownloader = new();
     private CancellationTokenSource? _downloadCancellation;
     public bool IsCommitted { get; private set; }
+    public bool HasChanges => _vm.HasChanges;
     public event RoutedEventHandler? CloseRequested;
 
     public SettingsView()
@@ -25,33 +27,19 @@ public partial class SettingsView : UserControl
         InitializeComponent();
         DataContext = _vm;
         _vm.MarkClean();
-        Loaded += (_, _) => ApiKeyBox.Password = _vm.ApiKey;
     }
 
-    private void ApiKeyBox_OnPasswordChanged(object sender, RoutedEventArgs e) => _vm.ApiKey = ApiKeyBox.Password;
-
-    private void ProviderProfile_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void ExportLegacyKnowledge_OnClick(object sender, RoutedEventArgs e)
     {
-        if (!IsLoaded) return;
-        ApiKeyBox.Password = _vm.ApiKey;
-        ApiKeyTextBox.Text = _vm.ApiKey;
+        var dialog = new Microsoft.Win32.SaveFileDialog { Filter = "SQLite 数据库|*.db", FileName = "vesper-legacy-knowledge.db", AddExtension = true };
+        if (dialog.ShowDialog() == true) _vm.ExportLegacyKnowledge(dialog.FileName);
     }
 
-    private void ToggleApiKeyVisibility_OnClick(object sender, RoutedEventArgs e)
+    private void DeleteLegacyKnowledge_OnClick(object sender, RoutedEventArgs e)
     {
-        var showPlainText = ApiKeyTextBox.Visibility != Visibility.Visible;
-        if (showPlainText)
-        {
-            ApiKeyTextBox.Text = ApiKeyBox.Password;
-            ApiKeyTextBox.Visibility = Visibility.Visible;
-            ApiKeyBox.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            ApiKeyBox.Password = ApiKeyTextBox.Text;
-            ApiKeyTextBox.Visibility = Visibility.Collapsed;
-            ApiKeyBox.Visibility = Visibility.Visible;
-        }
+        if (MessageBox.Show("永久删除旧版知识数据？此操作无法撤销，建议先导出备份。", "Vesper",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes)
+            _vm.DeleteLegacyKnowledge();
     }
 
     private void HotkeyRecorder_OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -104,24 +92,34 @@ public partial class SettingsView : UserControl
         recorder.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
     }
 
-    private void SaveButton_OnClick(object sender, RoutedEventArgs e)
+    /// <summary>设置页唯一提交路径：退出时自动保存；验证失败必须由用户明确确认是否保存草稿。</summary>
+    public async Task<bool> CommitAndCloseAsync()
     {
-        if (_vm.TrySave())
+        if (IsCommitted) return true;
+        try
         {
-            if (!string.IsNullOrWhiteSpace(_vm.ValidationMessage))
-                MessageBox.Show(_vm.ValidationMessage, "Vesper 快捷键", MessageBoxButton.OK, MessageBoxImage.Warning);
+            var saved = await _vm.TrySaveAsync();
+            if (!saved && _vm.CanSaveWithoutVerification)
+            {
+                var choice = MessageBox.Show(
+                    "连接验证未通过。仍要保存为草稿吗？保存后不会自动启用，修正配置并重新验证后才会使用。",
+                    "保存草稿", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+                if (choice == MessageBoxResult.Yes)
+                    saved = await _vm.SaveDraftAfterUserConfirmationAsync();
+            }
+            if (!saved) return false;
             IsCommitted = true;
-            CloseRequested?.Invoke(this, e);
+            CloseRequested?.Invoke(this, new RoutedEventArgs());
+            return true;
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show($"设置自动保存失败：{exception.Message}", "Vesper", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
         }
     }
 
-    private void CancelButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        _vm.CancelCommand.Execute(null);
-        CloseRequested?.Invoke(this, e);
-    }
-
-    private void CloseButton_OnClick(object sender, RoutedEventArgs e) => CloseRequested?.Invoke(this, e);
+    private async void CloseButton_OnClick(object sender, RoutedEventArgs e) => await CommitAndCloseAsync();
 
     private void PermanentlyClearArchiveButton_OnClick(object sender, RoutedEventArgs e)
     {
@@ -148,6 +146,33 @@ public partial class SettingsView : UserControl
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
         try { _vm.ImportRecord(dialog.FileName); }
         catch (Exception exception) { _vm.DataStatus = "导入失败：" + exception.Message; }
+    }
+
+    private void ImportSkinButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "Vesper 皮肤包 (*.vesperskin;*.zip)|*.vesperskin;*.zip"
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        try
+        {
+            var service = new SkinPackageService(Path.Combine(App.DataRoot, "skins"));
+            var manifest = service.Install(dialog.FileName);
+            _vm.RegisterImportedSkin(manifest);
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show("皮肤导入失败：" + exception.Message, "Vesper 皮肤", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void RemoveSkinButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show("移除当前导入皮肤并切回默认外观？", "Vesper 皮肤", MessageBoxButton.YesNo,
+            MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        try { _vm.UninstallSelectedSkin(); }
+        catch (Exception exception) { MessageBox.Show("皮肤移除失败：" + exception.Message, "Vesper 皮肤", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
 
     private void RestoreBackupButton_OnClick(object sender, RoutedEventArgs e)
@@ -213,7 +238,7 @@ public partial class SettingsView : UserControl
             var result = await _updateDownloader.DownloadAsync(manifest.DownloadUrl, manifest.Sha256, installerPath, progress, _downloadCancellation.Token);
             UpdateStatusText.Text = result.Message;
             if (result.Status != UpdateDownloadStatus.Success || string.IsNullOrWhiteSpace(result.FilePath)) return;
-            if (MessageBox.Show("安装包已通过 SHA-256 校验。现在退出并启动安装程序吗？", "安装更新", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show("安装包已通过完整性与 Vesper 发布者签名校验。现在退出并启动安装程序吗？", "安装更新", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
             Process.Start(new ProcessStartInfo(result.FilePath) { UseShellExecute = true });
             ((App)Application.Current).ExitApp();
         }

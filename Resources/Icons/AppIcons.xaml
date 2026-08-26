@@ -32,4 +32,10 @@
     <Geometry x:Key="IconPlus">M12,5 V19 M5,12 H19</Geometry>
     <Geometry x:Key="IconMinus">M5,12 H19</Geometry>
     <Geometry x:Key="IconClose">M7,7 L17,17 M17,7 L7,17</Geometry>
+<!-- 设置侧栏导航图标 -->
+    <Geometry x:Key="IconModel">M8,4 H16 A2,2 0 0 1 18,6 V8 L20,10 V14 L18,16 V18 A2,2 0 0 1 16,20 H8 A2,2 0 0 1 6,18 V16 L4,14 V10 L6,8 V6 A2,2 0 0 1 8,4 Z M8,9 H16 V15 H8 Z</Geometry>
+    <Geometry x:Key="IconPalette">M12,3 A9,9 0 1 0 21,12 C21,10 19.8,9 18,9 L15.5,9 C14,9 13.5,7.8 13.5,6.5 C13.5,5.2 13.5,4.5 12,3 Z M7,10 A1.5,1.5 0 1 0 7,10.01 M10.5,7 A1.5,1.5 0 1 0 10.5,7.01 M16.5,9.5 A1.5,1.5 0 1 0 16.5,9.51 M18,14.5 A1.5,1.5 0 1 0 18,14.51 M13.5,17 A1.5,1.5 0 1 0 13.5,17.01</Geometry>
+    <Geometry x:Key="IconWindow">M4,4 H20 V20 H4 Z M4,8 H20 M7,6 H7.01 M10,6 H10.01 M6.5,11.5 H17.5 M6.5,14.5 H12.5 M14,14.5 V17.5</Geometry>
+    <Geometry x:Key="IconKeyboard">M2,8 H22 V17 H2 Z M6,11.5 H6.01 M9.5,11.5 H9.51 M13,11.5 H13.01 M16.5,11.5 H16.51 M19,11.5 H19.01 M6,14.5 H18 M11,14.5 L13,16.5 L15,14.5 M4,17 L4,20 M20,17 L20,20</Geometry>
+    <Geometry x:Key="IconSwap">M4,7 H15 M12,4 L15,7 L12,10 M20,17 H9 M12,14 L9,17 L12,20</Geometry>
 </ResourceDictionary>

@@ -6,6 +6,21 @@ namespace PromptFloat.Tests;
 public sealed class ProductModelTests
 {
     [Fact]
+    public void NormalizeProductModes_KeepsBothPrimaryTasksReachableForLegacyConfigurations()
+    {
+        var settings = new AppSettings
+        {
+            EnabledModes = [ApplicationMode.Polish],
+            DefaultMode = ApplicationMode.Polish
+        };
+
+        settings.NormalizeProductModes();
+
+        Assert.Contains(ApplicationMode.Polish, settings.EnabledModes);
+        Assert.Contains(ApplicationMode.PromptOptimize, settings.EnabledModes);
+    }
+
+    [Fact]
     public void NewSettings_ProvideEditableBuiltInOptimizationPresets()
     {
         var settings = new AppSettings();
@@ -40,10 +55,20 @@ public sealed class ProductModelTests
         Assert.Equal(28, settings.EditorDefaultHeight);
         Assert.Equal(0.65, settings.WindowOpacity);
         Assert.Equal(1, settings.FloatingBallOpacity);
-        Assert.Equal(44, settings.FloatingBallSize);
+        Assert.Equal(96, settings.FloatingBallSize);
+    }
+
+    [Fact]
+    public void NormalizeDisplaySettings_PreservesUserSelectedFloatingBallSizeWithinBounds()
+    {
+        var settings = new AppSettings { FloatingBallSize = 60 };
+
+        settings.NormalizeDisplaySettings();
+
+        Assert.Equal(60, settings.FloatingBallSize);
     }
     [Fact]
-    public void NormalizeProductModes_EmptySelection_EnablesPolishAsDefault()
+    public void NormalizeProductModes_EmptySelection_EnablesBothTasksAndKeepsValidDefault()
     {
         var settings = new AppSettings
         {
@@ -53,12 +78,12 @@ public sealed class ProductModelTests
 
         settings.NormalizeProductModes();
 
-        Assert.Equal([ApplicationMode.Polish], settings.EnabledModes);
-        Assert.Equal(ApplicationMode.Polish, settings.DefaultMode);
+        Assert.Equal([ApplicationMode.Polish, ApplicationMode.PromptOptimize], settings.EnabledModes);
+        Assert.Equal(ApplicationMode.PromptOptimize, settings.DefaultMode);
     }
 
     [Fact]
-    public void NormalizeProductModes_DisabledDefault_SelectsFirstEnabledMode()
+    public void NormalizeProductModes_LegacySingleMode_KeepsTheConfiguredDefaultReachable()
     {
         var settings = new AppSettings
         {
@@ -68,7 +93,7 @@ public sealed class ProductModelTests
 
         settings.NormalizeProductModes();
 
-        Assert.Equal(ApplicationMode.PromptOptimize, settings.DefaultMode);
+        Assert.Equal(ApplicationMode.Polish, settings.DefaultMode);
     }
 
     [Fact]

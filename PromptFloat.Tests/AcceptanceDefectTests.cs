@@ -12,12 +12,12 @@ public sealed class AcceptanceDefectTests
     {
         var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "MainWindow.xaml"));
 
-        Assert.Contains("MinHeight=\"152\"", xaml);
+        Assert.Contains("MinHeight=\"158\"", xaml);
         Assert.Contains("x:Name=\"CompanionHost\"", xaml);
-        Assert.Contains("MinHeight=\"30\"", xaml);
-        Assert.Contains("x:Name=\"FeedbackOverlay\"", xaml);
+        Assert.Contains("MinHeight=\"{DynamicResource SkinTitleBarHeight}\"", xaml);
+        Assert.Contains("x:Name=\"TitleFeedback\"", xaml);
         Assert.Contains("Property=\"MinWidth\" Value=\"68\"", xaml);
-        Assert.Contains("Padding=\"14,12,14,10\"", xaml);
+        Assert.Contains("Padding=\"12,8,12,8\"", xaml);
         Assert.DoesNotContain("x:Name=\"StatusNotice\"", xaml);
         Assert.DoesNotContain("x:Name=\"QuickActionBar\"", xaml);
         Assert.DoesNotContain("MinHeight=\"114\"", xaml);
@@ -31,8 +31,8 @@ public sealed class AcceptanceDefectTests
         var icons = File.ReadAllText(Path.Combine(RepoRoot(), "Resources", "Icons", "AppIcons.xaml"));
         var viewModel = File.ReadAllText(Path.Combine(RepoRoot(), "ViewModels", "MainViewModel.cs"));
 
-        Assert.Contains("x:Name=\"FeedbackOverlay\"", xaml);
-        Assert.Contains("Panel.ZIndex=\"20\"", xaml);
+        Assert.Contains("x:Name=\"TitleFeedback\"", xaml);
+        Assert.Contains("ToolTip=\"{Binding OperationalNotice}\"", xaml);
         Assert.Contains("Data=\"{StaticResource IconRedo}\"", xaml);
         Assert.Contains("Data=\"{StaticResource IconBrandSpark}\"", xaml);
         Assert.Contains("x:Key=\"IconRedo\"", icons);
@@ -47,9 +47,10 @@ public sealed class AcceptanceDefectTests
         var code = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "FloatingBallWindow.xaml.cs"));
 
         Assert.Contains("Width=\"60\" Height=\"60\"", xaml);
-        Assert.Contains("Width=\"44\" Height=\"44\"", xaml);
-        Assert.Contains("Width = 60", code);
-        Assert.Contains("Height = 60", code);
+        Assert.Contains("Width=\"{DynamicResource SkinCompanionSize}\" Height=\"{DynamicResource SkinCompanionSize}\"", xaml);
+        Assert.Contains("Math.Clamp(settings.FloatingBallSize, 28, 72)", code);
+        Assert.Contains("Width = size + 16", code);
+        Assert.Contains("Height = size + 16", code);
     }
 
     [Fact]
@@ -67,6 +68,21 @@ public sealed class AcceptanceDefectTests
         Assert.True(File.Exists(Path.Combine(RepoRoot(), "Directory.Build.props")));
         Assert.DoesNotContain("Join-Path $ScriptDir \"artifacts\"", publish);
         Assert.DoesNotContain("Join-Path $ScriptDir \"dist\"", build);
+    }
+
+    [Fact]
+    public void DeliveryScript_ProducesOnlyThreeStableClientArtifacts()
+    {
+        var publish = File.ReadAllText(Path.Combine(RepoRoot(), "publish.ps1"));
+
+        Assert.Contains("PublishSingleFile=true", publish);
+        Assert.Contains("IncludeNativeLibrariesForSelfExtract=true", publish);
+        Assert.Contains("IncludeAllContentForSelfExtract=true", publish);
+        Assert.Contains("Join-Path $PackagesDir \"Vesper.exe\"", publish);
+        Assert.Contains("Join-Path $PackagesDir \"Vesper-Portable.zip\"", publish);
+        Assert.Contains("Join-Path $PackagesDir \"Vesper-Setup.exe\"", publish);
+        Assert.DoesNotContain(".sha256", publish);
+        Assert.DoesNotContain("release/version.json", publish);
     }
 
     [Fact]

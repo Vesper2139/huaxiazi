@@ -1,17 +1,15 @@
 using System;
 using System.ComponentModel;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 using PromptFloat.Services;
-using PromptFloat.Views;
 using PromptFloat.Models;
 
 namespace PromptFloat.Views;
 
 /// <summary>
-/// 收缩态悬浮球（40×40 正圆）。
-/// 可自由拖动；单击恢复主窗口；右键菜单：打开 / 设置 / 用户模型 / 退出。
+/// 收缩态悬浮球。双击展开主窗口；长按/拖动移动位置。
+/// 精灵视觉尺寸固定 44×44，窗口外壳 60×60 留出热区余量。
 /// 关闭/移动时记忆位置到配置。
 /// </summary>
 public partial class FloatingBallWindow : Window
@@ -25,7 +23,6 @@ public partial class FloatingBallWindow : Window
 
     private void FloatingBall_OnLoaded(object sender, RoutedEventArgs e)
     {
-        // 若尚未设定位置（启动时已设定），给一个默认右下角
         if (double.IsNaN(Left) || double.IsNaN(Top))
         {
             Left = SystemParameters.WorkArea.Width - Width - 20;
@@ -33,43 +30,89 @@ public partial class FloatingBallWindow : Window
         }
     }
 
-    internal void ApplyDisplayPreferences(PromptFloat.Models.AppSettings settings)
+    internal void ApplyDisplayPreferences(AppSettings settings)
     {
         settings.NormalizeDisplaySettings();
-        // 精灵在收起和展开状态使用同一视觉尺寸，避免形变和命中区域跳动。
-        Width = 60;
-        Height = 60;
+        var size = Math.Clamp(settings.FloatingBallSize, 28, 72);
+        var hadPosition = IsVisible && !double.IsNaN(Left) && !double.IsNaN(Top);
+        var center = hadPosition ? new Point(Left + Width / 2, Top + Height / 2) : default;
+        Width = size + 16;
+        Height = size + 16;
+        Orb.Width = size;
+        Orb.Height = size;
         Opacity = settings.FloatingBallOpacity;
+        if (hadPosition)
+        {
+            Left = center.X - Width / 2;
+            Top = center.Y - Height / 2;
+        }
     }
 
-    /// <summary>判断拖拽的位移阈值（像素）。超过该值视为“拖拽”而非“单击”。</summary>
     private const double DragThreshold = 3.0;
+    private bool _dragging;
+    private Point _lastDragPosition;
 
-    /// <summary>
-    /// 精灵本身就是拖动入口。DragMove 返回时鼠标已经释放，因此在同一条控制流中
-    /// 完成“拖动 / 点击”判定，避免 MouseUp 被系统窗口移动循环吞掉。
-    /// </summary>
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
+
+        if (e.ClickCount >= 2)
+        {
+            CompanionFace.PlayExpandFeedbackThen(() =>
+            {
+                ((App)App.Current).ShowMainWindow();
+            });
+            e.Handled = true;
+            return;
+        }
+
         var dragStart = new Point(Left, Top);
+        _lastDragPosition = dragStart;
+        _dragging = true;
         CompanionFace.PlayDragStartFeedback();
         var app = (App)App.Current;
         app.BeginFloatingBallDrag();
         try { DragMove(); }
         catch (InvalidOperationException) { }
 
+        _dragging = false;
         var moved = Math.Abs(Left - dragStart.X) > DragThreshold ||
                     Math.Abs(Top - dragStart.Y) > DragThreshold;
+        var beforeSnap = new Point(Left, Top);
         app.CompleteFloatingBallDrag(
             new Point(Left, Top), new Size(ActualWidth, ActualHeight),
             WindowPlacementService.GetCurrentWorkAreaDip(this));
-        if (moved) CompanionFace.PlayDragEndFeedback();
-        else CompanionFace.PlayExpandFeedbackThen(app.ShowMainWindow);
+        if (moved)
+        {
+            CompanionFace.PlayDragEndFeedback();
+            var snapX = Left - beforeSnap.X;
+            var snapY = Top - beforeSnap.Y;
+            if (Math.Abs(snapX) > 0.5 || Math.Abs(snapY) > 0.5)
+                CompanionFace.PlayOperationFeedback(new CompanionEvent(
+                    CompanionEventKind.SnappedToEdge,
+                    Direction: DirectionFromDelta(snapX, snapY)));
+        }
+        else
+        {
+            CompanionFace.PlayClickFeedback();
+            CompanionFace.ReturnToIdle();
+        }
         e.Handled = true;
     }
 
-    /// <summary>窗口关闭前记忆位置。</summary>
+    protected override void OnMouseEnter(MouseEventArgs e)
+    {
+        base.OnMouseEnter(e);
+        // 非点击：悬停到悬浮球时切好奇表情
+        CompanionFace.PlayHoverFeedback();
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        CompanionFace.PlayHoverEndFeedback();
+    }
+
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
         App.Settings.BallLeft = Left;
@@ -80,21 +123,45 @@ public partial class FloatingBallWindow : Window
     protected override void OnLocationChanged(EventArgs e)
     {
         base.OnLocationChanged(e);
-        if (IsVisible)
+        if (IsVisible && _dragging)
         {
-            App.Settings.BallLeft = Left;
-            App.Settings.BallTop = Top;
+            if (App.Settings.RememberFloatingBallPosition)
+            {
+                App.Settings.BallLeft = Left;
+                App.Settings.BallTop = Top;
+            }
+            CompanionFace.PlayDragDirection(Left - _lastDragPosition.X, Top - _lastDragPosition.Y);
+            _lastDragPosition = new Point(Left, Top);
         }
     }
 
     private void OpenMenu_OnClick(object sender, RoutedEventArgs e)
     {
+        CompanionFace.PlayOperationFeedback(new CompanionEvent(CompanionEventKind.Expanding));
         ((App)App.Current).ShowMainWindow();
     }
 
     private void SettingsMenu_OnClick(object sender, RoutedEventArgs e)
     {
+        CompanionFace.PlayOperationFeedback(new CompanionEvent(CompanionEventKind.SettingsOpened));
         ((App)App.Current).OpenSettingsView();
+    }
+
+    private static CompanionDirection DirectionFromDelta(double x, double y)
+    {
+        var horizontal = Math.Abs(x) < 0.5 ? 0 : Math.Sign(x);
+        var vertical = Math.Abs(y) < 0.5 ? 0 : Math.Sign(y);
+        return (horizontal, vertical) switch
+        {
+            (0, -1) => CompanionDirection.North,
+            (1, -1) => CompanionDirection.NorthEast,
+            (1, 0) => CompanionDirection.East,
+            (1, 1) => CompanionDirection.SouthEast,
+            (0, 1) => CompanionDirection.South,
+            (-1, 1) => CompanionDirection.SouthWest,
+            (-1, 0) => CompanionDirection.West,
+            _ => CompanionDirection.NorthWest
+        };
     }
 
     private void ExitMenu_OnClick(object sender, RoutedEventArgs e)

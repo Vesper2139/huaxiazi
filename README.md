@@ -1,19 +1,25 @@
-# 话匣子
+# Vesper / 话匣子
 
-当前版本：1.2.2
+当前版本：1.5.0
 
-“话匣子”是面向 Windows 10/11 x64 的轻量桌面表达工具，包含两个可独立启用的模式：
+Vesper（中文名“话匣子”）是面向 Windows 10/11 x64 的轻量桌面表达工具。它不替用户虚构事实，而是把口语化、零散或不专业的表达整理成可直接使用的专业成稿或专业提示词。
+
+## 产品定位
+
+Vesper 包含两个可独立使用的核心任务：
 
 - 表达润色（默认）：把原始想法整理成自然、保真、可直接发送的中文成稿；遇到关键歧义时先提最多 3 个澄清问题。
 - 提示词优化：保留原有类别、深度和历史能力，把模糊需求整理为可直接交给 AI 的提示词。
+
+项目采用本地优先设计：用户自带 API Key，密钥使用 Windows DPAPI 保存；无账号、无自营代理、无遥测、无知识库和无模型训练。外部 Agent Skill 仅作为受限的表达策略导入，不执行脚本、Shell、MCP、浏览器或任意第三方工具。
 
 ## 主要特性
 
 - 默认 600×210 DIP、可调整尺寸的精灵便笺工作区；44×44 精灵视觉置于 60×60 阴影安全窗口内；系统托盘作为稳定入口。
 - PerMonitorV2 DPI 感知、非透明正文窗口、ClearType、布局取整和 WPF 矢量图标。
 - `RegisterHotKey` 全局快捷键默认只启用 `Ctrl+Shift+H` 呼出窗口；快速润色、Prompt 优化和复制结果由深度用户按需配置，单组冲突不会打断启动。生成快捷键为 `Ctrl+Enter`。
-- OpenAI-Compatible `/chat/completions`，支持多个云端或本地 Ollama 配置档。
-- API Key 使用 Windows DPAPI 保存，不写入 `config.json`。
+- 支持 OpenAI-Compatible、Anthropic Messages、Gemini GenerateContent，以及多个云端、本地 Ollama 或 LM Studio 配置档；配置卡片集中管理，常用厂商可直接选择，推荐模型与最终 Model ID 分开呈现。
+- API Key 使用 Windows DPAPI 保存，不写入 `config.json`；结构化连接诊断不包含请求正文、完整响应或请求头。
 - 表达成稿自动版本化归档，可搜索、导出、软删除、恢复和永久清空。
 - 本地智能编排自动推断场景、渠道与目的；日期、金额、数量和不确定承诺经过保真检查，失败时按需修复一次。
 - 用户主动编辑形成的重复禁用词和“偏好简洁”等结构化行为可在本地复用；至少需要多次一致证据，无痕、关闭历史或关闭成稿保留时自动停止相应学习。
@@ -27,7 +33,7 @@
 所有用户数据位于 `%LocalAppData%\Huaxiazi`：
 
 ```text
-config.json                 非敏感配置（v2）
+config.json                 非敏感配置（当前 schema v9）
 secrets\                    DPAPI 加密的 API Key
 data\huaxiazi.db            SQLite 索引、原文、背景与版本关系
 data\drafts\                可直接使用的最终 .txt 成稿
@@ -48,7 +54,13 @@ dotnet test .\PromptFloat.Tests\PromptFloat.Tests.csproj -c Release --no-build
 .\publish.ps1 -Clean
 ```
 
-发布过程只临时使用 `out/`，成功后自动清理。对外交付物仅保留在 `release/`：一个最新便携 ZIP 和对应 SHA-256 文件。源码目录不长期保留展开发布副本、编译缓存或测试运行目录。
+完整验证应使用：
+
+```powershell
+dotnet test .\PromptFloat.Tests\PromptFloat.Tests.csproj -c Release
+```
+
+发布过程只临时使用 `out/`，成功后自动清理。对外交付物保留在 `release/`：直接启动 EXE、便携 ZIP 和 Windows 安装包。源码目录不长期保留展开发布副本、编译缓存或测试运行目录。
 
 也可运行 `publish.ps1` 完成恢复、Release 构建、全量测试、自包含发布和可选签名。无签名证书时产物仅用于测试分发。
 

@@ -31,6 +31,17 @@ jobs:
       - name: Publish self-contained (win-x64)
         run: dotnet publish PromptFloat.csproj -c Release -r win-x64 --self-contained true -o out/publish/win-x64
 
+      # Update-manifest generation gate. Catches regressions such as the template
+      # reverting to a hardcoded version, leftover placeholders, or a manifest
+      # version drifting from the csproj <Version>.
+      - name: Update manifest generation gate
+        shell: pwsh
+        run: |
+          $csproj = Get-Content PromptFloat.csproj -Raw
+          $version = [regex]::Match($csproj, '<Version>([^<]+)</Version>').Groups[1].Value.Trim()
+          if (-not $version) { throw "Could not read <Version> from PromptFloat.csproj" }
+          & ./deploy/generate-manifest.ps1 -Version $version -Sha256 ('0' * 64) -DownloadUrl "https://example.invalid/HuaxiaziSetup.exe" -ReleaseNotes "CI gate check" -OutputPath out/version-gate.json
+
       - name: Upload publish artifact
         uses: actions/upload-artifact@v4
         with:

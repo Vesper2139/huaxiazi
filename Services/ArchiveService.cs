@@ -26,10 +26,12 @@ public sealed class ArchiveService
     private readonly string _trashDirectory;
     private readonly string _connectionString;
     private readonly int _yearArchiveThreshold;
+    private bool _yearArchiveActivated;
 
     public ArchiveService(string rootDirectory, int yearArchiveThreshold = 100)
     {
-        _root = rootDirectory ?? throw new ArgumentNullException(nameof(rootDirectory));
+        ArgumentNullException.ThrowIfNull(rootDirectory);
+        _root = Path.GetFullPath(rootDirectory);
         if (yearArchiveThreshold < 1) throw new ArgumentOutOfRangeException(nameof(yearArchiveThreshold));
         _yearArchiveThreshold = yearArchiveThreshold;
         _draftsDirectory = Path.Combine(_root, "data", "drafts");
@@ -97,10 +99,12 @@ public sealed class ArchiveService
         var finalPath = Path.Combine(_draftsDirectory, fileName);
         var temporaryPath = finalPath + "." + revisionId.ToString("N") + ".tmp";
         File.WriteAllText(temporaryPath, draft.FinalText, new UTF8Encoding(false));
+        var movedToFinal = false;
 
         try
         {
             File.Move(temporaryPath, finalPath, false);
+            movedToFinal = true;
             using var insertRevision = connection.CreateCommand();
             insertRevision.Transaction = transaction;
             insertRevision.CommandText = """
@@ -127,11 +131,11 @@ public sealed class ArchiveService
         catch
         {
             if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
-            if (File.Exists(finalPath)) File.Delete(finalPath);
+            if (movedToFinal && File.Exists(finalPath)) File.Delete(finalPath);
             throw;
         }
 
-        ApplyYearArchiveIfNeeded();
+        ApplyYearArchiveIfNeeded(revisionId);
         using var refreshedConnection = OpenConnection();
         return ReadRevision(refreshedConnection, revisionId)
             ?? throw new InvalidOperationException("成稿已写入，但无法重新读取归档索引。");
@@ -435,9 +439,8 @@ public sealed class ArchiveService
         var currentVersion = Convert.ToInt32(readVersion.ExecuteScalar(), CultureInfo.InvariantCulture);
         if (currentVersion < 2)
         {
-            using var migrate = connection.CreateCommand();
-            migrate.CommandText = "ALTER TABLE content_items ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0; ALTER TABLE content_items ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0;";
-            migrate.ExecuteNonQuery();
+            EnsureColumn(connection, "content_items", "is_favorite", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "content_items", "is_archived", "INTEGER NOT NULL DEFAULT 0");
         }
         if (currentVersion < CurrentSchemaVersion)
         {
@@ -445,6 +448,23 @@ public sealed class ArchiveService
             setVersion.CommandText = $"PRAGMA user_version={CurrentSchemaVersion};";
             setVersion.ExecuteNonQuery();
         }
+    }
+
+    private static void EnsureColumn(SqliteConnection connection, string table, string column, string definition)
+    {
+        using var inspect = connection.CreateCommand();
+        inspect.CommandText = $"PRAGMA table_info({table});";
+        using (var reader = inspect.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase)) return;
+            }
+        }
+
+        using var migrate = connection.CreateCommand();
+        migrate.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition};";
+        migrate.ExecuteNonQuery();
     }
 
     private SqliteConnection OpenConnection()
@@ -494,6 +514,7 @@ public sealed class ArchiveService
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
+            if (!TryResolveStoredPath(reader.GetString(12), out var filePath)) continue;
             results.Add(new ContentRevision
             {
                 Id = Guid.Parse(reader.GetString(0)),
@@ -508,7 +529,7 @@ public sealed class ArchiveService
                 Style = reader.GetString(9),
                 ModelProfileId = reader.GetString(10),
                 ModelName = reader.GetString(11),
-                FilePath = Path.GetFullPath(Path.Combine(_root, reader.GetString(12))),
+                FilePath = filePath,
                 CreatedAt = DateTimeOffset.Parse(reader.GetString(13), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
                 DeletedAt = reader.IsDBNull(14)
                     ? null
@@ -518,6 +539,26 @@ public sealed class ArchiveService
             });
         }
         return results;
+    }
+
+    private bool TryResolveStoredPath(string relativePath, out string fullPath)
+    {
+        fullPath = string.Empty;
+        if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath)) return false;
+
+        try
+        {
+            var candidate = Path.GetFullPath(Path.Combine(_root, relativePath));
+            var rootPrefix = _root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            if (!candidate.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase)) return false;
+            fullPath = candidate;
+            return true;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
     }
 
     private string DisambiguateTopic(DateTimeOffset createdAt, string scenario, string topic, int version)
@@ -544,24 +585,31 @@ public sealed class ArchiveService
             || File.Exists(Path.Combine(_draftsDirectory, createdAt.ToString("yyyy", CultureInfo.InvariantCulture), fileName));
     }
 
-    private void ApplyYearArchiveIfNeeded()
+    private void ApplyYearArchiveIfNeeded(Guid savedRevisionId)
     {
         using var connection = OpenConnection();
-        using var count = connection.CreateCommand();
-        count.CommandText = "SELECT COUNT(*) FROM content_revisions WHERE deleted_utc IS NULL;";
-        if (Convert.ToInt32(count.ExecuteScalar(), CultureInfo.InvariantCulture) < _yearArchiveThreshold)
+        var scanAllRootDrafts = !_yearArchiveActivated;
+        if (scanAllRootDrafts)
         {
-            return;
+            using var count = connection.CreateCommand();
+            count.CommandText = "SELECT COUNT(*) FROM content_revisions WHERE deleted_utc IS NULL;";
+            if (Convert.ToInt32(count.ExecuteScalar(), CultureInfo.InvariantCulture) < _yearArchiveThreshold)
+            {
+                return;
+            }
         }
 
         using var select = connection.CreateCommand();
-        select.CommandText = "SELECT id, relative_path FROM content_revisions WHERE deleted_utc IS NULL;";
+        select.CommandText = scanAllRootDrafts
+            ? "SELECT id, relative_path FROM content_revisions WHERE deleted_utc IS NULL;"
+            : "SELECT id, relative_path FROM content_revisions WHERE deleted_utc IS NULL AND id = $id;";
+        if (!scanAllRootDrafts) select.Parameters.AddWithValue("$id", savedRevisionId.ToString("D"));
         var candidates = new List<(Guid Id, string Source, string Target)>();
         using (var reader = select.ExecuteReader())
         {
             while (reader.Read())
             {
-                var source = Path.GetFullPath(Path.Combine(_root, reader.GetString(1)));
+                if (!TryResolveStoredPath(reader.GetString(1), out var source)) continue;
                 if (!string.Equals(Path.GetDirectoryName(source), _draftsDirectory, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
@@ -574,7 +622,11 @@ public sealed class ArchiveService
                 candidates.Add((Guid.Parse(reader.GetString(0)), source, Path.Combine(_draftsDirectory, year, fileName)));
             }
         }
-        if (candidates.Count == 0) return;
+        if (candidates.Count == 0)
+        {
+            _yearArchiveActivated = true;
+            return;
+        }
 
         var moved = new List<(string Source, string Target)>();
         using var transaction = connection.BeginTransaction();
@@ -594,6 +646,7 @@ public sealed class ArchiveService
                 update.ExecuteNonQuery();
             }
             transaction.Commit();
+            _yearArchiveActivated = true;
         }
         catch
         {

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -71,7 +72,7 @@ public sealed class ProductGapRegressionTests : IDisposable
         vm.ClarificationAnswer = "发给王总";
         await vm.SubmitClarificationCommand.ExecuteAsync(null);
 
-        Assert.False(vm.HasClarification);
+        Assert.False(vm.HasClarification, vm.ErrorMessage + " | " + vm.ArchiveStatus + " | " + vm.OptimizedResult);
         Assert.Equal("王总，我明天想请假一天。", vm.OptimizedResult);
         Assert.Contains("我明天想请假", client.UserMessages[1]);
         Assert.Contains("发给王总", client.UserMessages[1]);
@@ -119,6 +120,22 @@ public sealed class ProductGapRegressionTests : IDisposable
     }
 
     [Fact]
+    public async Task EmptyPromptResponse_ShowsActionableConfigurationError()
+    {
+        Configure(ApplicationMode.PromptOptimize);
+        var vm = new MainViewModel(new WorkspaceDraftService(_root), new ArchiveService(_root), (_, _) => new SequenceClient("", ""))
+        {
+            UserInput = "写一个项目说明"
+        };
+
+        await vm.OptimizeCommand.ExecuteAsync(null);
+
+        Assert.True(vm.HasError);
+        Assert.Contains("模型返回为空", vm.ErrorMessage);
+        Assert.Empty(vm.OptimizedResult);
+    }
+
+    [Fact]
     public async Task GenerateAsync_TransientServerFailure_RetriesOnceAndSucceeds()
     {
         var handler = new SequenceHandler(
@@ -143,11 +160,12 @@ public sealed class ProductGapRegressionTests : IDisposable
             () => new HttpResponseMessage(HttpStatusCode.TooManyRequests));
         using var service = new AIService(LocalProfile(), null, handler, (_, _) => Task.CompletedTask);
 
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateAsync("system", "user"));
+        var error = await Assert.ThrowsAsync<GenerationFailureException>(() => service.GenerateAsync("system", "user"));
 
         Assert.Equal(2, handler.Calls);
         Assert.Contains("请求过于频繁", error.Message);
         Assert.Contains("稍后重试", error.Message);
+        Assert.Equal(GenerationFailureKind.RateLimited, error.Kind);
     }
 
     [Fact]
@@ -242,12 +260,45 @@ public sealed class ProductGapRegressionTests : IDisposable
     }
 
     [Fact]
-    public void MainWindow_ClarificationUsesOverlayAnswerPanelWithoutAddingLayoutRows()
+    public void InvalidConfig_BackupNeverContainsPlaintextApiKey()
+    {
+        const string secret = "sk-should-never-be-copied";
+        var contents = ConfigService.RedactSensitiveJson(
+            "{\"ApiKey\":\"" + secret + "\",\"Nested\":{\"Authorization\":\"Bearer " + secret + "\"}}");
+        Assert.NotNull(contents);
+        Assert.DoesNotContain(secret, contents, StringComparison.Ordinal);
+        Assert.Contains("REDACTED", contents, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void MainWindow_ClarificationUsesInlineAnswerPanelWithoutOverlayingTheEditor()
     {
         var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "MainWindow.xaml"));
         Assert.Contains("x:Name=\"ClarificationAnswerBox\"", xaml);
         Assert.Contains("Command=\"{Binding SubmitClarificationCommand}\"", xaml);
-        Assert.Contains("Panel.ZIndex=\"20\"", xaml);
+        Assert.Contains("x:Name=\"ClarificationPanel\" Grid.Row=\"0\"", xaml);
+        Assert.DoesNotContain("Panel.ZIndex=\"20\"", xaml);
+    }
+
+    [Fact]
+    public void ClarificationNotice_IsGenericWhileTheInlinePromptKeepsTheQuestion()
+    {
+        App.ReplaceSettings(new AppSettings { IncognitoMode = true });
+        var root = Path.Combine(Path.GetTempPath(), "ClarificationNotice_" + Guid.NewGuid().ToString("N"));
+        var vm = new MainViewModel(new WorkspaceDraftService(root), new ArchiveService(root), (_, _) => new SequenceClient("{}"));
+        try
+        {
+            vm.ClarificationQuestions = ["请确认 deepseek-v4-flash 是要润色原文还是重写一段完整介绍？"];
+            vm.HasClarification = true;
+
+            Assert.Equal("请补充信息后继续", vm.OperationalNotice);
+            Assert.Contains("deepseek-v4-flash", vm.ClarificationPrompt);
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
     }
 
     private static ProviderProfile LocalProfile() => new()

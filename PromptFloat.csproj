@@ -20,9 +20,9 @@
     <Copyright>Copyright © Huaxiazi</Copyright>
     <LangVersion>latest</LangVersion>
     <!-- 显式版本号：作为自动更新检查（UpdateChecker）比较的“当前版本”权威来源 -->
-    <Version>1.2.2</Version>
-    <AssemblyVersion>1.2.2.0</AssemblyVersion>
-    <FileVersion>1.2.2.0</FileVersion>
+    <Version>1.5.0</Version>
+    <AssemblyVersion>1.5.0.0</AssemblyVersion>
+    <FileVersion>1.5.0.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Resources\Brand\Vesper.ico</ApplicationIcon>
   </PropertyGroup>
@@ -37,11 +37,22 @@
   <!-- 排除嵌套的测试工程：SDK 默认的 **\*.cs 规则会把 PromptFloat.Tests 下的
        测试文件也纳入主工程编译，而主工程未引用 xunit，会导致 CS0246 并拖垮发布。 -->
   <ItemGroup>
+    <Compile Remove="tools\**" />
     <Compile Remove="PromptFloat.Tests\**\*.cs" />
     <EmbeddedResource Remove="PromptFloat.Tests\**" />
     <None Remove="PromptFloat.Tests\**" />
     <Page Remove="PromptFloat.Tests\**" />
     <ApplicationDefinition Remove="PromptFloat.Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\Skins\LuoXiaoHei\*.png" Exclude="Resources\Skins\LuoXiaoHei\sprites*.png" />
+    <Resource Include="Resources\Skins\MaoDie\*.png" Exclude="Resources\Skins\MaoDie\sprites*.png" />
+    <Resource Include="Resources\Skins\MaoDie\Provided\*.png" />
+    <Content Include="Resources\Skins\LuoXiaoHei\vector.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
@@ -73,6 +84,12 @@
     </None>
     <None Update="Config\default-config.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <!-- Agent Skills remain external prompt packages. They are shipped under
+         Presets/Skills and imported into the user's managed catalog at runtime. -->
+    <None Update="Skills\**\*" Link="Presets\%(RecursiveDir)%(Filename)%(Extension)" TargetPath="Presets\%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
   </ItemGroup>
 

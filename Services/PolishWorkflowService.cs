@@ -1,5 +1,6 @@
 using System;
 using System.Text.Json;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using PromptFloat.Models;
@@ -31,34 +32,51 @@ public sealed class PolishWorkflowService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        var companionMode = App.Settings.CompanionDriverMode;
         var raw = await _client.GenerateAsync(
-            _promptBuilder.BuildSystemPrompt(request, clarificationEnabled),
+            AssistantEmotionProtocol.DecorateSystemPrompt(
+                _promptBuilder.BuildSystemPrompt(request, clarificationEnabled), companionMode),
             _promptBuilder.BuildUserMessage(request),
             cancellationToken).ConfigureAwait(false);
-        var response = PolishResponseParser.Parse(raw);
+        var annotated = AssistantEmotionProtocol.ParseContent(raw, companionMode);
+        var response = PolishResponseParser.Parse(annotated.Content);
+        var companionEmotion = annotated.Hint;
         var wasRepaired = false;
         System.Collections.Generic.IReadOnlyList<string> validationIssues = [];
         if (response.Kind == PolishResponseKind.Final)
         {
-            var validation = PolishFidelityValidator.Validate(request.OriginalText, response.Content, request.Intelligence);
+            var plan = request.Professionalization ?? new ProfessionalizationPlanner().Create(new ProfessionalizationRequest { Input = request.OriginalText, Mode = ApplicationMode.Polish });
+            var validation = ProfessionalQualityValidator.Validate(plan, response.Content);
             if (!validation.IsValid)
             {
                 var repairedRaw = await _client.GenerateAsync(
-                    _promptBuilder.BuildRepairSystemPrompt(request, validation.Issues),
+                    AssistantEmotionProtocol.DecorateSystemPrompt(
+                        _promptBuilder.BuildRepairSystemPrompt(request, validation.Issues.Select(issue => issue.Message).ToArray()), companionMode),
                     _promptBuilder.BuildUserMessage(request), cancellationToken).ConfigureAwait(false);
-                var repaired = PolishResponseParser.Parse(repairedRaw);
+                var repairedAnnotated = AssistantEmotionProtocol.ParseContent(repairedRaw, companionMode);
+                var repaired = PolishResponseParser.Parse(repairedAnnotated.Content);
                 if (repaired.Kind == PolishResponseKind.Final &&
-                    PolishFidelityValidator.Validate(request.OriginalText, repaired.Content, request.Intelligence).IsValid)
+                    ProfessionalQualityValidator.Validate(plan, repaired.Content).IsValid)
                 {
                     response = repaired;
+                    companionEmotion = repairedAnnotated.Hint;
                     wasRepaired = true;
                 }
                 else
                 {
                     validationIssues = repaired.Kind == PolishResponseKind.Final
-                        ? PolishFidelityValidator.Validate(request.OriginalText, repaired.Content, request.Intelligence).Issues
-                        : validation.Issues;
-                    response = new PolishResponse { Kind = PolishResponseKind.Invalid, RawText = repairedRaw };
+                        ? ProfessionalQualityValidator.Validate(plan, repaired.Content).Issues.Select(issue => issue.Message).ToArray()
+                        : validation.Issues.Select(issue => issue.Message).ToArray();
+                    if (validation.IsSafe)
+                    {
+                        // The initial draft is fact-safe; keep it when the one allowed quality repair is worse.
+                        wasRepaired = true;
+                    }
+                    else
+                    {
+                        response = new PolishResponse { Kind = PolishResponseKind.Invalid, RawText = repairedAnnotated.Content };
+                        companionEmotion = null;
+                    }
                 }
             }
         }
@@ -92,6 +110,7 @@ public sealed class PolishWorkflowService
         return new PolishWorkflowResult
         {
             Response = response,
+            CompanionEmotion = response.Kind == PolishResponseKind.Final ? companionEmotion : null,
             SavedRevision = saved,
             WasRepaired = wasRepaired,
             ValidationIssues = validationIssues

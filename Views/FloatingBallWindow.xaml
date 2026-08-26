@@ -16,9 +16,9 @@
         </ContextMenu>
     </Window.ContextMenu>
 
-    <Border x:Name="Orb" Width="44" Height="44" HorizontalAlignment="Center" VerticalAlignment="Center"
+    <Border x:Name="Orb" Width="{DynamicResource SkinCompanionSize}" Height="{DynamicResource SkinCompanionSize}" HorizontalAlignment="Center" VerticalAlignment="Center"
             Background="Transparent" Cursor="SizeAll"
-            ToolTip="按住精灵拖动 · 单击展开 · 右键菜单" AutomationProperties.Name="Vesper 精灵拖动入口">
+            ToolTip="双击展开 · 拖动移动 · 右键菜单" AutomationProperties.Name="Vesper 精灵拖动入口">
         <local:CompanionFace x:Name="CompanionFace" />
     </Border>
 </Window>

@@ -5,7 +5,7 @@ using System.Text;
 
 namespace PromptFloat.Services;
 
-public sealed class DpapiSecretStore
+public sealed class DpapiSecretStore : ISecretStore
 {
     private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("Huaxiazi:secrets:v1");
     private readonly string _directory;
@@ -54,6 +54,12 @@ public sealed class DpapiSecretStore
         {
             return null;
         }
+    }
+
+    public bool Exists(string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        return File.Exists(GetPath(id));
     }
 
     public void Delete(string id)

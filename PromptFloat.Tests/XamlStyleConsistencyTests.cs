@@ -25,17 +25,17 @@ public class XamlStyleConsistencyTests
     [Fact]
     public void ApiKeyTextBox_PlainTextField_UsesTextBoxTargetedStyle()
     {
-        var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "SettingsView.xaml"));
-        Assert.Contains("x:Name=\"ApiKeyTextBox\" Style=\"{StaticResource GlassPlainTextBox}\"", xaml);
+        var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileEditView.xaml"));
+        Assert.Contains("x:Name=\"ApiKeyTextBox\" Style=\"{StaticResource CompactSettingsField}\"", xaml);
     }
 
     [Fact]
     public void SettingsView_UsesFriendlyPlatformSelectionAndHidesProtocolConcept()
     {
-        var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "SettingsView.xaml"));
+        var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileEditView.xaml"));
 
-        Assert.Contains("ItemsSource=\"{Binding ProviderPlatforms}\"", xaml);
-        Assert.Contains("SelectedItem=\"{Binding SelectedProviderPlatform}\"", xaml);
+        Assert.Contains("ItemsSource=\"{Binding ProviderPlatformView}\"", xaml);
+        Assert.Contains("SelectedItem=\"{Binding SelectedProviderPlatform, Mode=TwoWay}\"", xaml);
         Assert.DoesNotContain("Text=\"协议\"", xaml);
     }
 
@@ -43,11 +43,12 @@ public class XamlStyleConsistencyTests
     public void SettingsView_ProfileSelectionSynchronizesProtectedApiKeyField()
     {
         var root = RepoRoot();
-        var xaml = File.ReadAllText(Path.Combine(root, "Views", "SettingsView.xaml"));
-        var codeBehind = File.ReadAllText(Path.Combine(root, "Views", "SettingsView.xaml.cs"));
+        var xaml = File.ReadAllText(Path.Combine(root, "Views", "ProviderProfileEditView.xaml"));
+        var codeBehind = File.ReadAllText(Path.Combine(root, "Views", "ProviderProfileEditView.xaml.cs"));
 
-        Assert.Contains("SelectionChanged=\"ProviderProfile_OnSelectionChanged\"", xaml);
-        Assert.Contains("ApiKeyBox.Password = _vm.ApiKey", codeBehind);
+        Assert.Contains("x:Name=\"ApiKeyBox\"", xaml);
+        Assert.Contains("SynchronizeApiKeyEditors", codeBehind);
+        Assert.DoesNotContain("App.SecretStore.Read", codeBehind);
     }
 
     [Fact]
@@ -120,8 +121,8 @@ public class XamlStyleConsistencyTests
     {
         var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "MainWindow.xaml"));
 
-        Assert.Contains("Width=\"600\" Height=\"210\"", xaml);
-        Assert.Contains("MinWidth=\"420\" MinHeight=\"152\"", xaml);
+        Assert.Contains("Width=\"520\" Height=\"176\"", xaml);
+        Assert.Contains("MinWidth=\"420\" MinHeight=\"158\"", xaml);
     }
 
     [Fact]
@@ -141,10 +142,11 @@ public class XamlStyleConsistencyTests
     [Fact]
     public void SettingsView_UsesLabelFieldGridLikeReference()
     {
-        var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "SettingsView.xaml"));
+        var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileEditView.xaml"));
 
-        Assert.Contains("x:Name=\"ProviderFormGrid\"", xaml);
-        Assert.Contains("<ColumnDefinition Width=\"128\"", xaml);
+        Assert.Contains("x:Name=\"ProviderNameTextBox\"", xaml);
+        Assert.Contains("x:Name=\"ProviderRemarkTextBox\"", xaml);
+        Assert.Contains("<ColumnDefinition Width=\"10\"", xaml);
     }
 
     [Fact]
@@ -153,7 +155,7 @@ public class XamlStyleConsistencyTests
         var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "MainWindow.xaml"));
         var styles = File.ReadAllText(Path.Combine(RepoRoot(), "Resources", "Styles", "GlobalStyles.xaml"));
 
-        Assert.Contains("Padding=\"14,12,14,10\"", xaml);
+        Assert.Contains("Padding=\"12,8,12,8\"", xaml);
         Assert.Contains("x:Name=\"Watermark\"", styles);
         Assert.Contains("Margin=\"{TemplateBinding Padding}\"", styles);
     }
@@ -163,7 +165,7 @@ public class XamlStyleConsistencyTests
     {
         var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "MainWindow.xaml"));
 
-        Assert.Contains("x:Name=\"EditorDockBottom\" Grid.Row=\"1\" MinHeight=\"32\"", xaml);
+        Assert.Contains("x:Name=\"EditorDockBottom\" Grid.Row=\"1\" MinHeight=\"34\" Height=\"34\"", xaml);
         Assert.Contains("VerticalAlignment=\"Center\"", xaml);
     }
 
@@ -186,7 +188,7 @@ public class XamlStyleConsistencyTests
     }
 
     [Fact]
-    public void MainWindow_UsesStableThreeRowShellAndFixedControlMetrics()
+    public void MainWindow_UsesStableShellAndSharedSkinControlMetrics()
     {
         var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "MainWindow.xaml"));
         var styles = File.ReadAllText(Path.Combine(RepoRoot(), "Resources", "Styles", "GlobalStyles.xaml"));
@@ -194,20 +196,23 @@ public class XamlStyleConsistencyTests
         Assert.Contains("<RowDefinition Height=\"Auto\" />", xaml);
         Assert.Contains("<RowDefinition Height=\"*\"", xaml);
         Assert.Contains("x:Name=\"EditorDockBottom\"", xaml);
-        Assert.Contains("Grid Grid.Row=\"0\" MinHeight=\"30\"", xaml);
+        Assert.Contains("x:Name=\"TitleBand\" Grid.Row=\"0\" MinHeight=\"{DynamicResource SkinTitleBarHeight}\"", xaml);
         Assert.Contains("Property=\"MinHeight\" Value=\"32\"", styles);
         Assert.Contains("Property=\"MinHeight\" Value=\"36\"", styles);
     }
 
     [Fact]
-    public void MainWindow_HasSeparateCollapseToBallAndTaskbarMinimizeActions()
+    public void MainWindow_HasPinAndCloseInTitleBarAndCompanionForCollapse()
     {
         var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "MainWindow.xaml"));
         var code = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "MainWindow.xaml.cs"));
 
-        Assert.Contains("x:Name=\"CollapseToBallButton\"", xaml);
-        Assert.Contains("Click=\"TaskbarMinimizeButton_OnClick\"", xaml);
-        Assert.Contains("WindowState = WindowState.Minimized", code);
+        Assert.Contains("x:Name=\"PinButton\"", xaml);
+        Assert.Contains("CloseButton_OnClick", code);
+        Assert.DoesNotContain("SettingsButton", xaml);
+        Assert.DoesNotContain("CollapseToBallButton", xaml);
+        Assert.Contains("CompanionDragHandle_OnMouseLeftButtonDown", code);
+        Assert.Contains("e.ClickCount >= 2", code);
     }
 
     [Fact]
@@ -248,21 +253,23 @@ public class XamlStyleConsistencyTests
     }
 
     [Fact]
-    public void SettingsView_UsesEightModulesUnifiedFieldsAndProviderActions()
+    public void SettingsView_UsesProfessionalExpressionModulesAndProviderActions()
     {
         var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "SettingsView.xaml"));
+        var list = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileListView.xaml"));
+        var editor = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileEditView.xaml"));
         var viewModel = File.ReadAllText(Path.Combine(RepoRoot(), "ViewModels", "SettingsViewModel.cs"));
 
-        foreach (var section in new[] { "模型与 API", "历史与会话", "界面与显示", "窗口与行为", "优化与输出", "快捷键", "数据管理", "关于与更新" })
+        foreach (var section in new[] { "模型与 API", "表达能力", "历史与会话", "界面与显示", "窗口与行为", "快捷键", "数据管理", "关于与更新" })
         {
             Assert.Contains(section, viewModel);
         }
         Assert.Contains("Style=\"{StaticResource OverlayScrollViewer}\"", xaml);
-        Assert.Contains("Command=\"{Binding AddProviderCommand}\"", xaml);
-        Assert.Contains("Command=\"{Binding DuplicateProviderCommand}\"", xaml);
-        Assert.Contains("Command=\"{Binding RemoveProviderCommand}\"", xaml);
-        Assert.Contains("Command=\"{Binding TestConnectionCommand}\"", xaml);
-        Assert.Contains("x:Name=\"ApiKeyBox\"", xaml);
-        Assert.Contains("x:Name=\"ApiKeyTextBox\"", xaml);
+        Assert.Contains("Command=\"{Binding AddProviderCommand}\"", list);
+        Assert.Contains("Command=\"{Binding DuplicateProviderCommand}\"", list);
+        Assert.Contains("Click=\"DeleteSelectedProfile_OnClick\"", list);
+        Assert.Contains("Command=\"{Binding TestConnectionCommand}\"", editor);
+        Assert.Contains("x:Name=\"ApiKeyBox\"", editor);
+        Assert.Contains("x:Name=\"ApiKeyTextBox\"", editor);
     }
 }

@@ -163,6 +163,25 @@ public class UpdateCheckerTests
     }
 
     [Fact]
+    public async Task CheckAsync_HttpUrl_ReturnsError()
+    {
+        var checker = new UpdateChecker();
+        var result = await checker.CheckAsync("http://example.com/version.json");
+
+        Assert.Equal(UpdateStatus.Error, result.Status);
+        Assert.Contains("HTTPS", result.Message);
+    }
+
+    [Fact]
+    public async Task CheckAsync_InvalidUrl_ReturnsError()
+    {
+        var checker = new UpdateChecker();
+        var result = await checker.CheckAsync("not-a-url");
+
+        Assert.Equal(UpdateStatus.Error, result.Status);
+    }
+
+    [Fact]
     public async Task CheckAsync_SuccessfulResponse_ParsesCorrectly()
     {
         var checker = CreateWithHandler(_ => JsonResponse("{ \"version\": \"1.0.0.0\" }"));
@@ -170,5 +189,16 @@ public class UpdateCheckerTests
 
         Assert.Equal(UpdateStatus.UpToDate, result.Status);
         Assert.Equal("1.0.0.0", result.LatestVersion?.ToString());
+    }
+
+    [Fact]
+    public async Task CheckAsync_RejectsCrossHostDownloadManifest()
+    {
+        var checker = CreateWithHandler(_ => JsonResponse(
+            "{ \"version\": \"999.0.0\", \"url\": \"https://attacker.example/payload.exe\", \"sha256\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\" }"));
+        var result = await checker.CheckAsync("https://updates.example/version.json");
+
+        Assert.Equal(UpdateStatus.Error, result.Status);
+        Assert.Contains("相同的 HTTPS 主机", result.Message);
     }
 }

@@ -1,0 +1,222 @@
+<UserControl x:Class="PromptFloat.Views.ProviderProfileEditView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:PromptFloat.Views"
+             FontFamily="{StaticResource AppFont}">
+    <UserControl.Resources>
+        <local:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <local:InverseBoolConverter x:Key="InverseBool" />
+        <local:ProviderPlatformDisplayNameConverter x:Key="ProviderPlatformDisplayName" />
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- 面包屑 / 返回：使用流式布局，配置名称变长时不会与标题重叠。 -->
+        <Grid x:Name="ProviderEditorHeader" Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button Style="{StaticResource SettingsIconButton}" HorizontalAlignment="Left"
+                    Command="{Binding NavigateToProviderListCommand}" ToolTip="返回配置列表" AutomationProperties.Name="返回配置列表">
+                <Path Style="{StaticResource CrispIconPath}" Data="M15,4 L7,12 L15,20" Width="14" Height="14" />
+            </Button>
+            <StackPanel x:Name="ProviderEditorTitle" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                <TextBlock Text="模型与 API" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" />
+                <TextBlock x:Name="ProviderEditorBreadcrumb" FontSize="13" Foreground="{DynamicResource MutedBrush}" Margin="10,1,0,0" TextTrimming="CharacterEllipsis">
+                    <Run Text="/  " /><Run Text="{Binding EditingProviderProfile.Name, FallbackValue='配置'}" Foreground="{DynamicResource BodyTextBrush}" />
+                </TextBlock>
+            </StackPanel>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" Style="{StaticResource OverlayScrollViewer}" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Border Style="{StaticResource SettingsCard}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="配置名称" Style="{StaticResource LabelText}" Margin="0,0,0,4" />
+                                <TextBox x:Name="ProviderNameTextBox" Style="{StaticResource CompactSettingsField}"
+                                         Text="{Binding EditingProviderProfile.Name, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="备注（可选）" Style="{StaticResource LabelText}" Margin="0,0,0,4" />
+                                <TextBox x:Name="ProviderRemarkTextBox" Style="{StaticResource CompactSettingsField}"
+                                         Text="{Binding EditingProviderProfile.Remark, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="厂商" Style="{StaticResource LabelText}" Margin="0,14,0,4" />
+                        <ComboBox x:Name="ProviderPlatformSelector" Style="{StaticResource GlassComboBox}"
+                                  ItemsSource="{Binding ProviderPlatformView}"
+                                  SelectedItem="{Binding SelectedProviderPlatform, Mode=TwoWay}"
+                                  DisplayMemberPath="DisplayName">
+                            <ComboBox.GroupStyle>
+                                <GroupStyle>
+                                    <GroupStyle.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}" Foreground="{DynamicResource BrandBrush}" FontSize="11" FontWeight="SemiBold" Margin="7,7,7,3" />
+                                        </DataTemplate>
+                                    </GroupStyle.HeaderTemplate>
+                                </GroupStyle>
+                            </ComboBox.GroupStyle>
+                        </ComboBox>
+
+                        <!-- API Key -->
+                        <StackPanel Margin="0,14,0,0"
+                                    Visibility="{Binding SelectedProviderPlatform.RequiresApiKey, Converter={StaticResource BoolToVisibility}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="API Key" Style="{StaticResource LabelText}" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" x:Name="ToggleApiKeyVisibilityButton" Style="{StaticResource ToolIconButton}"
+                                        Click="ToggleApiKeyVisibilityButton_OnClick" ToolTip="显示或隐藏">
+                                    <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconEye}" />
+                                </Button>
+                                <Button Grid.Column="2" x:Name="OpenApiKeyUrlButton"
+                                        Click="OpenApiKeyUrlButton_OnClick" ToolTip="打开厂商密钥页面">
+                                    <Path Style="{StaticResource CrispIconPath}" Data="M7,17 L17,7 M17,7 L10,7 M17,7 L17,14" />
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource ToolIconButton}">
+                                            <Setter Property="IsEnabled" Value="True" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedProviderApiKeyUrl}" Value="">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Grid.Column="3" x:Name="ClearApiKeyButton" Style="{StaticResource ToolIconButton}"
+                                        Click="ClearApiKeyButton_OnClick" ToolTip="清空当前输入">
+                                    <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconClose}" />
+                                </Button>
+                            </Grid>
+                            <Grid Margin="0,4,0,0">
+                                <PasswordBox x:Name="ApiKeyBox" Style="{StaticResource GlassPasswordBox}" Height="34" FontSize="12" Padding="10,4"
+                                             PasswordChanged="ApiKeyBox_OnPasswordChanged" />
+                                <TextBox x:Name="ApiKeyTextBox" Style="{StaticResource CompactSettingsField}" Visibility="Collapsed"
+                                         Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}" TextChanged="ApiKeyTextBox_OnTextChanged" />
+                            </Grid>
+                        </StackPanel>
+
+                        <TextBlock Text="请求地址" Style="{StaticResource LabelText}" Margin="0,14,0,4" />
+                        <TextBox x:Name="ApiBaseTextBox" Style="{StaticResource CompactSettingsField}"
+                                 Text="{Binding ApiBaseInput, UpdateSourceTrigger=PropertyChanged}"
+                                 IsReadOnly="{Binding IsApiBaseEditable, Converter={StaticResource InverseBool}}"
+                                 ToolTip="官方厂商自动填写；自定义接口可修改" />
+
+                        <TextBlock Text="模型" Style="{StaticResource LabelText}" Margin="0,14,0,4" />
+                        <ComboBox x:Name="ModelSelector" Style="{StaticResource CompactSettingsComboBox}" IsEditable="True"
+                                  TextSearch.TextPath="ModelId" ItemsSource="{Binding AvailableModels}"
+                                  SelectedItem="{Binding SelectedModel, Mode=TwoWay}"
+                                  Text="{Binding ModelId, Mode=OneWay}"
+                                  Loaded="ModelSelector_OnLoaded" SelectionChanged="ModelSelector_OnSelectionChanged"
+                                  LostFocus="ModelSelector_OnLostFocus"
+                                  ToolTip="选择推荐模型，或直接输入实际 Model ID" />
+
+                        <Expander Header="高级参数" Style="{StaticResource SettingsExpander}" Margin="0,18,0,0">
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,8,0,0" Padding="14">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="采样温度（0–2）" Style="{StaticResource LabelText}" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Style="{StaticResource CompactSettingsField}"
+                                             Text="{Binding EditingProviderProfile.Temperature, UpdateSourceTrigger=LostFocus}" Margin="0,0,10,8"
+                                             local:DecimalInputBehavior.Minimum="0" local:DecimalInputBehavior.Maximum="2" />
+                                    <TextBlock Grid.Column="2" Text="随机性（Top P，0–1）" Style="{StaticResource LabelText}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                    <TextBox Grid.Column="3" Style="{StaticResource CompactSettingsField}"
+                                             Text="{Binding EditingProviderProfile.TopP, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,8"
+                                             local:DecimalInputBehavior.Minimum="0" local:DecimalInputBehavior.Maximum="1" />
+
+                                    <TextBlock Grid.Row="1" Text="单次输出上限（Max Tokens）" Style="{StaticResource LabelText}" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource CompactSettingsField}"
+                                             Text="{Binding EditingProviderProfile.MaxTokens, UpdateSourceTrigger=LostFocus}" Margin="0,0,10,0"
+                                             local:IntegerInputBehavior.Minimum="128" local:IntegerInputBehavior.Maximum="32768" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="超时（秒）" Style="{StaticResource LabelText}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                    <TextBox Grid.Row="1" Grid.Column="3" Style="{StaticResource CompactSettingsField}"
+                                             Text="{Binding EditingProviderProfile.TimeoutSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                             local:IntegerInputBehavior.Minimum="10" local:IntegerInputBehavior.Maximum="600" />
+                                </Grid>
+                            </Border>
+                        </Expander>
+                    </StackPanel>
+                </Border>
+
+                <!-- 连接测试保持为一条内联状态，不再形成第二张笨重表单卡。 -->
+                <Border x:Name="ConnectionStatusStrip" Margin="0,14,0,0">
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource ConnectionStatusCard}">
+                            <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Success">
+                                    <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Failure">
+                                    <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Pending">
+                                    <Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="7" Height="7" Margin="0,0,9,0" Fill="{DynamicResource MutedBrush}" />
+                            <TextBlock Text="{Binding ConnectionStatus}" TextWrapping="Wrap" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource LabelText}">
+                                        <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Success"><Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Failure"><Setter Property="Foreground" Value="{DynamicResource DangerBrush}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Pending"><Setter Property="Foreground" Value="{DynamicResource BrandBrush}" /></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                        <Button Grid.Column="1" Style="{StaticResource GlassButton}" Content="测试连接"
+                                Command="{Binding TestConnectionCommand}" IsEnabled="{Binding CanTestConnection}" Padding="12,5" Margin="12,0,0,0" />
+                        <Expander Grid.Row="1" Grid.ColumnSpan="2" Header="诊断详情" Style="{StaticResource SettingsExpander}" Margin="16,7,0,0"
+                                  IsExpanded="{Binding IsDiagnosticExpanded, Mode=TwoWay}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding ConnectionDiagnostic}" FontFamily="Consolas" FontSize="11"
+                                           Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
+                                <Button Style="{StaticResource SettingsIconButton}" HorizontalAlignment="Left" Margin="0,6,0,0"
+                                        Command="{Binding CopyConnectionDiagnosticCommand}" ToolTip="复制诊断信息">
+                                    <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconCopy}" />
+                                </Button>
+                            </StackPanel>
+                        </Expander>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 编辑内容直接回写草稿；通过左上角返回列表，关闭设置时统一验证并自动保存。 -->
+    </Grid>
+</UserControl>

@@ -31,9 +31,13 @@ public sealed class PolishPromptBuilderService
         AppendContext(builder, "场景", request.Scenario);
         AppendContext(builder, "输出风格", request.OutputStyle);
         AppendContext(builder, "自定义风格", request.CustomStyleInstructions);
-        AppendContext(builder, "用户画像", request.Persona);
         AppendContext(builder, "用户自定义系统指令", request.CustomSystemPrompt);
-        AppendContext(builder, "用户改写偏好", request.PreferenceInstructions);
+        PromptContextComposer.AppendPersonalization(builder, request.Persona, request.PreferenceInstructions);
+        if (request.Professionalization is { } plan)
+        {
+            builder.AppendLine("专业化执行计划（事实保真和本次明确要求优先于表达策略）：");
+            builder.AppendLine(plan.StrategyInstructions);
+        }
         if (request.Intelligence is { } intelligence)
         {
             builder.AppendLine("系统推断，仅作低优先级参考；与用户明确说明冲突时，以用户明确说明为准：");

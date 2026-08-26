@@ -24,6 +24,7 @@ public sealed class PromptRequest
     public string Persona { get; init; } = string.Empty;
     public string CustomSystemPrompt { get; init; } = string.Empty;
     public string PreferenceInstructions { get; init; } = string.Empty;
+    public ProfessionalizationPlan? Professionalization { get; init; }
 
     /// <summary>
     /// 基于当前输入构造一个请求。提供默认值以保证非空。
