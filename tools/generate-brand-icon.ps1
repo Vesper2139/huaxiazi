@@ -27,6 +27,42 @@ function Resize-PngBytes([System.Drawing.Bitmap]$SourceBitmap, [int]$Size) {
         $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
         $graphics.Clear([System.Drawing.Color]::Transparent)
         $graphics.DrawImage($SourceBitmap, [System.Drawing.Rectangle]::new(0, 0, $Size, $Size))
+
+        # Reapply the tile mask after downsampling. Bicubic filtering can otherwise
+        # reintroduce translucent white corner pixels at shell icon sizes.
+        $left = [Math]::Max(1, [Math]::Round($Size * 5 / 256))
+        $top = [Math]::Max(1, [Math]::Round($Size * 5 / 256))
+        $right = $Size - 1 - $left
+        $bottom = $Size - 1 - $top
+        $radius = [Math]::Max(1, [Math]::Round($Size * 50 / 256))
+        $radiusSquared = $radius * $radius
+        for ($x = 0; $x -lt $Size; $x++) {
+            for ($y = 0; $y -lt $Size; $y++) {
+                $inside = $true
+                if ($x -lt ($left + $radius) -and $y -lt ($top + $radius)) {
+                    $dx = ($left + $radius) - $x
+                    $dy = ($top + $radius) - $y
+                    $inside = (($dx * $dx) + ($dy * $dy)) -le $radiusSquared
+                } elseif ($x -gt ($right - $radius) -and $y -lt ($top + $radius)) {
+                    $dx = $x - ($right - $radius)
+                    $dy = ($top + $radius) - $y
+                    $inside = (($dx * $dx) + ($dy * $dy)) -le $radiusSquared
+                } elseif ($x -lt ($left + $radius) -and $y -gt ($bottom - $radius)) {
+                    $dx = ($left + $radius) - $x
+                    $dy = $y - ($bottom - $radius)
+                    $inside = (($dx * $dx) + ($dy * $dy)) -le $radiusSquared
+                } elseif ($x -gt ($right - $radius) -and $y -gt ($bottom - $radius)) {
+                    $dx = $x - ($right - $radius)
+                    $dy = $y - ($bottom - $radius)
+                    $inside = (($dx * $dx) + ($dy * $dy)) -le $radiusSquared
+                } elseif ($x -lt $left -or $x -gt $right -or $y -lt $top -or $y -gt $bottom) {
+                    $inside = $false
+                }
+
+                if (-not $inside) { $bitmap.SetPixel($x, $y, [System.Drawing.Color]::Transparent) }
+            }
+        }
+
         $stream = [System.IO.MemoryStream]::new()
         try {
             $bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
@@ -77,6 +113,41 @@ while ($queue.Count -gt 0) {
     $queue.Enqueue([System.Drawing.Point]::new($x - 1, $y))
     $queue.Enqueue([System.Drawing.Point]::new($x, $y + 1))
     $queue.Enqueue([System.Drawing.Point]::new($x, $y - 1))
+}
+
+# Make the outside of the rounded tile genuinely transparent. Semi-transparent
+# white corners are rendered as dark fringes by the Windows shell on some themes.
+$left = 5
+$top = 5
+$right = $width - 6
+$bottom = $height - 6
+$radius = 50
+$radiusSquared = $radius * $radius
+for ($x = 0; $x -lt $width; $x++) {
+    for ($y = 0; $y -lt $height; $y++) {
+        $inside = $true
+        if ($x -lt ($left + $radius) -and $y -lt ($top + $radius)) {
+            $dx = ($left + $radius) - $x
+            $dy = ($top + $radius) - $y
+            $inside = (($dx * $dx) + ($dy * $dy)) -le $radiusSquared
+        } elseif ($x -gt ($right - $radius) -and $y -lt ($top + $radius)) {
+            $dx = $x - ($right - $radius)
+            $dy = ($top + $radius) - $y
+            $inside = (($dx * $dx) + ($dy * $dy)) -le $radiusSquared
+        } elseif ($x -lt ($left + $radius) -and $y -gt ($bottom - $radius)) {
+            $dx = ($left + $radius) - $x
+            $dy = $y - ($bottom - $radius)
+            $inside = (($dx * $dx) + ($dy * $dy)) -le $radiusSquared
+        } elseif ($x -gt ($right - $radius) -and $y -gt ($bottom - $radius)) {
+            $dx = $x - ($right - $radius)
+            $dy = $y - ($bottom - $radius)
+            $inside = (($dx * $dx) + ($dy * $dy)) -le $radiusSquared
+        } elseif ($x -lt $left -or $x -gt $right -or $y -lt $top -or $y -gt $bottom) {
+            $inside = $false
+        }
+
+        if (-not $inside) { $cleanBitmap.SetPixel($x, $y, [System.Drawing.Color]::Transparent) }
+    }
 }
 
 Save-PngBytes $cleanBitmap (Join-Path (Split-Path $OutputPng) (Split-Path $OutputPng -Leaf))
