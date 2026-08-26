@@ -1,0 +1,121 @@
+param(
+    [string]$Source = (Join-Path $PSScriptRoot '..\..\generated-images\0fcea388-63ed-46c4-90d6-60d06c159d5e.png'),
+    [string]$OutputPng = (Join-Path $PSScriptRoot '..\Resources\Brand\Huaxiazi-256.png'),
+    [string]$OutputIco = (Join-Path $PSScriptRoot '..\Resources\Brand\Huaxiazi.ico')
+)
+
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Drawing
+
+function Save-PngBytes([System.Drawing.Bitmap]$Bitmap, [string]$Path) {
+    $stream = [System.IO.MemoryStream]::new()
+    try {
+        $Bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
+        [System.IO.File]::WriteAllBytes($Path, $stream.ToArray())
+    } finally {
+        $stream.Dispose()
+    }
+}
+
+function Resize-PngBytes([System.Drawing.Bitmap]$SourceBitmap, [int]$Size) {
+    $bitmap = [System.Drawing.Bitmap]::new($Size, $Size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+        $graphics.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
+        $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+        $graphics.Clear([System.Drawing.Color]::Transparent)
+        $graphics.DrawImage($SourceBitmap, [System.Drawing.Rectangle]::new(0, 0, $Size, $Size))
+        $stream = [System.IO.MemoryStream]::new()
+        try {
+            $bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
+            return $stream.ToArray()
+        } finally {
+            $stream.Dispose()
+        }
+    } finally {
+        $graphics.Dispose()
+        $bitmap.Dispose()
+    }
+}
+
+$sourceBitmap = [System.Drawing.Bitmap]::new((Resolve-Path $Source).Path)
+$cleanBitmap = [System.Drawing.Bitmap]::new($sourceBitmap.Width, $sourceBitmap.Height, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+for ($x = 0; $x -lt $sourceBitmap.Width; $x++) {
+    for ($y = 0; $y -lt $sourceBitmap.Height; $y++) {
+        $cleanBitmap.SetPixel($x, $y, $sourceBitmap.GetPixel($x, $y))
+    }
+}
+$sourceBitmap.Dispose()
+
+# The supplied master contains a near-black matte outside the rounded white tile.
+# Remove only connected near-black matte pixels; coloured artwork and white tile remain unchanged.
+$width = $cleanBitmap.Width
+$height = $cleanBitmap.Height
+$visited = New-Object 'bool[,]' $width, $height
+$queue = [System.Collections.Generic.Queue[System.Drawing.Point]]::new()
+for ($x = 0; $x -lt $width; $x++) {
+    $queue.Enqueue([System.Drawing.Point]::new($x, 0))
+    $queue.Enqueue([System.Drawing.Point]::new($x, $height - 1))
+}
+for ($y = 1; $y -lt ($height - 1); $y++) {
+    $queue.Enqueue([System.Drawing.Point]::new(0, $y))
+    $queue.Enqueue([System.Drawing.Point]::new($width - 1, $y))
+}
+
+while ($queue.Count -gt 0) {
+    $point = $queue.Dequeue()
+    $x = $point.X
+    $y = $point.Y
+    if ($x -lt 0 -or $x -ge $width -or $y -lt 0 -or $y -ge $height -or $visited[$x, $y]) { continue }
+    $visited[$x, $y] = $true
+    $pixel = $cleanBitmap.GetPixel($x, $y)
+    if ([Math]::Max($pixel.R, [Math]::Max($pixel.G, $pixel.B)) -gt 110) { continue }
+    $cleanBitmap.SetPixel($x, $y, [System.Drawing.Color]::Transparent)
+    $queue.Enqueue([System.Drawing.Point]::new($x + 1, $y))
+    $queue.Enqueue([System.Drawing.Point]::new($x - 1, $y))
+    $queue.Enqueue([System.Drawing.Point]::new($x, $y + 1))
+    $queue.Enqueue([System.Drawing.Point]::new($x, $y - 1))
+}
+
+Save-PngBytes $cleanBitmap (Join-Path (Split-Path $OutputPng) (Split-Path $OutputPng -Leaf))
+
+$sizes = @(16, 20, 24, 32, 40, 48, 64, 128, 256)
+$frames = @()
+try {
+    foreach ($size in $sizes) {
+        $frames += ,([byte[]](Resize-PngBytes $cleanBitmap $size))
+    }
+} finally {
+    $cleanBitmap.Dispose()
+}
+
+$headerSize = 6 + (16 * $frames.Count)
+$offset = $headerSize
+$stream = [System.IO.MemoryStream]::new()
+$writer = [System.IO.BinaryWriter]::new($stream)
+try {
+    $writer.Write([uint16]0)
+    $writer.Write([uint16]1)
+    $writer.Write([uint16]$frames.Count)
+    for ($i = 0; $i -lt $frames.Count; $i++) {
+        $size = $sizes[$i]
+        $writer.Write([byte]($(if ($size -eq 256) { 0 } else { $size })))
+        $writer.Write([byte]$(if ($size -eq 256) { 0 } else { $size }))
+        $writer.Write([byte]0)
+        $writer.Write([byte]0)
+        $writer.Write([uint16]1)
+        $writer.Write([uint16]32)
+        $writer.Write([uint32]$frames[$i].Length)
+        $writer.Write([uint32]$offset)
+        $offset += $frames[$i].Length
+    }
+    foreach ($frame in $frames) { $writer.Write([byte[]]$frame) }
+    [System.IO.File]::WriteAllBytes((Join-Path (Split-Path $OutputIco) (Split-Path $OutputIco -Leaf)), $stream.ToArray())
+} finally {
+    $writer.Dispose()
+    $stream.Dispose()
+}
+
+Write-Output "Generated transparent Huaxiazi icon: $OutputPng and $OutputIco"
