@@ -52,7 +52,7 @@ public sealed class BrandIconTests
     }
 
     [Fact]
-    public void WindowsIcon_DoesNotCarryABlackMatteAtTheCorners()
+    public void WindowsIcon_UsesExplicitTransparencyMaskForShellRendering()
     {
         var path = Path.Combine(RepoRoot(), "Resources", "Brand", "Huaxiazi.ico");
         using var stream = File.OpenRead(path);
@@ -72,15 +72,22 @@ public sealed class BrandIconTests
             var offset = reader.ReadUInt32();
             var returnPosition = stream.Position;
             stream.Position = offset;
-            using var frame = new MemoryStream(reader.ReadBytes(checked((int)length)), writable: false);
-            using var bitmap = new Bitmap(frame);
-            foreach (var point in new[] { new System.Drawing.Point(0, 0), new System.Drawing.Point(bitmap.Width - 1, 0), new System.Drawing.Point(0, bitmap.Height - 1), new System.Drawing.Point(bitmap.Width - 1, bitmap.Height - 1) })
-            {
-                var pixel = bitmap.GetPixel(point.X, point.Y);
-                Assert.True(pixel.A == 0 || Math.Max(pixel.R, Math.Max(pixel.G, pixel.B)) > 80, $"Dark matte detected in {bitmap.Width}px frame at {point}.");
-            }
+            Assert.Equal((uint)40, reader.ReadUInt32());
+            var dibWidth = reader.ReadInt32();
+            var dibHeight = reader.ReadInt32();
+            Assert.True(dibWidth is > 0 and <= 256);
+            Assert.Equal(dibWidth * 2, dibHeight);
+            Assert.Equal((ushort)1, reader.ReadUInt16());
+            Assert.Equal((ushort)32, reader.ReadUInt16());
+            Assert.True(length > 40);
 
             stream.Position = returnPosition;
+        }
+
+        using var master = new Bitmap(Path.Combine(RepoRoot(), "Resources", "Brand", "Huaxiazi-256.png"));
+        foreach (var point in new[] { new System.Drawing.Point(0, 0), new System.Drawing.Point(master.Width - 1, 0), new System.Drawing.Point(0, master.Height - 1), new System.Drawing.Point(master.Width - 1, master.Height - 1) })
+        {
+            Assert.Equal(0, master.GetPixel(point.X, point.Y).A);
         }
     }
 

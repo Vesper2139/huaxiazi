@@ -46,6 +46,8 @@
                     <TransformGroup>
                         <ScaleTransform x:Name="BlinkScale" ScaleY="1" CenterX="22" CenterY="20" />
                         <TranslateTransform x:Name="GazeOffset" />
+                        <!-- Keep the eyes optically above the mouth even when gaze Y moves down. -->
+                        <TranslateTransform x:Name="EyeVisualOffset" Y="-1.5" />
                     </TransformGroup>
                 </Grid.RenderTransform>
                 <Path x:Name="LeftEye" Stroke="{DynamicResource CompanionFaceBrush}" StrokeThickness="2.2"
@@ -57,8 +59,8 @@
                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round">
                 <Path.RenderTransform>
                     <TransformGroup>
-                        <ScaleTransform x:Name="MouthScale" ScaleX="1" ScaleY="1" CenterX="22" CenterY="28" />
-                        <RotateTransform x:Name="MouthRotation" CenterX="22" CenterY="28" />
+                        <ScaleTransform x:Name="MouthScale" ScaleX="1" ScaleY="1" CenterX="22" CenterY="29" />
+                        <RotateTransform x:Name="MouthRotation" CenterX="22" CenterY="29" />
                         <TranslateTransform x:Name="MouthPoseOffset" />
                     </TransformGroup>
                 </Path.RenderTransform>

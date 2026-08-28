@@ -45,7 +45,8 @@
                             <StackPanel>
                                 <TextBlock Text="配置名称" Style="{StaticResource LabelText}" Margin="0,0,0,4" />
                                 <TextBox x:Name="ProviderNameTextBox" Style="{StaticResource CompactSettingsField}"
-                                         Text="{Binding EditingProviderProfile.Name, UpdateSourceTrigger=PropertyChanged}" />
+                                         Text="{Binding EditingProviderProfile.Name, UpdateSourceTrigger=PropertyChanged}"
+                                         TextChanged="ProviderNameTextBox_OnTextChanged" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="备注（可选）" Style="{StaticResource LabelText}" Margin="0,0,0,4" />
@@ -106,9 +107,10 @@
                             </Grid>
                             <Grid Margin="0,4,0,0">
                                 <PasswordBox x:Name="ApiKeyBox" Style="{StaticResource GlassPasswordBox}" Height="34" FontSize="12" Padding="10,4"
+                                             ToolTip="已保存密钥默认掩码显示；点击右侧眼睛查看或替换"
                                              PasswordChanged="ApiKeyBox_OnPasswordChanged" />
                                 <TextBox x:Name="ApiKeyTextBox" Style="{StaticResource CompactSettingsField}" Visibility="Collapsed"
-                                         Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}" TextChanged="ApiKeyTextBox_OnTextChanged" />
+                                         Text="{Binding ApiKey, Mode=OneWay}" TextChanged="ApiKeyTextBox_OnTextChanged" />
                             </Grid>
                         </StackPanel>
 
@@ -127,7 +129,21 @@
                                   LostFocus="ModelSelector_OnLostFocus"
                                   ToolTip="选择推荐模型，或直接输入实际 Model ID" />
 
-                        <Expander Header="高级参数" Style="{StaticResource SettingsExpander}" Margin="0,18,0,0">
+                        <StackPanel Margin="0,18,0,0">
+                            <TextBlock Text="推理强度" Style="{StaticResource LabelText}" Margin="0,0,0,4" />
+                            <ComboBox x:Name="InferenceLevelSelector" Style="{StaticResource CompactSettingsComboBox}"
+                                      ItemsSource="{Binding InferenceLevels}"
+                                      DisplayMemberPath="DisplayName"
+                                      SelectedValuePath="Value"
+                                      SelectedValue="{Binding SelectedInferenceLevel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      ToolTip="用低、中、高快速选择推理强度；需要精细控制时选择自定义" />
+                            <TextBlock Text="{Binding SelectedInferenceDescription}" Style="{StaticResource LabelText}" FontSize="11"
+                                       Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0" />
+                        </StackPanel>
+
+                        <Expander Header="自定义高级参数" Style="{StaticResource SettingsExpander}" Margin="0,14,0,0"
+                                  IsExpanded="False" Visibility="{Binding IsCustomInference, Converter={StaticResource BoolToVisibility}}"
+                                  Expanded="AdvancedSettings_OnExpanded">
                             <Border Style="{StaticResource SettingsCard}" Margin="0,8,0,0" Padding="14">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -163,60 +179,9 @@
                     </StackPanel>
                 </Border>
 
-                <!-- 连接测试保持为一条内联状态，不再形成第二张笨重表单卡。 -->
-                <Border x:Name="ConnectionStatusStrip" Margin="0,14,0,0">
-                    <Border.Style>
-                        <Style TargetType="Border" BasedOn="{StaticResource ConnectionStatusCard}">
-                            <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Success">
-                                    <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Failure">
-                                    <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Pending">
-                                    <Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <Grid>
-                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse Width="7" Height="7" Margin="0,0,9,0" Fill="{DynamicResource MutedBrush}" />
-                            <TextBlock Text="{Binding ConnectionStatus}" TextWrapping="Wrap" VerticalAlignment="Center">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource LabelText}">
-                                        <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Success"><Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" /></DataTrigger>
-                                            <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Failure"><Setter Property="Foreground" Value="{DynamicResource DangerBrush}" /></DataTrigger>
-                                            <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Pending"><Setter Property="Foreground" Value="{DynamicResource BrandBrush}" /></DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </StackPanel>
-                        <Button Grid.Column="1" Style="{StaticResource GlassButton}" Content="测试连接"
-                                Command="{Binding TestConnectionCommand}" IsEnabled="{Binding CanTestConnection}" Padding="12,5" Margin="12,0,0,0" />
-                        <Expander Grid.Row="1" Grid.ColumnSpan="2" Header="诊断详情" Style="{StaticResource SettingsExpander}" Margin="16,7,0,0"
-                                  IsExpanded="{Binding IsDiagnosticExpanded, Mode=TwoWay}">
-                            <StackPanel>
-                                <TextBlock Text="{Binding ConnectionDiagnostic}" FontFamily="Consolas" FontSize="11"
-                                           Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
-                                <Button Style="{StaticResource SettingsIconButton}" HorizontalAlignment="Left" Margin="0,6,0,0"
-                                        Command="{Binding CopyConnectionDiagnosticCommand}" ToolTip="复制诊断信息">
-                                    <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconCopy}" />
-                                </Button>
-                            </StackPanel>
-                        </Expander>
-                    </Grid>
-                </Border>
             </StackPanel>
         </ScrollViewer>
 
-        <!-- 编辑内容直接回写草稿；通过左上角返回列表，关闭设置时统一验证并自动保存。 -->
+        <!-- 编辑内容直接回写草稿；通过左上角返回列表，关闭设置时自动保存。 -->
     </Grid>
 </UserControl>

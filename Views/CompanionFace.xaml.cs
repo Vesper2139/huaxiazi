@@ -69,6 +69,29 @@ public partial class CompanionFace : UserControl
     }
 
     /// <summary>
+    /// Starts the request animation from the actual generation state, rather than relying on a
+    /// click-only visual event. This is called when the view model enters IsBusy so keyboard,
+    /// automation and toolbar submissions all receive the same immediate feedback.
+    /// </summary>
+    public void PlayGenerationStarted(CompanionVisualState initialState = CompanionVisualState.Thinking)
+    {
+        if (State == CompanionVisualState.Error) return;
+        if (initialState is not (CompanionVisualState.Working or CompanionVisualState.Thinking))
+            initialState = CompanionVisualState.Thinking;
+        _expressionTransitionVersion++;
+        _activeIdleBehavior = null;
+        _poseController.SetBaseState(initialState);
+        SetCurrentValue(StateProperty, initialState);
+        CommitExpression(initialState, animateMotion: App.Settings.AnimationsEnabled);
+    }
+
+    /// <summary>Returns control to the state computed by the view model when a request ends.</summary>
+    public void PlayGenerationFinished(CompanionVisualState restingState)
+    {
+        SetCurrentValue(StateProperty, restingState);
+    }
+
+    /// <summary>
     /// 悬停（非点击）反馈：仅在空闲时切到好奇表情 + 轻微歪头/呼吸，体现"看到你"。
     /// 若精灵正忙于生成/报错等操作状态，则悬停不覆盖。
     /// </summary>
@@ -295,8 +318,8 @@ public partial class CompanionFace : UserControl
         if (_poseController.BaseState == CompanionVisualState.Idle)
         {
             Mouth.Data = pose.MouthCurve > 0.08
-                ? Geometry.Parse(FormattableString.Invariant($"M18 28 Q22 {28 + pose.MouthCurve * 3.5:0.##} 26 28"))
-                : Geometry.Parse("M19.5 28 L24.5 28");
+                ? Geometry.Parse(FormattableString.Invariant($"M18 29 Q22 {29 + pose.MouthCurve * 3.5:0.##} 26 29"))
+                : Geometry.Parse("M19.5 29 L24.5 29");
         }
         SkinSpriteHost.Opacity = 1;
     }
@@ -313,7 +336,7 @@ public partial class CompanionFace : UserControl
         GazeOffset.X = projection.EyeX;
         GazeOffset.Y = projection.EyeY;
         MouthPoseOffset.X = projection.MouthX;
-        MouthPoseOffset.Y = projection.MouthY;
+        MouthPoseOffset.Y = projection.MouthY + CompanionFaceKinematics.GetStateMouthVisualOffset(State);
         MouthScale.ScaleX = projection.MouthScaleX;
         MouthScale.ScaleY = projection.MouthScaleY;
         MouthRotation.Angle = Math.Clamp(pose.GazeX * 0.035, -0.28, 0.28);
@@ -518,18 +541,18 @@ public partial class CompanionFace : UserControl
         ApplySkinVisual(state);
         var expression = state switch
         {
-            CompanionVisualState.Sleeping => ("M11.5 20 Q14.5 23 17.5 20", "M26.5 20 Q29.5 23 32.5 20", "M19.5 28 L24.5 28"),
-            CompanionVisualState.Happy => ("M11.5 20 Q14.5 16 17.5 20", "M26.5 20 Q29.5 16 32.5 20", "M18 27 Q22 31 26 27"),
-            CompanionVisualState.Curious => ("M14.5 17.5 L14.5 22.5", "M26.5 20 Q29.5 16 32.5 20", "M20.4 28 A1.6 1.6 0 1 0 23.6 28 A1.6 1.6 0 1 0 20.4 28"),
-            CompanionVisualState.Thinking => ("M11.5 20 L17.5 20", "M26.5 20 L32.5 20", "M19.5 28 L24.5 28"),
-            CompanionVisualState.Listening => ("M14.5 17.5 L14.5 22.5", "M29.5 17.5 L29.5 22.5", "M19.5 28 L24.5 28"),
-            CompanionVisualState.Working => ("M12 20 L17 20", "M27 20 L32 20", "M19.5 28 L24.5 28"),
-            CompanionVisualState.Surprised => ("M14.5 17.5 L14.5 22.5", "M29.5 17.5 L29.5 22.5", "M19.5 28 A2.5 3 0 1 0 24.5 28 A2.5 3 0 1 0 19.5 28"),
-            CompanionVisualState.Warning => ("M14.5 17.5 L14.5 22.5", "M26.5 20 Q29.5 16 32.5 20", "M18 29 Q20 26.5 22 29 Q24 31.5 26 29"),
-            CompanionVisualState.Error => ("M11.5 17 L17.5 23 M17.5 17 L11.5 23", "M26.5 17 L32.5 23 M32.5 17 L26.5 23", "M18 29 Q20 26.5 22 29 Q24 31.5 26 29"),
-            CompanionVisualState.Dragging => ("M12 20 L17 20", "M27 20 L32 20", "M18 28 Q22 25 26 28"),
-            CompanionVisualState.Expanding => ("M11.5 20 Q14.5 16 17.5 20", "M26.5 20 Q29.5 16 32.5 20", "M20 28 A2 2.4 0 1 0 24 28 A2 2.4 0 1 0 20 28"),
-            _ => ("M14.5 17.5 L14.5 22.5", "M29.5 17.5 L29.5 22.5", "M19.5 28 L24.5 28")
+            CompanionVisualState.Sleeping => ("M11.5 20 Q14.5 23 17.5 20", "M26.5 20 Q29.5 23 32.5 20", "M19.5 29 L24.5 29"),
+            CompanionVisualState.Happy => ("M11.5 20 Q14.5 16 17.5 20", "M26.5 20 Q29.5 16 32.5 20", "M18 29 Q22 33 26 29"),
+            CompanionVisualState.Curious => ("M14.5 17.5 L14.5 22.5", "M26.5 20 Q29.5 16 32.5 20", "M20.4 29 A1.6 1.6 0 1 0 23.6 29 A1.6 1.6 0 1 0 20.4 29"),
+            CompanionVisualState.Thinking => ("M11.5 20 L17.5 20", "M26.5 20 L32.5 20", "M19.5 29 L24.5 29"),
+            CompanionVisualState.Listening => ("M14.5 17.5 L14.5 22.5", "M29.5 17.5 L29.5 22.5", "M19.5 29 L24.5 29"),
+            CompanionVisualState.Working => ("M11.5 20 Q14.5 17 17.5 20", "M26.5 20 Q29.5 17 32.5 20", "M20 29 Q22 27.5 24 29"),
+            CompanionVisualState.Surprised => ("M14.5 17.5 L14.5 22.5", "M29.5 17.5 L29.5 22.5", "M19.5 29 A2.5 3 0 1 0 24.5 29 A2.5 3 0 1 0 19.5 29"),
+            CompanionVisualState.Warning => ("M14.5 17.5 L14.5 22.5", "M26.5 20 Q29.5 16 32.5 20", "M18 30 Q20 27.5 22 30 Q24 32.5 26 30"),
+            CompanionVisualState.Error => ("M11.5 17 L17.5 23 M17.5 17 L11.5 23", "M26.5 17 L32.5 23 M32.5 17 L26.5 23", "M18 30 Q20 27.5 22 30 Q24 32.5 26 30"),
+            CompanionVisualState.Dragging => ("M12 20 L17 20", "M27 20 L32 20", "M18 29 Q22 26 26 29"),
+            CompanionVisualState.Expanding => ("M11.5 20 Q14.5 16 17.5 20", "M26.5 20 Q29.5 16 32.5 20", "M20 29 A2 2.4 0 1 0 24 29 A2 2.4 0 1 0 20 29"),
+            _ => ("M14.5 17.5 L14.5 22.5", "M29.5 17.5 L29.5 22.5", "M19.5 29 L24.5 29")
         };
 
         LeftEye.Data = Geometry.Parse(expression.Item1);

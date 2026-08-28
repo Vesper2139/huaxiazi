@@ -36,14 +36,40 @@ public class AIServiceTests
 
     private sealed class StaticResponseHandler(HttpResponseMessage response) : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(response);
+        private readonly HttpStatusCode _statusCode = response.StatusCode;
+        private readonly string? _reasonPhrase = response.ReasonPhrase;
+        private readonly string _body = response.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? string.Empty;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var clone = new HttpResponseMessage(_statusCode)
+            {
+                ReasonPhrase = _reasonPhrase,
+                Content = new StringContent(_body, Encoding.UTF8, response.Content?.Headers.ContentType?.MediaType ?? "application/json")
+            };
+            foreach (var header in response.Headers)
+                clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            return Task.FromResult(clone);
+        }
     }
 
     private sealed class ThrowingHandler(Exception exception) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromException<HttpResponseMessage>(exception);
+    }
+
+    private sealed class SequenceHandler(params HttpResponseMessage[] responses) : HttpMessageHandler
+    {
+        private readonly Queue<HttpResponseMessage> _responses = new(responses);
+        public int Calls { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(_responses.Count > 0
+                ? _responses.Dequeue()
+                : new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        }
     }
 
     #region ParseContent（通过反射调用私有静态方法）
@@ -64,6 +90,103 @@ public class AIServiceTests
         var result = TestHelpers.ParseContentViaReflection(json);
 
         Assert.Equal("DeepSeek reply", result);
+    }
+
+    [Fact]
+    public void ParseContent_OpenAiCompatibleObjectContent_ReturnsText()
+    {
+        var json = "{\"choices\":[{\"message\":{\"content\":{\"type\":\"output_text\",\"text\":\"结构化结果\"}}}]}";
+
+        var result = TestHelpers.ParseContentViaReflection(json);
+
+        Assert.Equal("结构化结果", result);
+    }
+
+    [Fact]
+    public void ParseContent_OpenAiCompatibleServerSentEvents_ReturnsJoinedFinalText()
+    {
+        var body = "data: {\"choices\":[{\"delta\":{\"content\":\"你好\"}}]}\n\n" +
+                   "data: {\"choices\":[{\"delta\":{\"content\":\"，世界\"}}]}\n\n" +
+                   "data: [DONE]\n";
+
+        var result = TestHelpers.ParseContentViaReflection(body);
+
+        Assert.Equal("你好，世界", result);
+    }
+
+    [Theory]
+    [InlineData("```markdown\n目标：整理用户需求\n```", "目标：整理用户需求")]
+    [InlineData("```\n目标：整理用户需求\n```", "目标：整理用户需求")]
+    public void ParseContent_RemovesTransportMarkdownFence(string wrapped, string expected)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            choices = new[] { new { message = new { content = wrapped } } }
+        });
+
+        var result = TestHelpers.ParseContentViaReflection(json);
+
+        Assert.Equal(expected, result);
+        Assert.DoesNotContain("```", result);
+    }
+
+    [Fact]
+    public void ParseContent_RemovesTransportThinkingSuffix()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            choices = new[]
+            {
+                new
+                {
+                    message = new
+                    {
+                        content = "目标：整理用户需求\n\nTake time to think through this carefully before responding."
+                    }
+                }
+            }
+        });
+
+        var result = TestHelpers.ParseContentViaReflection(json);
+
+        Assert.Equal("目标：整理用户需求", result);
+        Assert.DoesNotContain("Take time to think", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ParseContent_RemovesThinkingSuffixWhenWrappedInClosingQuote()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            choices = new[]
+            {
+                new { message = new { content = "结果\nTake time to think through this carefully before responding.”" } }
+            }
+        });
+
+        var result = TestHelpers.ParseContentViaReflection(json);
+
+        Assert.Equal("结果", result);
+    }
+
+    [Fact]
+    public void ParseContent_ResponsesApiOutputTextFallback_ReturnsText()
+    {
+        var json = "{\"output_text\":\"兼容结果\"}";
+
+        var result = TestHelpers.ParseContentViaReflection(json);
+
+        Assert.Equal("兼容结果", result);
+    }
+
+    [Fact]
+    public void ParseContent_ResponsesApiOutputMessageFallback_ReturnsText()
+    {
+        var json = "{\"output\":[{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"嵌套兼容结果\"}]}]}";
+
+        var result = TestHelpers.ParseContentViaReflection(json);
+
+        Assert.Equal("嵌套兼容结果", result);
     }
 
     [Fact]
@@ -322,6 +445,60 @@ public class AIServiceTests
         Assert.Equal("DeepSeek result", result);
         Assert.Equal("https://api.deepseek.com/v1/chat/completions", handler.Request!.RequestUri!.ToString());
         Assert.Equal("Bearer deepseek-key", handler.Request.Headers.Authorization?.ToString());
+    }
+
+    [Fact]
+    public async Task GenerateAsync_DeepSeekV4_SendsExplicitThinkingControls()
+    {
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"choices\":[{\"message\":{\"content\":\"DeepSeek v4 result\"}}]}", Encoding.UTF8, "application/json")
+        });
+        var profile = new ProviderProfile
+        {
+            Platform = ProviderPlatform.DeepSeek,
+            Protocol = ProviderProtocol.OpenAICompatible,
+            ApiBase = "https://api.deepseek.com",
+            Model = "deepseek-v4-flash",
+            InferenceLevel = InferenceLevel.High
+        };
+        using var service = new AIService(profile, "deepseek-key", handler);
+
+        var result = await service.GenerateAsync("system", "user");
+
+        Assert.Equal("DeepSeek v4 result", result);
+        Assert.Contains("\"thinking\":{\"type\":\"enabled\"}", handler.Body);
+        Assert.Contains("\"reasoning_effort\":\"max\"", handler.Body);
+        Assert.DoesNotContain("\"temperature\"", handler.Body);
+        Assert.DoesNotContain("\"top_p\"", handler.Body);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_DeepSeekV4_EmptyFinalContentRetriesWithThinkingDisabled()
+    {
+        var handler = new SequenceHandler(
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"choices\":[{\"message\":{\"content\":null,\"reasoning_content\":\"思考\"}}]}", Encoding.UTF8, "application/json")
+            },
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"choices\":[{\"message\":{\"content\":\"最终答案\"}}]}", Encoding.UTF8, "application/json")
+            });
+        var profile = new ProviderProfile
+        {
+            Platform = ProviderPlatform.DeepSeek,
+            Protocol = ProviderProtocol.OpenAICompatible,
+            ApiBase = "https://api.deepseek.com",
+            Model = "deepseek-v4-flash",
+            InferenceLevel = InferenceLevel.Medium
+        };
+        using var service = new AIService(profile, "deepseek-key", handler);
+
+        var result = await service.GenerateAsync("system", "user");
+
+        Assert.Equal("最终答案", result);
+        Assert.Equal(2, handler.Calls);
     }
 
     [Fact]
@@ -613,6 +790,29 @@ public class AIServiceTests
         Assert.DoesNotContain("super-secret-key", result.DiagnosticSummary);
         Assert.DoesNotContain("连接测试", result.DiagnosticSummary);
         Assert.DoesNotContain("choices", result.DiagnosticSummary);
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_TransientFailure_RetriesOnceBeforeReportingFailure()
+    {
+        var handler = new SequenceHandler(
+            new HttpResponseMessage(HttpStatusCode.ServiceUnavailable),
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"choices\":[{\"message\":{\"content\":\"OK\"}}]}", Encoding.UTF8, "application/json")
+            });
+        var profile = new ProviderProfile
+        {
+            Type = ProviderType.Local,
+            ApiBase = "http://localhost:11434/v1",
+            Model = "test-model"
+        };
+        using var service = new AIService(profile, null, handler, (_, _) => Task.CompletedTask);
+
+        var result = await service.TestConnectionAsync();
+
+        Assert.Equal(ConnectionTestStatus.Success, result.Status);
+        Assert.Equal(2, handler.Calls);
     }
 
     [Fact]

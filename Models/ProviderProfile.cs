@@ -69,6 +69,8 @@ public sealed class ProviderProfile
     public double Temperature { get; set; } = 0.4;
     public double TopP { get; set; } = 1.0;
     public int MaxTokens { get; set; } = 2048;
+    /// <summary>普通用户可理解的推理强度；旧配置缺失时兼容为 Medium。</summary>
+    public InferenceLevel InferenceLevel { get; set; } = InferenceLevel.Medium;
     public string SecretId { get; set; } = "provider-default";
     public string Remark { get; set; } = string.Empty;
     public bool EnableModelMapping { get; set; }
@@ -87,6 +89,7 @@ public sealed class ProviderProfile
         Temperature = Temperature,
         TopP = TopP,
         MaxTokens = MaxTokens,
+        InferenceLevel = InferenceLevel,
         SecretId = SecretId,
         Remark = Remark,
         EnableModelMapping = EnableModelMapping,

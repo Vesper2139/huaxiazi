@@ -295,6 +295,26 @@ public sealed class WorkspaceContinuityTests : IDisposable
         Assert.Equal("academic", App.Settings.ActivePresetId);
     }
 
+    [Fact]
+    public void SelectingPreset_AppliesItsStyleInstructionsToTheActiveGenerationDefaults()
+    {
+        var preset = new OptimizationPreset
+        {
+            Id = "work", Name = "职场", Mode = ApplicationMode.Polish,
+            Category = PromptCategory.General, Depth = PromptDepth.Standard,
+            OutputStyle = "专业", Instructions = "结论先行，语气克制。",
+            CustomSystemPrompt = "只输出可直接发送的成稿。"
+        };
+        App.ReplaceSettings(new AppSettings { OptimizationPresets = [preset] });
+        var vm = new MainViewModel(new WorkspaceDraftService(_root), new ArchiveService(_root));
+
+        vm.SelectedPreset = preset;
+
+        Assert.Equal("专业", App.Settings.OutputStyle);
+        Assert.Equal("结论先行，语气克制。", App.Settings.CustomStyleInstructions);
+        Assert.Equal("只输出可直接发送的成稿。", App.Settings.CustomSystemPrompt);
+    }
+
     public void Dispose()
     {
         try { if (Directory.Exists(_root)) Directory.Delete(_root, true); }

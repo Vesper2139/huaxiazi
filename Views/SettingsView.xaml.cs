@@ -92,21 +92,14 @@ public partial class SettingsView : UserControl
         recorder.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
     }
 
-    /// <summary>设置页唯一提交路径：退出时自动保存；验证失败必须由用户明确确认是否保存草稿。</summary>
+    /// <summary>设置页唯一提交路径：退出时自动保存；连通性测试是列表中的可选操作。</summary>
     public async Task<bool> CommitAndCloseAsync()
     {
         if (IsCommitted) return true;
         try
         {
-            var saved = await _vm.TrySaveAsync();
-            if (!saved && _vm.CanSaveWithoutVerification)
-            {
-                var choice = MessageBox.Show(
-                    "连接验证未通过。仍要保存为草稿吗？保存后不会自动启用，修正配置并重新验证后才会使用。",
-                    "保存草稿", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
-                if (choice == MessageBoxResult.Yes)
-                    saved = await _vm.SaveDraftAfterUserConfirmationAsync();
-            }
+            // 验证未通过时也允许保存草稿；退出不应被网络请求或确认弹窗卡住。
+            var saved = await _vm.TrySaveAsync(saveWithoutVerification: true);
             if (!saved) return false;
             IsCommitted = true;
             CloseRequested?.Invoke(this, new RoutedEventArgs());

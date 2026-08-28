@@ -54,8 +54,13 @@ public partial class ProviderProfileEditView : UserControl
         _synchronizingApiKeyEditors = true;
         try
         {
-            ApiKeyBox.Password = ViewModel.ApiKey;
-            ApiKeyTextBox.Text = ViewModel.ApiKey;
+            // A saved key is loaded into the editor control (masked by default),
+            // but is intentionally not copied into SettingsViewModel.ApiKey.
+            var editorValue = string.IsNullOrEmpty(ViewModel.ApiKey)
+                ? ViewModel.GetApiKeyForEditor()
+                : ViewModel.ApiKey;
+            ApiKeyBox.Password = editorValue;
+            ApiKeyTextBox.Text = editorValue;
         }
         finally
         {
@@ -71,6 +76,14 @@ public partial class ProviderProfileEditView : UserControl
     private void ApiKeyTextBox_OnTextChanged(object sender, TextChangedEventArgs e)
     {
         if (!_synchronizingApiKeyEditors) ViewModel.ApiKey = ApiKeyTextBox.Text;
+    }
+
+    private void ProviderNameTextBox_OnTextChanged(object sender, TextChangedEventArgs e)
+    {
+        // Ignore the initial binding pass; subsequent edits refresh the list
+        // immediately even though ProviderProfile is intentionally a POCO.
+        if (IsLoaded && DataContext is SettingsViewModel viewModel)
+            viewModel.NotifyProviderProfileEdited();
     }
 
     private void ToggleApiKeyVisibilityButton_OnClick(object sender, RoutedEventArgs e)
@@ -99,6 +112,14 @@ public partial class ProviderProfileEditView : UserControl
     private void OpenApiKeyUrlButton_OnClick(object sender, RoutedEventArgs e)
     {
         OpenExternalUrl(ViewModel.SelectedProviderApiKeyUrl);
+    }
+
+    private void AdvancedSettings_OnExpanded(object sender, RoutedEventArgs e)
+    {
+        // Keep the single page scroller as the only scroll surface and reveal
+        // the custom controls without opening a second window or nested scroller.
+        if (sender is FrameworkElement element)
+            Dispatcher.BeginInvoke(new Action(element.BringIntoView), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private static void OpenExternalUrl(string url)

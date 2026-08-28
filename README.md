@@ -17,7 +17,7 @@
 
 - 默认 600×210 DIP、可调整尺寸的精灵便笺工作区；44×44 精灵视觉置于 60×60 阴影安全窗口内；系统托盘作为稳定入口。
 - PerMonitorV2 DPI 感知、非透明正文窗口、ClearType、布局取整和 WPF 矢量图标。
-- `RegisterHotKey` 全局快捷键默认只启用 `Ctrl+Shift+H` 呼出窗口；快速润色、Prompt 优化和复制结果由深度用户按需配置，单组冲突不会打断启动。生成快捷键为 `Ctrl+Enter`。
+- `RegisterHotKey` 全局快捷键默认只启用 `Ctrl+Shift+H` 呼出窗口；快速润色、提示词优化和复制结果由深度用户按需配置，单组冲突不会打断启动。生成快捷键为 `Ctrl+Enter`。
 - 支持 OpenAI-Compatible、Anthropic Messages、Gemini GenerateContent，以及多个云端、本地 Ollama 或 LM Studio 配置档；配置卡片集中管理，常用厂商可直接选择，推荐模型与最终 Model ID 分开呈现。
 - API Key 使用 Windows DPAPI 保存，不写入 `config.json`；结构化连接诊断不包含请求正文、完整响应或请求头。
 - 表达成稿自动版本化归档，可搜索、导出、软删除、恢复和永久清空。

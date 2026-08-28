@@ -33,7 +33,7 @@ public sealed class HotkeyParserTests
         var result = HotkeyBindingSet.Validate(bindings);
 
         Assert.Contains("快速润色", result.ErrorMessage);
-        Assert.Contains("Prompt 优化", result.ErrorMessage);
+        Assert.Contains("提示词优化", result.ErrorMessage);
         Assert.DoesNotContain(nameof(GlobalHotkeyAction.QuickPolish), result.ErrorMessage);
     }
 

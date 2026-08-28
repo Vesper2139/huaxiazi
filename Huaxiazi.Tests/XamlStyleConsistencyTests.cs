@@ -47,8 +47,23 @@ public class XamlStyleConsistencyTests
         var codeBehind = File.ReadAllText(Path.Combine(root, "Views", "ProviderProfileEditView.xaml.cs"));
 
         Assert.Contains("x:Name=\"ApiKeyBox\"", xaml);
+        Assert.Contains("Text=\"{Binding ApiKey, Mode=OneWay}\"", xaml);
         Assert.Contains("SynchronizeApiKeyEditors", codeBehind);
         Assert.DoesNotContain("App.SecretStore.Read", codeBehind);
+    }
+
+    [Fact]
+    public void ProviderEditor_LoadsSavedKeyIntoMaskedEditorAndKeepsCustomParametersInline()
+    {
+        var root = RepoRoot();
+        var xaml = File.ReadAllText(Path.Combine(root, "Views", "ProviderProfileEditView.xaml"));
+        var codeBehind = File.ReadAllText(Path.Combine(root, "Views", "ProviderProfileEditView.xaml.cs"));
+
+        Assert.Contains("x:Name=\"ApiKeyBox\"", xaml);
+        Assert.Contains("Header=\"自定义高级参数\"", xaml);
+        Assert.Contains("Visibility=\"{Binding IsCustomInference, Converter={StaticResource BoolToVisibility}}\"", xaml);
+        Assert.Contains("AdvancedSettings_OnExpanded", xaml);
+        Assert.Contains("GetApiKeyForEditor", codeBehind);
     }
 
     [Fact]
@@ -258,17 +273,12 @@ public class XamlStyleConsistencyTests
         var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "SettingsView.xaml"));
         var list = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileListView.xaml"));
         var editor = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileEditView.xaml"));
-        var viewModel = File.ReadAllText(Path.Combine(RepoRoot(), "ViewModels", "SettingsViewModel.cs"));
-
-        foreach (var section in new[] { "模型与 API", "表达能力", "历史与会话", "界面与显示", "窗口与行为", "快捷键", "数据管理", "关于与更新" })
-        {
-            Assert.Contains(section, viewModel);
-        }
         Assert.Contains("Style=\"{StaticResource OverlayScrollViewer}\"", xaml);
         Assert.Contains("Command=\"{Binding AddProviderCommand}\"", list);
         Assert.Contains("Command=\"{Binding DuplicateProviderCommand}\"", list);
         Assert.Contains("Click=\"DeleteSelectedProfile_OnClick\"", list);
-        Assert.Contains("Command=\"{Binding TestConnectionCommand}\"", editor);
+        Assert.DoesNotContain("Command=\"{Binding TestConnectionCommand}\"", editor);
+        Assert.Contains("TestProviderProfileCommand", list);
         Assert.Contains("x:Name=\"ApiKeyBox\"", editor);
         Assert.Contains("x:Name=\"ApiKeyTextBox\"", editor);
     }

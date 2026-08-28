@@ -26,7 +26,7 @@
         </Style>
         <Style x:Key="SettingsSupportingText" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontSize" Value="12.5" />
             <Setter Property="FontWeight" Value="Normal" />
             <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
@@ -46,6 +46,12 @@
             <Setter Property="MinHeight" Value="32" />
             <Setter Property="Padding" Value="12,5" />
             <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style x:Key="SettingsGroupHeading" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
+            <Setter Property="Margin" Value="0,24,0,8" />
         </Style>
         <Style x:Key="SettingsPrimaryButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
             <Setter Property="MinHeight" Value="32" />
@@ -282,7 +288,7 @@
             </Grid>
 
             <Grid Grid.Row="1">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="184" /><ColumnDefinition Width="1" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="200" /><ColumnDefinition Width="1" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                 <ListBox ItemsSource="{Binding Sections}" SelectedItem="{Binding SelectedSection}" Background="Transparent" BorderThickness="0"
                          Margin="0,18,18,18" ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListBox.Resources>
@@ -324,12 +330,12 @@
                                 <TextBlock Grid.Column="1" Text="{Binding}" FontSize="13" Margin="9,0,0,0" VerticalAlignment="Center" />
                             </Grid>
                             <DataTemplate.Triggers>
-                                <DataTrigger Binding="{Binding}" Value="历史与会话"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconHistory}" /></DataTrigger>
-                                <DataTrigger Binding="{Binding}" Value="表达能力"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconPrompt}" /></DataTrigger>
-                                <DataTrigger Binding="{Binding}" Value="界面与显示"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconPalette}" /></DataTrigger>
-                                <DataTrigger Binding="{Binding}" Value="窗口与行为"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconWindow}" /></DataTrigger>
+                                <DataTrigger Binding="{Binding}" Value="表达与生成"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconPrompt}" /></DataTrigger>
+                                <DataTrigger Binding="{Binding}" Value="模型连接"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconModel}" /></DataTrigger>
+                                <DataTrigger Binding="{Binding}" Value="外观与窗口"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconPalette}" /></DataTrigger>
                                 <DataTrigger Binding="{Binding}" Value="快捷键"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconKeyboard}" /></DataTrigger>
-                                <DataTrigger Binding="{Binding}" Value="数据管理"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconArchive}" /></DataTrigger>
+                                <DataTrigger Binding="{Binding}" Value="历史与留存"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconHistory}" /></DataTrigger>
+                                <DataTrigger Binding="{Binding}" Value="数据维护"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconArchive}" /></DataTrigger>
                                 <DataTrigger Binding="{Binding}" Value="关于与更新"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconBrandSpark}" /></DataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>
@@ -348,9 +354,10 @@
                     <ScrollViewer x:Name="SettingsPageScrollViewer" Grid.Row="1" Style="{StaticResource OverlayScrollViewer}" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly"
                                   Margin="0" Padding="0,0,18,16">
-                    <StackPanel HorizontalAlignment="Stretch">
-                        <StackPanel Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=模型与 API}">
-                            <TextBlock Text="模型与 API" Style="{StaticResource SectionTitle}" Margin="0,0,0,14" />
+                    <StackPanel HorizontalAlignment="Stretch" MaxWidth="780">
+                        <StackPanel Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=模型连接}">
+                            <TextBlock Text="模型连接" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="管理 AI 模型连接。首次使用时，请先添加服务并填写 API 密钥。" Style="{StaticResource SettingsSupportingText}" Margin="0,4,0,14" />
 
                             <!-- 配置资产与单项编辑严格分层：设置页初次进入只呈现配置管理。 -->
                             <Grid>
@@ -381,10 +388,12 @@
                             </Grid>
                         </StackPanel>
 
-                        <local:ExpressionAbilitySettingsView x:Name="ExpressionAbilitySettingsPage" Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=表达能力}" />
+                        <local:ExpressionAbilitySettingsView x:Name="ExpressionAbilitySettingsPage" Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=表达与生成}" />
 
-                        <StackPanel Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=历史与会话}">
-                            <TextBlock Text="历史与会话" Style="{StaticResource SectionTitle}" />
+                        <StackPanel Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=历史与留存}">
+                            <TextBlock Text="历史与留存" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="决定哪些内容保存在本机、保留多久，并浏览已生成的记录。" Style="{StaticResource SettingsSupportingText}" Margin="0,4,0,14" />
+                            <TextBlock Text="留存规则" Style="{StaticResource SettingsGroupHeading}" Margin="0,0,0,8" />
                             <CheckBox x:Name="HistoryEnabledCheckBox" Content="启用历史记录" IsChecked="{Binding HistoryEnabled}" Margin="0,14,0,4" />
                             <CheckBox Content="生成后自动归档版本" IsChecked="{Binding AutoArchive}" IsEnabled="{Binding CanConfigureHistoryStorage}" Margin="0,0,0,4" />
                             <CheckBox x:Name="IncognitoModeCheckBox" Content="无痕模式（不写草稿、不保存历史）" IsChecked="{Binding IncognitoMode}" Margin="0,0,0,8" />
@@ -401,16 +410,10 @@
                                 <StackPanel Grid.Column="2"><TextBlock Text="草稿自动保存间隔（250–10000 毫秒）" Style="{StaticResource LabelText}" /><TextBox x:Name="AutosaveDelayTextBox" Text="{Binding AutosaveDelayMilliseconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Style="{StaticResource GlassPlainTextBox}"
                                                                                                                    local:IntegerInputBehavior.Minimum="250" local:IntegerInputBehavior.Maximum="10000" ToolTip="仅输入 250–10000 毫秒" Margin="0,6,0,0" /></StackPanel>
                             </Grid>
-                            <TextBlock Text="可用提示词类别" Style="{StaticResource LabelText}" Margin="0,14,0,4" />
-                            <ItemsControl x:Name="PromptCategoryOptionsList" ItemsSource="{Binding PromptCategoryOptions}">
-                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate><DataTemplate><CheckBox Content="{Binding Name}" IsChecked="{Binding Enabled}" Margin="0,0,16,2" /></DataTemplate></ItemsControl.ItemTemplate>
-                            </ItemsControl>
                         </StackPanel>
-                        <StackPanel Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=界面与显示}">
+                        <StackPanel Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=外观与窗口}">
                             <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <StackPanel><TextBlock Text="界面与显示" Style="{StaticResource SectionTitle}" /><TextBlock Text="调整会即时预览，关闭设置时自动应用。" Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0" /></StackPanel>
-                                <Button Grid.Column="1" Style="{StaticResource SettingsActionButton}" Content="恢复默认设置" Command="{Binding ResetDisplayDefaultsCommand}" />
+                                <StackPanel><TextBlock Text="外观与窗口" Style="{StaticResource SectionTitle}" /><TextBlock Text="统一调整界面外观、窗口行为与 Windows 集成，修改会即时预览。" Style="{StaticResource SettingsSupportingText}" Margin="0,4,0,0" /></StackPanel>
                             </Grid>
                             <TextBlock Text="外观" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" Margin="0,0,0,8" />
                             <ListBox x:Name="ThemeChoiceList" ItemsSource="{Binding ThemeModes}" SelectedValuePath="Value"
@@ -452,11 +455,11 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
                             <TextBlock Text="当前完整皮肤已接管明暗配色；切回“默认外观”后可选择主题。"
-                                       Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="4,5,0,0"
+                                       Foreground="{DynamicResource MutedBrush}" FontSize="12.5" Margin="4,5,0,0"
                                        Visibility="{Binding IsDefaultSkinSelected, Converter={StaticResource InverseBool}}" />
                             <Grid Margin="0,12,0,8">
                                 <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <StackPanel><TextBlock Text="完整皮肤" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" /><TextBlock Text="同时替换窗口材质、组件尺度与悬浮球角色" Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,3,0,0" /></StackPanel>
+                                <StackPanel><TextBlock Text="完整皮肤" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" /><TextBlock Text="同时替换窗口材质、组件尺度与悬浮球角色" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" Margin="0,3,0,0" /></StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                                     <Button Style="{StaticResource SettingsActionButton}" Content="移除" IsEnabled="{Binding CanUninstallSelectedSkin}" Click="RemoveSkinButton_OnClick" Margin="0,0,6,0" />
                                     <Button Style="{StaticResource SettingsActionButton}" Content="导入皮肤包" Click="ImportSkinButton_OnClick" />
@@ -486,15 +489,15 @@
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="260" /></Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,18,0">
-                                        <TextBlock Text="角色驱动" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" />
-                                        <TextBlock Text="本地响应不会产生额外请求；情绪助手会让回答带一点情绪提示，可能略微增加用量。"
-                                                   Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                        <TextBlock Text="角色反馈方式" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" />
+                                        <TextBlock Text="选择仅显示本地状态，或让角色根据回答语气给出更有温度的反馈。不会增加额外请求，可能略微增加用量。"
+                                                   Style="{StaticResource SettingsSupportingText}" Margin="0,5,0,0" />
                                     </StackPanel>
                                     <ComboBox x:Name="CompanionDriverMode" Grid.Column="1"
                                               ItemsSource="{Binding CompanionDriverModes}" DisplayMemberPath="Name"
                                               SelectedValuePath="Value" SelectedValue="{Binding CompanionDriverMode}"
                                               Style="{StaticResource GlassComboBox}" VerticalAlignment="Center"
-                                              ToolTip="本地模式完全不解析模型情绪；情绪助手也不会新增一次模型请求。" />
+                                              ToolTip="仅显示状态不会分析回答语气；语气反馈不会增加额外请求，可能略微增加用量。" />
                                 </Grid>
                             </Border>
                             <Border Style="{StaticResource SectionCard}" Margin="0,0,0,12">
@@ -507,23 +510,20 @@
                                         <TextBlock Grid.Row="3" Text="主窗口透明度" Style="{StaticResource LabelText}" VerticalAlignment="Center" /><Slider Style="{StaticResource SettingsSlider}" x:Name="WindowOpacitySlider" Grid.Row="3" Grid.Column="1" Minimum="0.65" Maximum="1" TickFrequency="0.05" Value="{Binding WindowOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0" /><TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding Value, ElementName=WindowOpacitySlider, StringFormat={}{0:P0}}" Foreground="{DynamicResource BodyTextBrush}" VerticalAlignment="Center" />
                                     </Grid>
                                     <Border Margin="0,12,0,0" Padding="10,8" Background="{DynamicResource InputBrush}" BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="1" CornerRadius="6">
-                                        <TextBlock Text="{Binding DisplayPreviewSummary}" Foreground="{DynamicResource MutedBrush}" FontSize="11" />
+                                        <TextBlock Text="{Binding DisplayPreviewSummary}" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" />
                                     </Border>
                                     <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="标出修改处" Foreground="{DynamicResource BodyTextBrush}" VerticalAlignment="Center" /><ToggleButton Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding ShowDiff}" /></Grid>
-                                    <Grid Margin="0,12,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="界面动画" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="关闭可减少动态效果" Foreground="{DynamicResource MutedBrush}" FontSize="11" /></StackPanel><ToggleButton x:Name="AnimationsEnabledCheckBox" Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding AnimationsEnabled}" VerticalAlignment="Center" /></Grid>
+                                    <Grid Margin="0,12,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="界面动画" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="关闭可减少动态效果" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" /></StackPanel><ToggleButton x:Name="AnimationsEnabledCheckBox" Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding AnimationsEnabled}" VerticalAlignment="Center" /></Grid>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
-                        <StackPanel Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=窗口与行为}">
-                            <TextBlock Text="窗口与行为" Style="{StaticResource SectionTitle}" /><TextBlock Text="设置窗口如何停留、收起以及与 Windows 集成。" Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,14" />
-                            <TextBlock Text="主窗口" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" Margin="0,0,0,8" />
+                            <TextBlock Text="窗口行为" Style="{StaticResource SettingsGroupHeading}" />
                             <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="始终置顶" Foreground="{DynamicResource BodyTextBrush}" VerticalAlignment="Center" /><ToggleButton Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding AlwaysOnTop}" /></Grid>
-                            <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="128" /><ColumnDefinition /></Grid.ColumnDefinitions><TextBlock Text="点击关闭按钮时" Style="{StaticResource LabelText}" VerticalAlignment="Center" /><ComboBox x:Name="CloseBehaviorSelector" Grid.Column="1" ItemsSource="{Binding CloseBehaviors}" DisplayMemberPath="Name" SelectedValuePath="Value" SelectedValue="{Binding CloseBehavior}" Style="{StaticResource GlassComboBox}" /></Grid>
-                            <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="按 Enter 发送" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="关闭后仍可用 Ctrl+Enter 发送" Foreground="{DynamicResource MutedBrush}" FontSize="11" /></StackPanel><ToggleButton Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding EnterToSend}" VerticalAlignment="Center" /></Grid>
+                            <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="128" /><ColumnDefinition /></Grid.ColumnDefinitions><StackPanel VerticalAlignment="Center"><TextBlock Text="点击关闭按钮时" Style="{StaticResource LabelText}" /><TextBlock Text="关闭悬浮球后，“收缩为悬浮球”会自动改为隐藏窗口。" Style="{StaticResource SettingsSupportingText}" Margin="0,3,12,0" /></StackPanel><ComboBox x:Name="CloseBehaviorSelector" Grid.Column="1" ItemsSource="{Binding CloseBehaviors}" DisplayMemberPath="Name" SelectedValuePath="Value" SelectedValue="{Binding CloseBehavior}" Style="{StaticResource GlassComboBox}" VerticalAlignment="Top" /></Grid>
+                            <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="按 Enter 发送" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="关闭后仍可用 Ctrl+Enter 发送" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" /></StackPanel><ToggleButton Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding EnterToSend}" VerticalAlignment="Center" /></Grid>
                             <Grid Margin="0,8,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="128" /><ColumnDefinition /></Grid.ColumnDefinitions><TextBlock Text="按下 ESC 时" Style="{StaticResource LabelText}" VerticalAlignment="Center" /><ComboBox Grid.Column="1" ItemsSource="{Binding EscapeBehaviors}" DisplayMemberPath="Name" SelectedValuePath="Value" SelectedValue="{Binding EscapeBehavior}" Style="{StaticResource GlassComboBox}" /></Grid>
                             <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="记忆主窗口尺寸" Foreground="{DynamicResource BodyTextBrush}" /><ToggleButton Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding RememberWindowSize}" /></Grid>
                             <TextBlock Text="悬浮球" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" Margin="0,18,0,8" />
-                            <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="启用悬浮球" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="关闭后，下列外观设置不可修改" Foreground="{DynamicResource MutedBrush}" FontSize="11" /></StackPanel><ToggleButton Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding FloatingBallEnabled}" VerticalAlignment="Center" /></Grid>
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="启用悬浮球" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="关闭后，下列外观设置不可修改" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" /></StackPanel><ToggleButton Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding FloatingBallEnabled}" VerticalAlignment="Center" /></Grid>
                             <Grid IsEnabled="{Binding IsFloatingBallSettingsEnabled}" Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="128" /><ColumnDefinition /><ColumnDefinition Width="72" /></Grid.ColumnDefinitions>
                                 <TextBlock Text="透明度" Style="{StaticResource LabelText}" VerticalAlignment="Center" /><Slider Style="{StaticResource SettingsSlider}" x:Name="FloatingBallOpacitySlider" Grid.Column="1" Minimum="0.35" Maximum="1" TickFrequency="0.05" Value="{Binding FloatingBallOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0" /><TextBlock Grid.Column="2" Text="{Binding Value, ElementName=FloatingBallOpacitySlider, StringFormat={}{0:P0}}" Foreground="{DynamicResource BodyTextBrush}" VerticalAlignment="Center" />
                             </Grid>
@@ -535,24 +535,24 @@
                             <TextBlock Text="系统集成" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" Margin="0,18,0,8" />
                             <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="启用托盘入口" Foreground="{DynamicResource BodyTextBrush}" /><ToggleButton Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding TrayEnabled}" /></Grid>
                             <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="开机启动" Foreground="{DynamicResource BodyTextBrush}" /><ToggleButton x:Name="StartWithWindowsCheckBox" Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding StartWithWindows}" /></Grid>
-                            <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="打开窗口时读取剪贴板" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="仅在剪贴板内容为文本时读取" Foreground="{DynamicResource MutedBrush}" FontSize="11" /></StackPanel><ToggleButton x:Name="ClipboardAutoReadCheckBox" Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding ClipboardAutoRead}" VerticalAlignment="Center" /></Grid>
+                            <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="打开窗口时读取剪贴板" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="仅在剪贴板内容为文本时读取" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" /></StackPanel><ToggleButton x:Name="ClipboardAutoReadCheckBox" Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding ClipboardAutoRead}" VerticalAlignment="Center" /></Grid>
                             <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="在任务栏显示主窗口" Foreground="{DynamicResource BodyTextBrush}" /><ToggleButton Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding ShowInTaskbar}" /></Grid>
+                            <Button Style="{StaticResource SettingsActionButton}" Content="恢复默认" Command="{Binding ResetDisplayDefaultsCommand}" HorizontalAlignment="Left" Margin="0,24,0,0" />
                         </StackPanel>
                         <StackPanel Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=快捷键}">
-                            <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="快捷键" Style="{StaticResource SectionTitle}" /><TextBlock Text="点击快捷键框后直接按下组合键，无需输入文本。" Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0" /></StackPanel><Button Grid.Column="1" Style="{StaticResource SettingsActionButton}" Content="恢复全部默认" Command="{Binding ResetAllHotkeysCommand}" /></Grid>
+                            <TextBlock Text="快捷键" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="点击快捷键框后直接按下组合键，无需输入文本。" Style="{StaticResource SettingsSupportingText}" Margin="0,4,0,14" />
                             <TextBlock Text="全局快捷键" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" Margin="0,0,0,8" />
-                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="190" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel VerticalAlignment="Center"><TextBlock Text="呼出 / 隐藏" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="默认仅启用这一组，避免占用过多系统快捷键" Foreground="{DynamicResource MutedBrush}" FontSize="11" /></StackPanel><TextBox x:Name="ToggleWindowHotkeyTextBox" Grid.Column="1" Text="{Binding Hotkey, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True" Style="{StaticResource GlassPlainTextBox}" PreviewKeyDown="HotkeyRecorder_OnPreviewKeyDown" PreviewMouseLeftButtonDown="HotkeyRecorder_OnPreviewMouseLeftButtonDown" ToolTip="点击后按下新的快捷键" /><StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0"><Button Style="{StaticResource SettingsActionButton}" Content="清除" Tag="ToggleWindowHotkeyTextBox|" Click="HotkeyValueButton_OnClick" /><Button Style="{StaticResource SettingsActionButton}" Content="默认" Tag="ToggleWindowHotkeyTextBox|Ctrl+Shift+H" Click="HotkeyValueButton_OnClick" Margin="4,0,0,0" /></StackPanel></Grid>
-                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="190" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel VerticalAlignment="Center"><TextBlock Text="快速润色" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="可选：读取剪贴板并执行润色" Foreground="{DynamicResource MutedBrush}" FontSize="11" /></StackPanel><TextBox x:Name="QuickPolishHotkeyTextBox" Grid.Column="1" Text="{Binding QuickPolishHotkey, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True" Style="{StaticResource GlassPlainTextBox}" PreviewKeyDown="HotkeyRecorder_OnPreviewKeyDown" PreviewMouseLeftButtonDown="HotkeyRecorder_OnPreviewMouseLeftButtonDown" /><StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0"><Button Style="{StaticResource SettingsActionButton}" Content="清除" Tag="QuickPolishHotkeyTextBox|" Click="HotkeyValueButton_OnClick" /></StackPanel></Grid>
-                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="190" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel VerticalAlignment="Center"><TextBlock Text="Prompt 优化" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="可选：读取剪贴板并执行优化" Foreground="{DynamicResource MutedBrush}" FontSize="11" /></StackPanel><TextBox x:Name="QuickPromptHotkeyTextBox" Grid.Column="1" Text="{Binding QuickPromptHotkey, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True" Style="{StaticResource GlassPlainTextBox}" PreviewKeyDown="HotkeyRecorder_OnPreviewKeyDown" PreviewMouseLeftButtonDown="HotkeyRecorder_OnPreviewMouseLeftButtonDown" /><StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0"><Button Style="{StaticResource SettingsActionButton}" Content="清除" Tag="QuickPromptHotkeyTextBox|" Click="HotkeyValueButton_OnClick" /></StackPanel></Grid>
-                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="190" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel VerticalAlignment="Center"><TextBlock Text="复制当前结果" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="可选：不读取剪贴板" Foreground="{DynamicResource MutedBrush}" FontSize="11" /></StackPanel><TextBox x:Name="CopyResultHotkeyTextBox" Grid.Column="1" Text="{Binding CopyResultHotkey, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True" Style="{StaticResource GlassPlainTextBox}" PreviewKeyDown="HotkeyRecorder_OnPreviewKeyDown" PreviewMouseLeftButtonDown="HotkeyRecorder_OnPreviewMouseLeftButtonDown" /><StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0"><Button Style="{StaticResource SettingsActionButton}" Content="清除" Tag="CopyResultHotkeyTextBox|" Click="HotkeyValueButton_OnClick" /></StackPanel></Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="190" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel VerticalAlignment="Center"><TextBlock Text="呼出 / 隐藏" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="默认仅启用这一组，避免占用过多系统快捷键" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" /></StackPanel><TextBox x:Name="ToggleWindowHotkeyTextBox" Grid.Column="1" Text="{Binding Hotkey, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True" Style="{StaticResource GlassPlainTextBox}" PreviewKeyDown="HotkeyRecorder_OnPreviewKeyDown" PreviewMouseLeftButtonDown="HotkeyRecorder_OnPreviewMouseLeftButtonDown" ToolTip="点击后按下新的快捷键" /><StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0"><Button Style="{StaticResource SettingsActionButton}" Content="清除" Tag="ToggleWindowHotkeyTextBox|" Click="HotkeyValueButton_OnClick" /><Button Style="{StaticResource SettingsActionButton}" Content="默认" Tag="ToggleWindowHotkeyTextBox|Ctrl+Shift+H" Click="HotkeyValueButton_OnClick" Margin="4,0,0,0" /></StackPanel></Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="190" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel VerticalAlignment="Center"><TextBlock Text="快速润色" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="可选：读取剪贴板并执行润色" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" /></StackPanel><TextBox x:Name="QuickPolishHotkeyTextBox" Grid.Column="1" Text="{Binding QuickPolishHotkey, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True" Style="{StaticResource GlassPlainTextBox}" PreviewKeyDown="HotkeyRecorder_OnPreviewKeyDown" PreviewMouseLeftButtonDown="HotkeyRecorder_OnPreviewMouseLeftButtonDown" /><StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0"><Button Style="{StaticResource SettingsActionButton}" Content="清除" Tag="QuickPolishHotkeyTextBox|" Click="HotkeyValueButton_OnClick" /></StackPanel></Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="190" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel VerticalAlignment="Center"><TextBlock Text="提示词优化" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="可选：读取剪贴板并执行优化" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" /></StackPanel><TextBox x:Name="QuickPromptHotkeyTextBox" Grid.Column="1" Text="{Binding QuickPromptHotkey, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True" Style="{StaticResource GlassPlainTextBox}" PreviewKeyDown="HotkeyRecorder_OnPreviewKeyDown" PreviewMouseLeftButtonDown="HotkeyRecorder_OnPreviewMouseLeftButtonDown" /><StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0"><Button Style="{StaticResource SettingsActionButton}" Content="清除" Tag="QuickPromptHotkeyTextBox|" Click="HotkeyValueButton_OnClick" /></StackPanel></Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="190" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel VerticalAlignment="Center"><TextBlock Text="复制当前结果" Foreground="{DynamicResource BodyTextBrush}" /><TextBlock Text="可选：不读取剪贴板" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" /></StackPanel><TextBox x:Name="CopyResultHotkeyTextBox" Grid.Column="1" Text="{Binding CopyResultHotkey, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True" Style="{StaticResource GlassPlainTextBox}" PreviewKeyDown="HotkeyRecorder_OnPreviewKeyDown" PreviewMouseLeftButtonDown="HotkeyRecorder_OnPreviewMouseLeftButtonDown" /><StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0"><Button Style="{StaticResource SettingsActionButton}" Content="清除" Tag="CopyResultHotkeyTextBox|" Click="HotkeyValueButton_OnClick" /></StackPanel></Grid>
                             <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap" Margin="190,2,0,0" />
                             <TextBlock Text="保存时还会向 Windows 注册一次；若组合键已被其他程序占用，会明确列出不可用的项目。" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="190,8,0,0" />
+                            <Button Style="{StaticResource SettingsActionButton}" Content="恢复默认" Command="{Binding ResetAllHotkeysCommand}" HorizontalAlignment="Left" Margin="190,20,0,0" />
                         </StackPanel>
-                        <StackPanel Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=数据管理}">
-                            <TextBlock Text="数据管理" Style="{StaticResource SectionTitle}" /><TextBlock Text="查找、查看和维护保存在本机的历史记录。" Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,12" />
-                            <Border Visibility="{Binding LegacyKnowledgeDetected, Converter={StaticResource BoolToVisibility}}" Background="{DynamicResource InputBrush}" BorderBrush="{DynamicResource BrandBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardRadius}" Padding="10" Margin="0,0,0,12"><Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding LegacyKnowledgeStatus}" Foreground="{DynamicResource BodyTextBrush}" TextWrapping="Wrap" VerticalAlignment="Center" /><StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0"><Button Style="{StaticResource SettingsActionButton}" Content="导出旧数据" Click="ExportLegacyKnowledge_OnClick" /><Button Style="{StaticResource SettingsActionButton}" Foreground="{DynamicResource DangerBrush}" Content="永久删除" Click="DeleteLegacyKnowledge_OnClick" Margin="6,0,0,0" /></StackPanel></Grid></Border>
-                            <Border Background="{DynamicResource InputBrush}" BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardRadius}" Padding="10" Margin="0,0,0,12"><Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="本地资料库" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" /><TextBlock Text="{Binding DataStatus}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,3,0,0" /><TextBlock Text="{Binding DataDirectory}" Foreground="{DynamicResource MutedBrush}" TextTrimming="CharacterEllipsis" FontSize="11" Margin="0,3,0,0" /></StackPanel><StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0"><Button Style="{StaticResource SettingsActionButton}" Content="打开目录" Click="OpenDataFolderButton_OnClick" /><Button x:Name="BackupDataButton" Style="{StaticResource SettingsActionButton}" Content="备份" Command="{Binding BackupDataCommand}" Margin="5,0,0,0" /></StackPanel></Grid></Border>
-                            <TextBlock Text="搜索和筛选" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" Margin="0,0,0,7" />
+                        <StackPanel Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=历史与留存}">
+                            <TextBlock Text="浏览记录" Style="{StaticResource SettingsGroupHeading}" />
                             <Grid Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <TextBox Text="{Binding ArchiveSearch, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource GlassPlainTextBox}" ToolTip="搜索原文、优化稿或主题" />
@@ -570,25 +570,42 @@
                                 <ListBox.Resources>
                                     <Style TargetType="{x:Type ScrollViewer}" BasedOn="{StaticResource OverlayScrollViewer}" />
                                 </ListBox.Resources>
-                                <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="{Binding Topic}" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding OriginalText}" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="520" Margin="0,3,0,0" /></StackPanel><StackPanel Grid.Column="1" Margin="12,0,0,0"><TextBlock Text="{Binding Mode, Converter={StaticResource EnumDisplayName}}" Foreground="{DynamicResource BrandBrush}" FontSize="11" HorizontalAlignment="Right" /><TextBlock Text="{Binding CreatedAt, StringFormat={}{0:MM-dd HH:mm}}" Foreground="{DynamicResource MutedBrush}" FontSize="10" Margin="0,3,0,0" /></StackPanel></Grid></DataTemplate></ListBox.ItemTemplate>
+                                <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="{Binding Topic}" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding OriginalText}" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" TextTrimming="CharacterEllipsis" MaxWidth="520" Margin="0,3,0,0" /></StackPanel><StackPanel Grid.Column="1" Margin="12,0,0,0"><TextBlock Text="{Binding Mode, Converter={StaticResource EnumDisplayName}}" Foreground="{DynamicResource BrandBrush}" FontSize="12.5" HorizontalAlignment="Right" /><TextBlock Text="{Binding CreatedAt, StringFormat={}{0:MM-dd HH:mm}}" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" Margin="0,3,0,0" /></StackPanel></Grid></DataTemplate></ListBox.ItemTemplate>
                             </ListBox>
                             <Grid x:Name="ArchiveContextToolbar" Visibility="{Binding HasSelectedArchiveItem, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="已选择 1 条记录" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" /><StackPanel Grid.Column="1" Orientation="Horizontal"><Button x:Name="FavoriteArchiveButton" Style="{StaticResource SettingsActionButton}" Content="{Binding FavoriteArchiveActionDisplay}" Command="{Binding ToggleFavoriteCommand}" /><Button x:Name="ArchiveItemButton" Style="{StaticResource SettingsActionButton}" Content="{Binding ArchiveItemActionDisplay}" Command="{Binding ToggleArchivedCommand}" Margin="5,0,0,0" /><Button Style="{StaticResource SettingsActionButton}" Content="删除" Command="{Binding SoftDeleteArchiveCommand}" Margin="5,0,0,0" /><Button Style="{StaticResource SettingsActionButton}" Content="恢复" Command="{Binding RestoreArchiveCommand}" Margin="5,0,0,0" /></StackPanel></Grid>
                             <Grid Visibility="{Binding HasSelectedArchiveItem, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions><StackPanel Margin="0,0,4,0"><TextBlock Text="原文" Style="{StaticResource LabelText}" /><TextBox x:Name="ArchiveOriginalPreview" Text="{Binding SelectedArchiveItem.OriginalText}" Style="{StaticResource GlassPlainTextBox}" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" MinHeight="82" MaxHeight="140" Margin="0,5,0,0" /></StackPanel><StackPanel Grid.Column="1" Margin="4,0,0,0"><TextBlock Text="优化稿" Style="{StaticResource LabelText}" /><TextBox x:Name="ArchiveResultPreview" Text="{Binding SelectedArchiveItem.FinalText}" Style="{StaticResource GlassPlainTextBox}" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" MinHeight="82" MaxHeight="140" Margin="0,5,0,0" /></StackPanel></Grid>
-                            <TextBlock Text="导入、导出与维护" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" Margin="0,4,0,7" />
-                            <WrapPanel Margin="0,0,0,8">
-                                <ComboBox x:Name="ExportFormatSelector" ItemsSource="{Binding ExportFormats}" SelectedItem="{Binding SelectedExportFormat}" Style="{StaticResource GlassComboBox}" Width="110" Margin="0,0,6,6" />
-                                <Button Style="{StaticResource SettingsActionButton}" Content="导出选中" Command="{Binding ExportArchiveCommand}" Margin="0,0,6,0" />
-                                <Button x:Name="ExportAllButton" Style="{StaticResource SettingsActionButton}" Content="导出全部" Command="{Binding ExportAllCommand}" Margin="0,0,6,0" />
+                            <WrapPanel Margin="0,4,0,0">
+                                <ComboBox x:Name="ExportFormatSelector" ItemsSource="{Binding ExportFormats}" SelectedItem="{Binding SelectedExportFormat}" Style="{StaticResource GlassComboBox}" Width="110" Margin="0,0,6,0" />
+                                <Button Style="{StaticResource SettingsActionButton}" Content="导出选中" Command="{Binding ExportArchiveCommand}" />
+                            </WrapPanel>
+                        </StackPanel>
+
+                        <StackPanel Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=数据维护}">
+                            <TextBlock Text="数据维护" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="备份、迁移与清理本机数据。执行破坏性操作前，请先创建备份。" Style="{StaticResource SettingsSupportingText}" Margin="0,4,0,14" />
+                            <Border Visibility="{Binding LegacyKnowledgeDetected, Converter={StaticResource BoolToVisibility}}" Background="{DynamicResource InputBrush}" BorderBrush="{DynamicResource BrandBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardRadius}" Padding="12" Margin="0,0,0,12"><Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding LegacyKnowledgeStatus}" Foreground="{DynamicResource BodyTextBrush}" TextWrapping="Wrap" VerticalAlignment="Center" /><StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0"><Button Style="{StaticResource SettingsActionButton}" Content="导出旧数据" Click="ExportLegacyKnowledge_OnClick" /><Button Style="{StaticResource SettingsActionButton}" Foreground="{DynamicResource DangerBrush}" Content="永久删除" Click="DeleteLegacyKnowledge_OnClick" Margin="6,0,0,0" /></StackPanel></Grid></Border>
+                            <TextBlock Text="备份与迁移" Style="{StaticResource SettingsGroupHeading}" Margin="0,0,0,8" />
+                            <Border Background="{DynamicResource InputBrush}" BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardRadius}" Padding="14" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="本地资料库" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" /><TextBlock Text="{Binding DataStatus}" Style="{StaticResource SettingsSupportingText}" Margin="0,3,0,0" /><TextBlock Text="{Binding DataDirectory}" Style="{StaticResource SettingsSupportingText}" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" /></StackPanel><Button Grid.Column="1" Style="{StaticResource SettingsActionButton}" Content="打开数据目录" Click="OpenDataFolderButton_OnClick" VerticalAlignment="Top" Margin="12,0,0,0" /></Grid>
+                                    <WrapPanel Margin="0,14,0,0">
+                                        <Button x:Name="BackupDataButton" Style="{StaticResource SettingsPrimaryButton}" Content="创建备份" Command="{Binding BackupDataCommand}" Margin="0,0,6,6" />
+                                        <Button x:Name="ExportAllButton" Style="{StaticResource SettingsActionButton}" Content="导出全部" Command="{Binding ExportAllCommand}" Margin="0,0,6,6" />
                                 <Button Style="{StaticResource SettingsActionButton}" Content="恢复备份" Click="RestoreBackupButton_OnClick" Margin="0,0,6,6" />
                                 <Button Style="{StaticResource SettingsActionButton}" Content="导入记录" Click="ImportJsonButton_OnClick" Margin="0,0,6,6" ToolTip="支持 JSON、Markdown 和纯文本" />
-                                <Button Style="{StaticResource SettingsActionButton}" Content="迁移目录" Click="MigrateDataButton_OnClick" Margin="0,0,6,6" />
-                                <Button x:Name="ClearCacheButton" Style="{StaticResource SettingsActionButton}" Content="清理缓存" Command="{Binding ClearCacheCommand}" Margin="0,0,6,6" />
-                            </WrapPanel>
-                            <Border Background="{DynamicResource InputBrush}" BorderBrush="{DynamicResource DangerBrush}" BorderThickness="1" CornerRadius="7" Padding="10,8" Margin="0,4,0,0">
+                                        <Button Style="{StaticResource SettingsActionButton}" Content="迁移到新位置" Click="MigrateDataButton_OnClick" Margin="0,0,6,6" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Text="缓存" Style="{StaticResource SettingsGroupHeading}" />
+                            <Border Background="{DynamicResource InputBrush}" BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardRadius}" Padding="14">
+                                <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="清理临时缓存" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" /><TextBlock Text="释放临时文件，不影响历史记录、成稿与配置。" Style="{StaticResource SettingsSupportingText}" Margin="0,3,0,0" /></StackPanel><Button x:Name="ClearCacheButton" Grid.Column="1" Style="{StaticResource SettingsActionButton}" Content="清理" Command="{Binding ClearCacheCommand}" VerticalAlignment="Top" Margin="12,0,0,0" /></Grid>
+                            </Border>
+                            <Border Background="{DynamicResource InputBrush}" BorderBrush="{DynamicResource DangerBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardRadius}" Padding="14" Margin="0,28,0,0">
                                 <StackPanel>
                                     <TextBlock Text="危险操作" Foreground="{DynamicResource DangerBrush}" FontWeight="SemiBold" />
-                                    <TextBlock Text="永久清空会删除全部历史记录、草稿和回收站内容，无法恢复。" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,7" />
-                                    <Button Style="{StaticResource SettingsActionButton}" Foreground="{DynamicResource DangerBrush}" Content="永久清空" Click="PermanentlyClearArchiveButton_OnClick" HorizontalAlignment="Left" />
+                                    <TextBlock Text="以下操作不可逆。永久清空会删除全部历史记录、草稿和回收站内容，请先创建备份。" Foreground="{DynamicResource DangerBrush}" FontSize="12.5" TextWrapping="Wrap" Margin="0,4,0,10" />
+                                    <Button Style="{StaticResource SettingsActionButton}" Foreground="{DynamicResource DangerBrush}" Content="永久清空历史与缓存…" Click="PermanentlyClearArchiveButton_OnClick" HorizontalAlignment="Left" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>

@@ -23,15 +23,26 @@ namespace Huaxiazi.Tests;
 public class SettingsViewModelTests
 {
     [Fact]
+    public void SettingsNavigation_UsesTaskBasedInformationArchitectureAndStartsWithExpression()
+    {
+        var vm = new SettingsViewModel(skillCatalogLoader: () => []);
+
+        Assert.Equal(
+            ["表达与生成", "模型连接", "外观与窗口", "快捷键", "历史与留存", "数据维护", "关于与更新"],
+            vm.Sections);
+        Assert.Equal("表达与生成", vm.SelectedSection);
+    }
+
+    [Fact]
     public void ExpressionAbilitySection_ConsolidatedEntryOpensOverviewAndReachesSkillManager()
     {
         var vm = new SettingsViewModel(skillCatalogLoader: () => []);
 
-        // “专业 Skill” 独立入口已合并，Skill 管理统一从“表达能力”进入。
+        // “专业 Skill” 独立入口已合并，Skill 管理统一从“表达与生成”进入。
         Assert.DoesNotContain("专业 Skill", vm.Sections);
-        Assert.Contains("表达能力", vm.Sections);
+        Assert.Contains("表达与生成", vm.Sections);
 
-        vm.SelectedSection = "表达能力";
+        vm.SelectedSection = "表达与生成";
         Assert.Equal(ExpressionAbilityPane.Overview, vm.ExpressionAbilityPane);
         Assert.True(vm.IsExpressionOverview);
 
@@ -111,7 +122,7 @@ public class SettingsViewModelTests
             return [];
         });
 
-        vm.SelectedSection = "表达能力";
+        vm.SelectedSection = "表达与生成";
 
         Assert.Equal(ExpressionAbilityPane.Overview, vm.ExpressionAbilityPane);
         Assert.False(vm.IsStrategiesLoading);
@@ -128,7 +139,7 @@ public class SettingsViewModelTests
             return [];
         });
 
-        vm.SelectedSection = "表达能力";
+        vm.SelectedSection = "表达与生成";
         var stopwatch = Stopwatch.StartNew();
         vm.OpenExpressionSkillsCommand.Execute(null);
         stopwatch.Stop();
@@ -166,13 +177,13 @@ public class SettingsViewModelTests
         });
         var stopwatch = Stopwatch.StartNew();
 
-        vm.SelectedSection = "表达能力";
+        vm.SelectedSection = "表达与生成";
         vm.OpenExpressionSkillsCommand.Execute(null);
-        vm.SelectedSection = "历史与会话";
+        vm.SelectedSection = "历史与留存";
         stopwatch.Stop();
 
         Assert.True(stopwatch.Elapsed < TimeSpan.FromMilliseconds(250), $"导航被 Skill I/O 阻塞了 {stopwatch.ElapsedMilliseconds}ms");
-        Assert.Equal("历史与会话", vm.SelectedSection);
+        Assert.Equal("历史与留存", vm.SelectedSection);
         Assert.True(vm.IsStrategiesLoading);
 
         releaseLoader.Set();
@@ -231,7 +242,7 @@ public class SettingsViewModelTests
         {
             App.ReplaceSettings(new AppSettings { DataDirectory = root });
             var packages = InstallSkillForSettings(root);
-            var vm = new SettingsViewModel(new ArchiveService(root), new MemorySecretStore()) { SelectedSection = "表达能力" };
+            var vm = new SettingsViewModel(new ArchiveService(root), new MemorySecretStore()) { SelectedSection = "表达与生成" };
             vm.OpenExpressionSkillsCommand.Execute(null);
             await vm.StrategiesLoadTask;
             vm.SelectedAgentSkill = Assert.Single(vm.AgentSkillItems);
@@ -239,6 +250,52 @@ public class SettingsViewModelTests
             vm.ToggleSelectedAgentSkillCommand.Execute(null);
 
             Assert.False(Assert.Single(packages.ListInstalled()).IsEnabled);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task TestProviderProfileCommand_IsOptionalAndRunsFromConfigurationList()
+    {
+        App.ReplaceSettings(new AppSettings());
+        var calls = 0;
+        var vm = new SettingsViewModel(secretStore: new MemorySecretStore(), connectionTester: (_, _, _) =>
+        {
+            calls++;
+            return Task.FromResult(new ConnectionTestResult(ConnectionTestStatus.Success, "连接正常", HttpStatusCode.OK, 4, "HTTP 200"));
+        });
+        var profile = Assert.Single(vm.ProviderProfiles);
+
+        await vm.TestProviderProfileCommand.ExecuteAsync(profile);
+
+        Assert.Equal(1, calls);
+        Assert.Equal(ConnectionStatusKind.Success, vm.ConnectionStatusKind);
+        Assert.Same(profile, vm.SelectedProviderProfile);
+    }
+
+    [Fact]
+    public async Task RenameSelectedSkill_PersistsAReadableUserFacingName()
+    {
+        var original = App.Settings;
+        var root = Path.Combine(Path.GetTempPath(), "HuaxiaziSkillSettings_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            App.ReplaceSettings(new AppSettings { DataDirectory = root });
+            var packages = InstallSkillForSettings(root);
+            var vm = new SettingsViewModel(new ArchiveService(root), new MemorySecretStore()) { SelectedSection = "表达与生成" };
+            vm.OpenExpressionSkillsCommand.Execute(null);
+            await vm.StrategiesLoadTask;
+            vm.SelectedAgentSkill = Assert.Single(vm.AgentSkillItems);
+            vm.SkillDisplayName = "日常表达优化";
+
+            vm.SaveSkillDisplayNameCommand.Execute(null);
+
+            Assert.Equal("日常表达优化", Assert.Single(packages.ListInstalled()).EffectiveDisplayName);
+            Assert.Equal("text-polisher", Assert.Single(packages.ListInstalled()).Id);
         }
         finally
         {
@@ -256,7 +313,7 @@ public class SettingsViewModelTests
         {
             App.ReplaceSettings(new AppSettings { DataDirectory = root });
             var packages = InstallSkillForSettings(root);
-            var vm = new SettingsViewModel(new ArchiveService(root), new MemorySecretStore()) { SelectedSection = "表达能力" };
+            var vm = new SettingsViewModel(new ArchiveService(root), new MemorySecretStore()) { SelectedSection = "表达与生成" };
             vm.OpenExpressionSkillsCommand.Execute(null);
             await vm.StrategiesLoadTask;
             vm.SelectedAgentSkill = Assert.Single(vm.AgentSkillItems);
@@ -332,6 +389,36 @@ public class SettingsViewModelTests
         Assert.True(vm.HasStoredApiKey);
         Assert.Equal(string.Empty, vm.ApiKey);
         Assert.Equal("已安全保存", vm.ApiKeyStateText);
+    }
+
+    [Fact]
+    public void ExistingSecret_CanBeLoadedOnlyForExplicitEditorReveal()
+    {
+        App.ReplaceSettings(new AppSettings());
+        var store = new MemorySecretStore();
+        store.Seed("provider-default", "visible-only-after-request");
+
+        var vm = new SettingsViewModel(secretStore: store);
+
+        Assert.Equal(string.Empty, vm.ApiKey);
+        Assert.Equal("visible-only-after-request", vm.GetApiKeyForEditor());
+        Assert.Equal(string.Empty, vm.ApiKey);
+    }
+
+    [Fact]
+    public void SelectingInferenceLevel_UpdatesTheSelectedProfileAndRevealsCustomEditorOnlyOnDemand()
+    {
+        App.ReplaceSettings(new AppSettings());
+        var vm = new SettingsViewModel(secretStore: new MemorySecretStore());
+
+        vm.SelectedInferenceLevel = InferenceLevel.High;
+        Assert.Equal(InferenceLevel.High, vm.SelectedProviderProfile!.InferenceLevel);
+        Assert.Equal(4096, vm.SelectedProviderProfile.MaxTokens);
+        Assert.False(vm.IsCustomInference);
+
+        vm.SelectedInferenceLevel = InferenceLevel.Custom;
+        Assert.True(vm.IsCustomInference);
+        Assert.Equal(4096, vm.SelectedProviderProfile.MaxTokens);
     }
 
     [Fact]
@@ -831,6 +918,26 @@ public class SettingsViewModelTests
     }
 
     [Fact]
+    public void NotifyProviderProfileEdited_RefreshesListAndMarksDraftDirty()
+    {
+        App.ReplaceSettings(new AppSettings());
+        var vm = new SettingsViewModel();
+        var profile = vm.ProviderProfiles[0];
+        var changed = false;
+        vm.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(vm.FilteredProviderProfiles)) changed = true;
+        };
+
+        profile.Name = "新的模型名称";
+        vm.NotifyProviderProfileEdited();
+
+        Assert.True(changed);
+        Assert.True(vm.HasChanges);
+        Assert.Equal("新的模型名称", vm.FilteredProviderProfiles[0].Name);
+    }
+
+    [Fact]
     public void Save_InvalidHotkey_LeavesLiveSettingsUnchangedAndReportsError()
     {
         App.Settings.Hotkey = "Ctrl+Shift+P";
@@ -860,7 +967,7 @@ public class SettingsViewModelTests
         vm.QuickPromptHotkey = "Ctrl+Alt+1";
 
         Assert.Contains("快速润色", vm.ValidationMessage);
-        Assert.Contains("Prompt 优化", vm.ValidationMessage);
+        Assert.Contains("提示词优化", vm.ValidationMessage);
     }
 
     [Fact]

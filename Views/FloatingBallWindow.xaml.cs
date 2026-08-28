@@ -48,6 +48,27 @@ public partial class FloatingBallWindow : Window
         }
     }
 
+    /// <summary>
+    /// Synchronizes the compact companion with the workflow state owned by the main view model.
+    /// The floating ball has no independent request pipeline; it is only a visual projection.
+    /// </summary>
+    internal void SetCompanionState(CompanionVisualState state)
+    {
+        CompanionFace.State = state;
+        var status = state switch
+        {
+            CompanionVisualState.Working => "已开始处理",
+            CompanionVisualState.Thinking => "正在处理",
+            CompanionVisualState.Curious => "需要补充信息",
+            CompanionVisualState.Happy => "处理完成",
+            CompanionVisualState.Error => "处理失败",
+            _ => "准备就绪"
+        };
+        // 悬浮球不显示长文本，悬停时用简短状态提供可发现的反馈，避免挤压球体布局。
+        Orb.ToolTip = $"{status} · 双击展开 · 拖动移动 · 右键菜单";
+        System.Windows.Automation.AutomationProperties.SetHelpText(Orb, status);
+    }
+
     private const double DragThreshold = 3.0;
     private bool _dragging;
     private Point _lastDragPosition;

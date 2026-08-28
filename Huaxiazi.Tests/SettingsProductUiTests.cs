@@ -23,9 +23,10 @@ public sealed class SettingsProductUiTests
     }
 
     [Fact]
-    public void ProviderEditor_UsesIconAffordancesAndACompactInlineConnectionCheck()
+    public void ProviderEditor_UsesIconAffordancesAndLeavesConnectionChecksToTheProfileManager()
     {
         var editor = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileEditView.xaml"));
+        var list = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileListView.xaml"));
 
         Assert.DoesNotContain("已安全保存", editor);
         Assert.DoesNotContain("获取密钥", editor);
@@ -33,8 +34,10 @@ public sealed class SettingsProductUiTests
         Assert.DoesNotContain("移除密钥", editor);
         Assert.Contains("ToolTip=\"打开厂商密钥页面\"", editor);
         Assert.Contains("ToolTip=\"清空当前输入\"", editor);
-        Assert.Contains("x:Name=\"ConnectionStatusStrip\"", editor);
-        Assert.Contains("Content=\"测试连接\"", editor);
+        Assert.DoesNotContain("x:Name=\"ConnectionStatusStrip\"", editor);
+        Assert.DoesNotContain("Content=\"测试连接\"", editor);
+        Assert.Contains("TestProviderProfileCommand", list);
+        Assert.Contains("Text=\"{Binding ConnectionStatus}\"", list);
     }
 
     [Fact]
@@ -88,7 +91,7 @@ public sealed class SettingsProductUiTests
         Assert.DoesNotContain(">WarmOrange<", xaml);
         Assert.Contains("Text=\"{Binding Hotkey, UpdateSourceTrigger=PropertyChanged}\" IsReadOnly=\"True\"", xaml);
         Assert.Contains("PreviewKeyDown=\"HotkeyRecorder_OnPreviewKeyDown\"", xaml);
-        Assert.Contains("恢复全部默认", xaml);
+        Assert.Contains("Content=\"恢复默认\"", xaml);
     }
 
     [Fact]
@@ -121,6 +124,15 @@ public sealed class SettingsProductUiTests
     }
 
     [Fact]
+    public void SettingsExit_DoesNotBlockOnConnectionVerification()
+    {
+        var code = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "SettingsView.xaml.cs"));
+
+        Assert.Contains("TrySaveAsync(saveWithoutVerification: true)", code);
+        Assert.DoesNotContain("连接验证未通过。仍要保存为草稿吗？", code);
+    }
+
+    [Fact]
     public void SettingsView_UsesTheExistingTopRightCloseActionInsteadOfASeparateFooter()
     {
         var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "SettingsView.xaml"));
@@ -144,20 +156,44 @@ public sealed class SettingsProductUiTests
         Assert.Contains("x:Name=\"ClearApiKeyButton\"", xaml);
         Assert.Contains("Click=\"ClearApiKeyButton_OnClick\"", xaml);
         Assert.DoesNotContain("筛选供应商", xaml);
-        Assert.Contains("Header=\"高级参数\"", xaml);
+        Assert.Contains("推理强度", xaml);
+        Assert.Contains("ItemsSource=\"{Binding InferenceLevels}\"", xaml);
+        Assert.Contains("Header=\"自定义高级参数\"", xaml);
     }
 
     [Fact]
     public void ApiSettings_ShowCompactStatusWithoutDuplicateSaveActions()
     {
         var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileEditView.xaml"));
+        var list = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileListView.xaml"));
 
-        Assert.Contains("x:Name=\"ConnectionStatusStrip\"", xaml);
-        Assert.Contains("Text=\"{Binding ConnectionStatus}\"", xaml);
-        Assert.Contains("Text=\"{Binding ConnectionDiagnostic}\"", xaml);
+        Assert.DoesNotContain("x:Name=\"ConnectionStatusStrip\"", xaml);
+        Assert.DoesNotContain("Text=\"{Binding ConnectionStatus}\"", xaml);
+        Assert.Contains("Text=\"{Binding ConnectionStatus}\"", list);
+        Assert.DoesNotContain("Text=\"{Binding ConnectionDiagnostic}\"", xaml);
         Assert.DoesNotContain("x:Name=\"SaveWithoutVerificationButton\"", xaml);
         Assert.DoesNotContain("CanSaveWithoutVerification, Converter={StaticResource BoolToVisibility}", xaml);
         Assert.DoesNotContain("Text=\"{Binding ConnectionStatus, Mode=OneWay}\" FontFamily=\"Consolas\"", xaml);
+    }
+
+    [Fact]
+    public void ProviderCards_UseOneAlignedCurrentStateAction()
+    {
+        var list = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileListView.xaml"));
+
+        Assert.Contains("ProviderInactiveVisibility", list);
+        Assert.Contains("Content=\"当前使用\"", list);
+        Assert.Contains("Content=\"设为当前\"", list);
+    }
+
+    [Fact]
+    public void ProviderEditor_NotifiesDraftWhenNameChanges()
+    {
+        var editor = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileEditView.xaml"));
+        var codeBehind = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ProviderProfileEditView.xaml.cs"));
+
+        Assert.Contains("TextChanged=\"ProviderNameTextBox_OnTextChanged\"", editor);
+        Assert.Contains("NotifyProviderProfileEdited", codeBehind);
     }
 
     [Fact]
@@ -295,7 +331,13 @@ public sealed class SettingsProductUiTests
         var settings = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "SettingsView.xaml"));
         var ability = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ExpressionAbilitySettingsView.xaml"));
 
-        Assert.Contains("ConverterParameter=表达能力", settings);
+        Assert.Contains("ConverterParameter=表达与生成", settings);
+        Assert.Contains("ConverterParameter=外观与窗口", settings);
+        Assert.Contains("ConverterParameter=历史与留存", settings);
+        Assert.Contains("ConverterParameter=数据维护", settings);
+        Assert.Contains("Width=\"200\"", settings);
+        Assert.Contains("MaxWidth=\"780\"", settings);
+        Assert.Contains("永久清空历史与缓存…", settings);
         Assert.Contains("x:Key=\"SettingsSlider\"", settings);
         Assert.Contains("DisplayPreviewSummary", settings);
         Assert.Contains("ElementName=EditorFontSizeSlider", settings);
@@ -310,6 +352,10 @@ public sealed class SettingsProductUiTests
         Assert.DoesNotContain("ConverterParameter=表达偏好", settings);
         Assert.DoesNotContain("ConverterParameter=表达策略", settings);
         Assert.Contains("x:Name=\"ExpressionOverviewPane\"", ability);
+        Assert.Contains("Text=\"生成默认值\"", ability);
+        Assert.Contains("Text=\"主界面显示\"", ability);
+        Assert.Contains("Text=\"我的风格与身份\"", ability);
+        Assert.Contains("Text=\"自定义规则（高级）\"", ability);
         Assert.Contains("x:Name=\"ExpressionSkillsPane\"", ability);
         Assert.Contains("x:Name=\"OpenSkillsButton\"", ability);
         Assert.Contains("x:Name=\"SkillDetailsScrollViewer\"", ability);
@@ -325,6 +371,30 @@ public sealed class SettingsProductUiTests
         Assert.Contains("x:Name=\"OptimizationPresetList\"", ability);
         Assert.DoesNotContain("SkillManagerExpander", ability);
         Assert.Contains("IsStrategiesLoading", ability);
+    }
+
+    [Fact]
+    public void ExpressionSettings_UseChineseModeLabelsAndMakeMeaningRuleNonConfigurable()
+    {
+        var ability = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ExpressionAbilitySettingsView.xaml"));
+        var settings = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "SettingsView.xaml"));
+
+        Assert.Contains("ItemsSource=\"{Binding Modes}\"", ability);
+        Assert.Contains("Converter={StaticResource EnumDisplayName}", ability);
+        Assert.DoesNotContain("Content=\"保留原意\"", ability);
+        Assert.Contains("事实保真由内置规则保护", ability);
+        Assert.Contains("Text=\"提示词优化\"", settings);
+        Assert.DoesNotContain("Text=\"Prompt 优化\"", settings);
+    }
+
+    [Fact]
+    public void AppSettings_DoNotExposeUnconsumedStrategySwitches()
+    {
+        var appSettings = File.ReadAllText(Path.Combine(RepoRoot(), "Models", "AppSettings.cs"));
+
+        Assert.DoesNotContain("ExternalStrategiesEnabled", appSettings);
+        Assert.DoesNotContain("PolishStrategyId", appSettings);
+        Assert.DoesNotContain("PromptStrategyId", appSettings);
     }
 
     [Fact]
@@ -424,7 +494,7 @@ public sealed class SettingsProductUiTests
     {
         var ability = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "ExpressionAbilitySettingsView.xaml"));
 
-        Assert.Contains("Content=\"管理 Skill\"", ability);
+        Assert.Contains("Content=\"管理能力\"", ability);
         Assert.Contains("Style=\"{StaticResource PrimaryButton}\"", ability);
     }
 

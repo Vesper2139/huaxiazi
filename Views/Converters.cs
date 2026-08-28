@@ -112,6 +112,7 @@ public sealed class EnumDisplayNameConverter : IValueConverter
     {
         return value switch
         {
+            ApplicationMode mode => mode == ApplicationMode.Polish ? "表达润色" : "提示词优化",
             PromptCategory c => c.GetDisplayName(),
             PromptDepth d => d.GetDisplayName(),
             _ => value?.ToString() ?? string.Empty
@@ -122,6 +123,21 @@ public sealed class EnumDisplayNameConverter : IValueConverter
     {
         throw new NotSupportedException();
     }
+}
+
+/// <summary>仅在对应默认模式下显示模式专属设置，避免用户同时看到无效选项。</summary>
+public sealed class ApplicationModeVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is not ApplicationMode current || parameter is null) return Visibility.Collapsed;
+        return Enum.TryParse<ApplicationMode>(parameter.ToString(), ignoreCase: true, out var expected) && current == expected
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        Binding.DoNothing;
 }
 
 public sealed class ProviderPlatformDisplayNameConverter : IValueConverter
@@ -227,6 +243,18 @@ public sealed class ProviderActiveVisibilityConverter : IMultiValueConverter
         var active = values is [ProviderProfile profile, SettingsViewModel vm] &&
             string.Equals(profile.Id, vm.ActiveProviderProfileId, StringComparison.Ordinal);
         return active ? Visibility.Visible : Visibility.Collapsed;
+    }
+    public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>配置卡片中“设为当前”与“当前使用”互斥显示，避免两个控件同时占位挤压。</summary>
+public sealed class ProviderInactiveVisibilityConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var active = values is [ProviderProfile profile, SettingsViewModel vm] &&
+            string.Equals(profile.Id, vm.ActiveProviderProfileId, StringComparison.Ordinal);
+        return active ? Visibility.Collapsed : Visibility.Visible;
     }
     public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }

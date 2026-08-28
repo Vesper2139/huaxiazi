@@ -4,10 +4,13 @@ These rules extend `design-system/huaxiazi/MASTER.md` for the settings window.
 
 ## Information architecture
 
-Use a stable left navigation and a single page-level scroll owner. The page title
-and primary actions stay in the content header. Keep “模型与 API” and “表达能力” as distinct destinations. The Skill
-master-detail workspace is entered from the “表达能力” overview via its “管理能力”
-action, so a separate “专业 Skill” destination is no longer needed. It has a fixed
+Use a stable `200px` left navigation and a single page-level scroll owner. Keep the
+content column at a maximum width of `780px`. Navigation follows user tasks in this
+order: “表达与生成”, “模型连接”, “外观与窗口”, “快捷键”, “历史与留存”,
+“数据维护”, and “关于与更新”. “表达与生成” is the default destination.
+
+The Skill master-detail workspace is entered from the “表达与生成” overview via
+its “管理能力” action, so a separate “专业 Skill” destination is not used. It has a fixed
 `440px` working height,
 and its list and long detail content scroll inside their own columns so one verbose
 Skill cannot stretch the entire settings page.
@@ -27,6 +30,13 @@ unchanged.
 
 ## Layout targets
 
+- Group headings sit outside their card; related settings share one card and use
+  internal dividers. Supporting copy is at least `12.5px` and wraps.
+- “历史与留存” owns retention rules, search, browsing, preview, and record-level
+  actions. “数据维护” owns backups, imports, migration, cache cleanup, and the
+  isolated danger zone.
+- Destructive operations use a red bordered zone with irreversible wording and a
+  confirmation flow. “恢复默认” actions sit at the bottom of the relevant group.
 - Content frame has 28px left inset and 18px right inset from the shell.
 - List/detail columns use a 12px gap and never collide with the scrollbar.
 - The Skill workspace stays 440px tall; list, details and editor content are clipped

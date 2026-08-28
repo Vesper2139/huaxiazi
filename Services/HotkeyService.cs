@@ -65,7 +65,7 @@ public static class HotkeyBindingSet
     {
         GlobalHotkeyAction.ToggleWindow => "呼出 / 隐藏",
         GlobalHotkeyAction.QuickPolish => "快速润色",
-        GlobalHotkeyAction.QuickPromptOptimize => "Prompt 优化",
+        GlobalHotkeyAction.QuickPromptOptimize => "提示词优化",
         GlobalHotkeyAction.CopyResult => "复制当前结果",
         _ => "快捷键"
     };

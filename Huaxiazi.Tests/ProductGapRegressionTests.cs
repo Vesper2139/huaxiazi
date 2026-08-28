@@ -120,6 +120,39 @@ public sealed class ProductGapRegressionTests : IDisposable
     }
 
     [Fact]
+    public async Task PromptOptimizationResult_IsImmediatelyEditable()
+    {
+        Configure(ApplicationMode.PromptOptimize);
+        var vm = new MainViewModel(new WorkspaceDraftService(_root), new ArchiveService(_root), (_, _) => new SequenceClient("结构化提示词"))
+        {
+            UserInput = "写一个项目说明"
+        };
+
+        await vm.OptimizeCommand.ExecuteAsync(null);
+
+        Assert.Equal(ViewMode.Optimized, vm.ViewMode);
+        Assert.True(vm.IsEditingResult);
+        Assert.False(vm.IsReadOnly);
+    }
+
+    [Fact]
+    public async Task PolishResult_IsImmediatelyEditable()
+    {
+        Configure(ApplicationMode.Polish);
+        var vm = new MainViewModel(new WorkspaceDraftService(_root), new ArchiveService(_root), (_, _) => new SequenceClient(
+            "{\"kind\":\"final\",\"scenario\":\"职场沟通\",\"topic\":\"通知\",\"content\":\"请及时查看通知。\"}"))
+        {
+            UserInput = "看一下通知"
+        };
+
+        await vm.OptimizeCommand.ExecuteAsync(null);
+
+        Assert.Equal(ViewMode.Optimized, vm.ViewMode);
+        Assert.True(vm.IsEditingResult);
+        Assert.False(vm.IsReadOnly);
+    }
+
+    [Fact]
     public async Task EmptyPromptResponse_ShowsActionableConfigurationError()
     {
         Configure(ApplicationMode.PromptOptimize);

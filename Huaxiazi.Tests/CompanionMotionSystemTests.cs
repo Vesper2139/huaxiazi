@@ -30,6 +30,33 @@ public sealed class CompanionMotionSystemTests
     }
 
     [Fact]
+    public void FaceKinematics_UsesACompactReadableEyeMouthGap()
+    {
+        Assert.InRange(CompanionFaceKinematics.FeatureGap, 10.4, 10.6);
+        Assert.InRange(CompanionFaceKinematics.MouthBaseline, 28.9, 29.1);
+    }
+
+    [Theory]
+    [InlineData(CompanionVisualState.Thinking)]
+    [InlineData(CompanionVisualState.Working)]
+    public void FaceKinematics_ProcessingStatesKeepMouthBelowTheEyes(CompanionVisualState state)
+    {
+        var projection = CompanionFaceKinematics.Project(new CompanionPose
+        {
+            GazeY = -5,
+            MouthCurve = -0.1
+        });
+
+        var processingOffset = CompanionFaceKinematics.GetStateMouthVisualOffset(
+            state);
+
+        Assert.True(processingOffset >= 1.4,
+            "Processing feedback needs a deliberate mouth offset so the animated face remains legible.");
+        Assert.True(projection.MouthBaselineY + processingOffset - projection.EyeBaselineY >= 5.2,
+            "The processing pose must retain a readable eye/mouth separation.");
+    }
+
+    [Fact]
     public void WorkingPose_HasAContinuousStateSignatureInsteadOfAStaticExpression()
     {
         var clock = new ManualAnimationClock();

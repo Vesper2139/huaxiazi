@@ -149,6 +149,23 @@ public sealed class AgentSkillPackageServiceTests : IDisposable
     }
 
     [Fact]
+    public void RenameDisplayName_PersistsAUserFacingNameWithoutChangingSkillIdOrInstructions()
+    {
+        var presetRoot = Path.Combine(_root, "presets");
+        CreateSkillAt(presetRoot, "prompt-optimizer", StandardSkill("prompt-optimizer", "prompt", "Keep the goal and constraints."));
+        var service = new AgentSkillPackageService(Path.Combine(_root, "installed"));
+        service.ImportPresets(presetRoot);
+
+        service.RenameDisplayName("prompt-optimizer", "提示词整理");
+
+        var reloaded = new AgentSkillPackageService(Path.Combine(_root, "installed"));
+        var skill = Assert.Single(reloaded.ListInstalled());
+        Assert.Equal("prompt-optimizer", skill.Id);
+        Assert.Equal("提示词整理", skill.EffectiveDisplayName);
+        Assert.Equal("Keep the goal and constraints.", skill.Instructions);
+    }
+
+    [Fact]
     public void ImportPresets_UpdatesTheReadOnlyBaselineButPreservesTheUsersDisabledState()
     {
         var presetRoot = Path.Combine(_root, "presets");

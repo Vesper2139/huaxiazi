@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net;
@@ -46,6 +47,7 @@ public sealed class AIService : ITextGenerationClient, IDisposable
     private readonly double _temperature;
     private readonly double _topP;
     private readonly int _maxTokens;
+    private readonly InferenceLevel _inferenceLevel;
     private readonly Func<TimeSpan, CancellationToken, Task> _delayAsync;
 
     public AIService(
@@ -69,6 +71,7 @@ public sealed class AIService : ITextGenerationClient, IDisposable
         _temperature = Math.Clamp(profile.Temperature, 0, 2);
         _topP = Math.Clamp(profile.TopP, 0, 1);
         _maxTokens = Math.Clamp(profile.MaxTokens, 128, 32768);
+        _inferenceLevel = profile.InferenceLevel;
         _delayAsync = delayAsync ?? Task.Delay;
         if (handler is null)
         {
@@ -92,11 +95,12 @@ public sealed class AIService : ITextGenerationClient, IDisposable
         timeoutSource.CancelAfter(_timeout);
         try
         {
+            var disableDeepSeekThinking = false;
             for (var attempt = 0; attempt < 2; attempt++)
             {
                 try
                 {
-                    using var request = CreateRequest(baseUri, systemPrompt, userInput);
+                    using var request = CreateRequest(baseUri, systemPrompt, userInput, forceDisableDeepSeekThinking: disableDeepSeekThinking);
                     using var response = await _httpClient.SendAsync(request, timeoutSource.Token).ConfigureAwait(false);
                     if (response.IsSuccessStatusCode)
                     {
@@ -113,6 +117,13 @@ public sealed class AIService : ITextGenerationClient, IDisposable
                     var errorBody = await response.Content.ReadAsStringAsync(timeoutSource.Token).ConfigureAwait(false);
                     var providerMessage = TryReadProviderErrorMessage(errorBody);
                     throw BuildGenerationFailure(response.StatusCode, response.ReasonPhrase, providerMessage);
+                }
+                catch (InvalidOperationException exception) when (attempt == 0 && IsDeepSeekV4 && IsEmptyModelResponse(exception))
+                {
+                    // DeepSeek V4 may spend the whole first budget on reasoning for a
+                    // strict structured prompt. Retry once with thinking disabled so
+                    // the user receives a final answer instead of an empty bubble.
+                    disableDeepSeekThinking = true;
                 }
                 catch (HttpRequestException) when (attempt == 0)
                 {
@@ -187,53 +198,71 @@ public sealed class AIService : ITextGenerationClient, IDisposable
                 exception.Message, null, 0, null, null);
         }
 
-        using var request = CreateRequest(baseUri, "只回复 OK。", "连接测试", isConnectionTest: true);
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(_timeout);
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            using var response = await _httpClient.SendAsync(request, timeoutSource.Token).ConfigureAwait(false);
-            stopwatch.Stop();
-            var requestId = TryGetRequestId(response);
-            if (!response.IsSuccessStatusCode)
+            for (var attempt = 0; attempt < 2; attempt++)
             {
-                var status = response.StatusCode switch
+                using var request = CreateRequest(baseUri, "只回复 OK。", "连接测试", isConnectionTest: true);
+                try
                 {
-                    HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => ConnectionTestStatus.AuthFailed,
-                    HttpStatusCode.NotFound => ConnectionTestStatus.ModelUnavailable,
-                    HttpStatusCode.TooManyRequests => ConnectionTestStatus.RateLimited,
-                    HttpStatusCode.RequestTimeout or HttpStatusCode.GatewayTimeout => ConnectionTestStatus.Timeout,
-                    _ => ConnectionTestStatus.ProviderError
-                };
-                var message = status switch
+                    using var response = await _httpClient.SendAsync(request, timeoutSource.Token).ConfigureAwait(false);
+                    var requestId = TryGetRequestId(response);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        if (attempt == 0 && IsConnectionTransient(response.StatusCode))
+                        {
+                            await _delayAsync(TimeSpan.FromMilliseconds(250), timeoutSource.Token).ConfigureAwait(false);
+                            continue;
+                        }
+
+                        var status = response.StatusCode switch
+                        {
+                            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => ConnectionTestStatus.AuthFailed,
+                            HttpStatusCode.NotFound => ConnectionTestStatus.ModelUnavailable,
+                            HttpStatusCode.TooManyRequests => ConnectionTestStatus.RateLimited,
+                            HttpStatusCode.RequestTimeout or HttpStatusCode.GatewayTimeout => ConnectionTestStatus.Timeout,
+                            _ => ConnectionTestStatus.ProviderError
+                        };
+                        var message = status switch
+                        {
+                            ConnectionTestStatus.AuthFailed => "API Key 无效、已过期或没有访问权限，请重新填写。",
+                            ConnectionTestStatus.ModelUnavailable => "接口或模型不存在，请核对 Model ID。",
+                            ConnectionTestStatus.RateLimited => "服务正在限流或额度不足，请稍后重试或检查账户余额。",
+                            ConnectionTestStatus.Timeout => "服务端响应超时，请稍后重试。",
+                            _ when (int)response.StatusCode >= 500 => "模型服务暂时不可用，请稍后重试。",
+                            _ => $"模型服务拒绝了连接测试（HTTP {(int)response.StatusCode}）。"
+                        };
+                        return BuildConnectionResult(status, message, response.StatusCode,
+                            stopwatch.ElapsedMilliseconds, baseUri, requestId);
+                    }
+
+                    var body = await response.Content.ReadAsStringAsync(timeoutSource.Token).ConfigureAwait(false);
+                    try
+                    {
+                        _ = ParseProtocolContent(body, _protocol);
+                    }
+                    catch (Exception exception) when (exception is JsonException or InvalidOperationException)
+                    {
+                        return BuildConnectionResult(ConnectionTestStatus.InvalidResponse,
+                            "已连接到服务，但返回格式与当前接口协议不匹配。", response.StatusCode,
+                            stopwatch.ElapsedMilliseconds, baseUri, requestId);
+                    }
+
+                    return BuildConnectionResult(ConnectionTestStatus.Success,
+                        $"连接成功，{stopwatch.ElapsedMilliseconds} ms。", response.StatusCode,
+                        stopwatch.ElapsedMilliseconds, baseUri, requestId);
+                }
+                catch (HttpRequestException) when (attempt == 0)
                 {
-                    ConnectionTestStatus.AuthFailed => "API Key 无效、已过期或没有访问权限，请重新填写。",
-                    ConnectionTestStatus.ModelUnavailable => "接口或模型不存在，请核对 Model ID。",
-                    ConnectionTestStatus.RateLimited => "服务正在限流或额度不足，请稍后重试或检查账户余额。",
-                    ConnectionTestStatus.Timeout => "服务端响应超时，请稍后重试。",
-                    _ when (int)response.StatusCode >= 500 => "模型服务暂时不可用，请稍后重试。",
-                    _ => $"模型服务拒绝了连接测试（HTTP {(int)response.StatusCode}）。"
-                };
-                return BuildConnectionResult(status, message, response.StatusCode,
-                    stopwatch.ElapsedMilliseconds, baseUri, requestId);
+                    await _delayAsync(TimeSpan.FromMilliseconds(250), timeoutSource.Token).ConfigureAwait(false);
+                }
             }
-
-            var body = await response.Content.ReadAsStringAsync(timeoutSource.Token).ConfigureAwait(false);
-            try
-            {
-                _ = ParseProtocolContent(body, _protocol);
-            }
-            catch (Exception exception) when (exception is JsonException or InvalidOperationException)
-            {
-                return BuildConnectionResult(ConnectionTestStatus.InvalidResponse,
-                    "已连接到服务，但返回格式与当前接口协议不匹配。", response.StatusCode,
-                    stopwatch.ElapsedMilliseconds, baseUri, requestId);
-            }
-
-            return BuildConnectionResult(ConnectionTestStatus.Success,
-                $"连接成功，{stopwatch.ElapsedMilliseconds} ms。", response.StatusCode,
-                stopwatch.ElapsedMilliseconds, baseUri, requestId);
+            return BuildConnectionResult(ConnectionTestStatus.NetworkError,
+                "无法连接模型服务，请检查网络、代理、DNS 或 TLS 设置。", null,
+                stopwatch.ElapsedMilliseconds, baseUri, null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -260,6 +289,11 @@ public sealed class AIService : ITextGenerationClient, IDisposable
         statusCode == HttpStatusCode.TooManyRequests ||
         (int)statusCode >= 500;
 
+    private static bool IsConnectionTransient(HttpStatusCode statusCode) =>
+        statusCode == HttpStatusCode.RequestTimeout ||
+        statusCode == HttpStatusCode.GatewayTimeout ||
+        (int)statusCode >= 500;
+
     private void ValidateConfiguration(out Uri baseUri)
     {
         if (_providerType == ProviderType.Cloud && string.IsNullOrWhiteSpace(_apiKey))
@@ -274,7 +308,12 @@ public sealed class AIService : ITextGenerationClient, IDisposable
         if (string.IsNullOrWhiteSpace(_model)) throw new InvalidOperationException("模型名称不能为空。");
     }
 
-    private HttpRequestMessage CreateRequest(Uri baseUri, string systemPrompt, string userInput, bool isConnectionTest = false)
+    private HttpRequestMessage CreateRequest(
+        Uri baseUri,
+        string systemPrompt,
+        string userInput,
+        bool isConnectionTest = false,
+        bool forceDisableDeepSeekThinking = false)
     {
         Uri endpoint;
         object requestBody;
@@ -301,7 +340,7 @@ public sealed class AIService : ITextGenerationClient, IDisposable
                     generationConfig = new { temperature = _temperature, topP = _topP, maxOutputTokens = isConnectionTest ? 8 : _maxTokens }
                 };
                 break;
-            default:
+                default:
                 var compatibleBase = baseUri.ToString().TrimEnd('/');
                 // DeepSeek 的 OpenAI 兼容入口固定在 /v1；兼容旧配置中遗漏 /v1
                 // 的地址，避免用户必须重新创建配置才能恢复服务。
@@ -312,31 +351,7 @@ public sealed class AIService : ITextGenerationClient, IDisposable
                     compatibleBase += "/v1";
                 }
                 endpoint = new Uri(compatibleBase + "/chat/completions");
-                requestBody = isConnectionTest
-                    ? new
-                    {
-                        model = _resolvedModel,
-                        messages = new[]
-                        {
-                            new { role = "system", content = systemPrompt },
-                            new { role = "user", content = userInput }
-                        },
-                        max_tokens = 8,
-                        stream = false
-                    }
-                    : new
-                    {
-                        model = _resolvedModel,
-                        messages = new[]
-                        {
-                            new { role = "system", content = systemPrompt },
-                            new { role = "user", content = userInput }
-                        },
-                        temperature = _temperature,
-                        top_p = _topP,
-                        max_tokens = _maxTokens,
-                        stream = false
-                    };
+                requestBody = BuildOpenAiCompatibleBody(systemPrompt, userInput, isConnectionTest, forceDisableDeepSeekThinking);
                 break;
         }
 
@@ -360,6 +375,55 @@ public sealed class AIService : ITextGenerationClient, IDisposable
 
         return request;
     }
+
+    private object BuildOpenAiCompatibleBody(string systemPrompt, string userInput, bool isConnectionTest, bool forceDisableDeepSeekThinking)
+    {
+        var body = new Dictionary<string, object?>
+        {
+            ["model"] = _resolvedModel,
+            ["messages"] = new[]
+            {
+                new { role = "system", content = systemPrompt },
+                new { role = "user", content = userInput }
+            },
+            ["max_tokens"] = isConnectionTest ? 8 : _maxTokens,
+            ["stream"] = false
+        };
+
+        if (IsDeepSeekV4)
+        {
+            var disableThinking = isConnectionTest || forceDisableDeepSeekThinking;
+            body["thinking"] = new { type = disableThinking ? "disabled" : "enabled" };
+            if (!disableThinking)
+            {
+                body["reasoning_effort"] = _inferenceLevel switch
+                {
+                    InferenceLevel.Low => "low",
+                    InferenceLevel.High => "max",
+                    _ => "high"
+                };
+            }
+            else if (!isConnectionTest)
+            {
+                body["temperature"] = _temperature;
+                body["top_p"] = _topP;
+            }
+        }
+        else if (!isConnectionTest)
+        {
+            body["temperature"] = _temperature;
+            body["top_p"] = _topP;
+        }
+
+        return body;
+    }
+
+    private bool IsDeepSeekV4 => _platform == ProviderPlatform.DeepSeek &&
+        _resolvedModel.StartsWith("deepseek-v4", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsEmptyModelResponse(InvalidOperationException exception) =>
+        exception.Message.Contains("模型返回为空", StringComparison.Ordinal) ||
+        exception.Message.Contains("只返回了推理过程", StringComparison.Ordinal);
 
     private ConnectionTestResult BuildConnectionResult(
         ConnectionTestStatus status,
@@ -416,7 +480,17 @@ public sealed class AIService : ITextGenerationClient, IDisposable
 
     private static string ParseProtocolContent(string responseBody, ProviderProtocol protocol)
     {
-        using var doc = JsonDocument.Parse(responseBody);
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(responseBody);
+        }
+        catch (JsonException) when (protocol == ProviderProtocol.OpenAICompatible && TryParseServerSentEvents(responseBody, out var streamedText))
+        {
+            return streamedText;
+        }
+        using (doc)
+        {
         var root = doc.RootElement;
 
         if (protocol == ProviderProtocol.AnthropicMessages)
@@ -443,6 +517,7 @@ public sealed class AIService : ITextGenerationClient, IDisposable
             choices.ValueKind != JsonValueKind.Array ||
             choices.GetArrayLength() == 0)
         {
+            if (TryExtractResponsesApiText(root, out var responseText)) return responseText;
             throw new InvalidOperationException("响应格式异常：未找到 choices[0]。");
         }
 
@@ -450,7 +525,17 @@ public sealed class AIService : ITextGenerationClient, IDisposable
         if (first.TryGetProperty("message", out var message))
         {
             if (message.TryGetProperty("content", out var content))
-                return RequireNonEmptyText(content);
+            {
+                if (TryExtractText(content, out var messageText) && !string.IsNullOrWhiteSpace(messageText))
+                {
+                    var normalizedMessage = NormalizeModelText(messageText);
+                    if (!string.IsNullOrWhiteSpace(normalizedMessage)) return normalizedMessage;
+                }
+                // 部分兼容网关会同时返回空 content 和 Responses API 风格的 output_text；
+                // 仅在存在明确的最终文本字段时回退，绝不把 reasoning_content 当成答案。
+                if (TryExtractResponsesApiText(root, out var responseText)) return responseText;
+                throw new InvalidOperationException("模型返回为空，请重试。");
+            }
 
             if (message.TryGetProperty("reasoning_content", out var reasoning) &&
                 reasoning.ValueKind == JsonValueKind.String &&
@@ -469,13 +554,106 @@ public sealed class AIService : ITextGenerationClient, IDisposable
             return RequireNonEmptyText(legacyText);
 
         throw new InvalidOperationException("响应格式异常：未找到 choices[0].message.content。");
+        }
+    }
+
+    private static bool TryParseServerSentEvents(string responseBody, out string result)
+    {
+        var fragments = new StringBuilder();
+        foreach (var line in responseBody.Split('\n'))
+        {
+            var payload = line.Trim();
+            if (!payload.StartsWith("data:", StringComparison.OrdinalIgnoreCase)) continue;
+            payload = payload[5..].Trim();
+            if (payload.Length == 0 || payload.Equals("[DONE]", StringComparison.OrdinalIgnoreCase)) continue;
+            try
+            {
+                using var eventDocument = JsonDocument.Parse(payload);
+                var root = eventDocument.RootElement;
+                if (root.TryGetProperty("output_text", out var outputText) &&
+                    outputText.ValueKind == JsonValueKind.String)
+                {
+                    fragments.Append(outputText.GetString());
+                    continue;
+                }
+
+                if (root.TryGetProperty("choices", out var choices) &&
+                    choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0)
+                {
+                    var choice = choices[0];
+                    if (choice.TryGetProperty("delta", out var delta))
+                    {
+                        if (delta.TryGetProperty("content", out var content) && TryExtractText(content, out var text))
+                            fragments.Append(text);
+                        continue;
+                    }
+                    if (choice.TryGetProperty("message", out var message) &&
+                        message.TryGetProperty("content", out var messageContent) &&
+                        TryExtractText(messageContent, out var messageText))
+                        fragments.Append(messageText);
+                }
+            }
+            catch (JsonException)
+            {
+                // Ignore keep-alive or malformed individual events; the final
+                // result is accepted only when at least one usable text fragment exists.
+            }
+        }
+
+        result = NormalizeModelText(fragments.ToString());
+        return !string.IsNullOrWhiteSpace(result);
     }
 
     private static string RequireNonEmptyText(JsonElement content)
     {
         if (TryExtractText(content, out var result) && !string.IsNullOrWhiteSpace(result))
-            return result.Trim();
+        {
+            var normalized = NormalizeModelText(result);
+            if (!string.IsNullOrWhiteSpace(normalized)) return normalized;
+        }
         throw new InvalidOperationException("模型返回为空，请重试。");
+    }
+
+    /// <summary>
+    /// Removes a transport-only Markdown fence that some providers wrap around
+    /// the complete answer. Inline code and partial fences remain untouched.
+    /// </summary>
+    internal static string NormalizeModelText(string text)
+    {
+        var normalized = (text ?? string.Empty).Replace("\r\n", "\n").Trim();
+
+        // Some gateways append an internal chain-of-thought reminder to the
+        // user-visible answer. Remove it only when it is the final sentence.
+        const string thinkingSuffix = "Take time to think through this carefully before responding.";
+        while (true)
+        {
+            var suffixCandidate = normalized.EndsWith('”') || normalized.EndsWith('"')
+                ? normalized[..^1].TrimEnd()
+                : normalized;
+            if (!suffixCandidate.EndsWith(thinkingSuffix, StringComparison.OrdinalIgnoreCase)) break;
+            normalized = suffixCandidate[..^thinkingSuffix.Length]
+                .TrimEnd(' ', '\t', '\n', '\r', '”', '"');
+        }
+
+        if (!normalized.StartsWith("```", StringComparison.Ordinal) ||
+            !normalized.EndsWith("```", StringComparison.Ordinal) ||
+            normalized.Length <= 6)
+            return normalized;
+
+        var firstLineEnd = normalized.IndexOf('\n');
+        if (firstLineEnd < 0) return normalized;
+        var opening = normalized[..firstLineEnd].Trim();
+        if (opening.Length < 3 || opening.Any(char.IsWhiteSpace) && opening != "```")
+        {
+            // A language label (for example ```markdown) is allowed, but a
+            // prose line beginning with backticks is not treated as a wrapper.
+            if (!opening.StartsWith("```", StringComparison.Ordinal) || opening.Length > 32)
+                return normalized;
+        }
+
+        var bodyStart = firstLineEnd + 1;
+        var body = normalized[bodyStart..^3].Trim();
+        return body;
     }
 
     private static bool TryExtractText(JsonElement value, out string? result)
@@ -485,6 +663,23 @@ public sealed class AIService : ITextGenerationClient, IDisposable
         {
             result = value.GetString();
             return true;
+        }
+
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            if (value.TryGetProperty("text", out var objectText) && objectText.ValueKind == JsonValueKind.String)
+            {
+                if (value.TryGetProperty("type", out var textType) && textType.ValueKind == JsonValueKind.String &&
+                    textType.GetString() is { } objectType &&
+                    !string.Equals(objectType, "text", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(objectType, "output_text", StringComparison.OrdinalIgnoreCase))
+                    return false;
+                result = objectText.GetString();
+                return true;
+            }
+            if (value.TryGetProperty("content", out var objectContent))
+                return TryExtractText(objectContent, out result);
+            return false;
         }
 
         if (value.ValueKind != JsonValueKind.Array) return false;
@@ -499,19 +694,40 @@ public sealed class AIService : ITextGenerationClient, IDisposable
             }
 
             if (item.ValueKind != JsonValueKind.Object) continue;
-            if (item.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String &&
-                type.GetString() is { } blockType &&
-                !string.Equals(blockType, "text", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(blockType, "output_text", StringComparison.OrdinalIgnoreCase))
-                continue;
             if (item.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String)
-                fragments.Append(text.GetString());
+            {
+                if (!item.TryGetProperty("type", out var type) || type.ValueKind != JsonValueKind.String ||
+                    type.GetString() is not { } blockType ||
+                    string.Equals(blockType, "text", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(blockType, "output_text", StringComparison.OrdinalIgnoreCase))
+                    fragments.Append(text.GetString());
+            }
             else if (item.TryGetProperty("content", out var nested) && TryExtractText(nested, out var nestedText))
                 fragments.Append(nestedText);
         }
 
         result = fragments.ToString();
         return true;
+    }
+
+    private static bool TryExtractResponsesApiText(JsonElement root, out string result)
+    {
+        result = string.Empty;
+        if (root.TryGetProperty("output_text", out var outputText) &&
+            outputText.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(outputText.GetString()))
+        {
+            result = NormalizeModelText(outputText.GetString()!);
+            return !string.IsNullOrWhiteSpace(result);
+        }
+
+        if (root.TryGetProperty("output", out var output) && TryExtractText(output, out var nested) &&
+            !string.IsNullOrWhiteSpace(nested))
+        {
+            result = NormalizeModelText(nested!);
+            return !string.IsNullOrWhiteSpace(result);
+        }
+        return false;
     }
 
     public void Dispose()

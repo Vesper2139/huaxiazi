@@ -120,10 +120,22 @@ public partial class MainWindow : Window
         ApplyToolbarLayout(ActualWidth > 0 ? ActualWidth : Width);
         RefreshDiffOverlay();
         UpdateModeCarouselVisual(animate: false);
+        if (Application.Current is App app) app.UpdateCompanionState(_vm.CompanionState);
     }
 
     private void ViewModel_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(MainViewModel.IsBusy))
+        {
+            // IsBusy is the source of truth for request feedback. Keep this independent from
+            // pointer events so Enter, accessibility and programmatic commands animate equally.
+            if (_vm.IsBusy) CompanionHost.PlayGenerationStarted(_vm.CompanionState);
+            else CompanionHost.PlayGenerationFinished(_vm.CompanionState);
+        }
+        if (e.PropertyName is nameof(MainViewModel.CompanionState) or nameof(MainViewModel.IsBusy))
+        {
+            if (Application.Current is App app) app.UpdateCompanionState(_vm.CompanionState);
+        }
         if (e.PropertyName is nameof(MainViewModel.ShowDiff) or nameof(MainViewModel.ViewMode))
         {
             _diffRefreshTimer.Stop();

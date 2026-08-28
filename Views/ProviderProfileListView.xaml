@@ -9,6 +9,7 @@
         <local:ProviderPlatformDisplayNameConverter x:Key="ProviderPlatformDisplayName" />
         <local:ProfileApiKeyStatusConverter x:Key="ProfileApiKeyStatus" />
         <local:ProviderActiveVisibilityConverter x:Key="ProviderActiveVisibility" />
+        <local:ProviderInactiveVisibilityConverter x:Key="ProviderInactiveVisibility" />
         <local:ProviderActiveEnabledConverter x:Key="ProviderActiveEnabled" />
     </UserControl.Resources>
     <Grid>
@@ -16,7 +17,6 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0" Margin="0,0,0,14">
@@ -26,7 +26,19 @@
             </Grid.ColumnDefinitions>
             <StackPanel>
                 <TextBlock Text="配置管理" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" />
-                <TextBlock Text="选择一个配置继续编辑，或添加新的模型。" Style="{StaticResource LabelText}" Margin="0,4,0,0" />
+                <TextBlock Text="选择配置即可编辑、测试或设为当前。" Style="{StaticResource LabelText}" Margin="0,4,0,0" />
+                <TextBlock Text="{Binding ConnectionStatus}" FontSize="12" Margin="0,8,0,0" TextTrimming="CharacterEllipsis">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource LabelText}">
+                            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Success"><Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" /></DataTrigger>
+                                <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Failure"><Setter Property="Foreground" Value="{DynamicResource DangerBrush}" /></DataTrigger>
+                                <DataTrigger Binding="{Binding ConnectionStatusKind}" Value="Pending"><Setter Property="Foreground" Value="{DynamicResource BrandBrush}" /></DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </StackPanel>
             <Border Grid.Column="1" Background="{DynamicResource InputBrush}" BorderBrush="{DynamicResource InputBorderBrush}"
                     BorderThickness="1" CornerRadius="12" Padding="10,5" VerticalAlignment="Center">
@@ -84,9 +96,8 @@
                                 <StackPanel VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"
                                                Foreground="{DynamicResource BodyTextBrush}" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis">
-                                        <Run Text="{Binding Platform, Converter={StaticResource ProviderPlatformDisplayName}}" /><Run Text="  ·  " /><Run Text="{Binding Model}" />
-                                    </TextBlock>
+                                    <TextBlock FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"
+                                               Text="{Binding Platform, Converter={StaticResource ProviderPlatformDisplayName}}" />
                                 </StackPanel>
                                 <TextBlock Grid.Column="1" Text="{Binding Model}" FontSize="11"
                                            Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"
@@ -99,24 +110,28 @@
                                         </MultiBinding>
                                     </Border.Background>
                                 </Border>
-                                <StackPanel Grid.Column="3" Margin="12,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock Text="当前使用" FontSize="10" Foreground="{DynamicResource BrandBrush}" HorizontalAlignment="Right">
-                                        <TextBlock.Visibility>
+                                <StackPanel Grid.Column="3" Margin="12,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
+                                    <Button Content="测试" Style="{StaticResource GlassButton}" Padding="10,4" MinWidth="58" HorizontalContentAlignment="Center" FontSize="11"
+                                            Command="{Binding DataContext.TestProviderProfileCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}" ToolTip="可选：测试当前配置的连接" />
+                                    <Button Content="当前使用" Style="{StaticResource GlassButton}" Padding="10,4" MinWidth="78" HorizontalContentAlignment="Center" FontSize="11" Margin="6,0,0,0"
+                                            IsEnabled="False">
+                                        <Button.Visibility>
                                             <MultiBinding Converter="{StaticResource ProviderActiveVisibility}">
                                                 <Binding />
                                                 <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=ListBox}" />
                                             </MultiBinding>
-                                        </TextBlock.Visibility>
-                                    </TextBlock>
-                                    <Button Content="设为当前" Style="{StaticResource GlassButton}" Padding="8,3" FontSize="11"
+                                        </Button.Visibility>
+                                    </Button>
+                                    <Button Content="设为当前" Style="{StaticResource GlassButton}" Padding="10,4" MinWidth="78" HorizontalContentAlignment="Center" FontSize="11" Margin="6,0,0,0"
                                             Command="{Binding DataContext.SetActiveProviderCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                             CommandParameter="{Binding}">
-                                        <Button.IsEnabled>
-                                            <MultiBinding Converter="{StaticResource ProviderActiveEnabled}">
+                                        <Button.Visibility>
+                                            <MultiBinding Converter="{StaticResource ProviderInactiveVisibility}">
                                                 <Binding />
                                                 <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=ListBox}" />
                                             </MultiBinding>
-                                        </Button.IsEnabled>
+                                        </Button.Visibility>
                                     </Button>
                                 </StackPanel>
                             </Grid>
@@ -139,16 +154,5 @@
             </Grid>
         </Border>
 
-        <!-- 当前选择状态保持低噪声；设置页关闭时由唯一提交路径自动保存。 -->
-        <Grid Grid.Row="3" Margin="0,12,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="{Binding SelectedProviderProfile.Name, FallbackValue='未选择'}" FontSize="12"
-                       Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-            <TextBlock Grid.Column="1" Text="关闭设置后自动保存" FontSize="11"
-                       Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" />
-        </Grid>
     </Grid>
 </UserControl>

@@ -26,8 +26,29 @@ public readonly record struct CompanionFaceProjection(
 
 public static class CompanionFaceKinematics
 {
-    private const double EyeBaseline = 20;
-    private const double MouthBaseline = 28;
+    internal const double EyeBaseline = 18.5;
+    // The vector artwork uses the same baseline. Keeping this gap compact makes
+    // the default face read as one expression instead of two detached rows.
+    // Keep a clear two-unit reserve below the eye row while preserving the compact idle face.
+    internal const double MouthBaseline = 29;
+    internal const double FeatureGap = MouthBaseline - EyeBaseline;
+
+    /// <summary>
+    /// Gives processing feedback a small, deliberate vertical separation. The default face is
+    /// intentionally compact at rest, but the thinking/working gaze and mouth animate at the
+    /// same time; keeping the mouth a little lower prevents the two features from visually
+    /// colliding during a request.
+    /// </summary>
+    public static double GetStateMouthVisualOffset(CompanionVisualState state) => state switch
+    {
+        CompanionVisualState.Thinking => 1.8,
+        CompanionVisualState.Working => 1.8,
+        CompanionVisualState.Listening => 0.8,
+        CompanionVisualState.Curious => 0.5,
+        CompanionVisualState.Warning => 0.8,
+        CompanionVisualState.Error => 0.8,
+        _ => 0
+    };
 
     public static CompanionFaceProjection Project(CompanionPose pose)
     {

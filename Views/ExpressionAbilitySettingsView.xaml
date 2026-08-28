@@ -7,6 +7,7 @@
         <local:BoolToVisibilityConverter x:Key="BoolToVisibility" />
         <local:InverseBoolConverter x:Key="InverseBool" />
         <local:EnumDisplayNameConverter x:Key="EnumDisplayName" />
+        <local:ApplicationModeVisibilityConverter x:Key="ModeVisibility" />
         <Style x:Key="SkillFocusVisual">
             <Setter Property="Control.Template">
                 <Setter.Value><ControlTemplate><Border Margin="-2" BorderBrush="{DynamicResource BrandBrush}" BorderThickness="1" CornerRadius="7" /></ControlTemplate></Setter.Value>
@@ -75,33 +76,35 @@
     </UserControl.Resources>
 
     <Grid MaxWidth="900" HorizontalAlignment="Stretch">
-        <!-- 概览：默认行为与偏好，不触发 Skill 文件扫描。 -->
+        <!-- 概览：按用户关注点组织默认值、界面显示与表达风格，不触发 Skill 文件扫描。 -->
         <StackPanel x:Name="ExpressionOverviewPane" Visibility="{Binding IsExpressionOverview, Converter={StaticResource BoolToVisibility}}">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Text="表达能力" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="表达与生成" Style="{StaticResource SectionTitle}" />
                     <TextBlock Text="让口语化表达变成清晰、合适、可以直接使用的文本。" Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0" />
                 </StackPanel>
-                <Button x:Name="OpenSkillsButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Style="{StaticResource PrimaryButton}" Content="管理 Skill" Command="{Binding OpenExpressionSkillsCommand}" ToolTip="查看、启用、停用或编辑表达能力" />
+                <Button x:Name="OpenSkillsButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Style="{StaticResource PrimaryButton}" Content="管理能力" Command="{Binding OpenExpressionSkillsCommand}" ToolTip="查看、启用、停用或编辑表达能力" />
             </Grid>
 
-            <TextBlock Text="默认行为" Style="{StaticResource AbilitySectionHeading}" />
+            <TextBlock Text="生成默认值" Style="{StaticResource AbilitySectionHeading}" />
             <Border Style="{StaticResource SectionCard}" Padding="18,2">
                 <StackPanel>
                     <Grid x:Name="DefaultTaskRow" Style="{StaticResource AbilitySettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="230" /></Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center"><TextBlock Text="默认任务" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" /><TextBlock Text="打开主窗口时使用的工作方式" Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0" /></StackPanel>
-                        <ComboBox Grid.Column="1" ItemsSource="{Binding Modes}" SelectedItem="{Binding DefaultMode}" Style="{StaticResource GlassComboBox}" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding Modes}" SelectedItem="{Binding DefaultMode}" Style="{StaticResource GlassComboBox}" VerticalAlignment="Center">
+                            <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumDisplayName}}" /></DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
                     </Grid>
                     <Border Style="{StaticResource AbilityDivider}" />
-                    <Grid Style="{StaticResource AbilitySettingRow}">
+                    <Grid x:Name="DefaultPolishScenarioRow" Style="{StaticResource AbilitySettingRow}" Visibility="{Binding DefaultMode, Converter={StaticResource ModeVisibility}, ConverterParameter=Polish}">
                         <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="230" /></Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center"><TextBlock Text="润色场景" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" /><TextBlock Text="影响称呼、直接程度与段落组织" Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0" /></StackPanel>
                         <ComboBox x:Name="DefaultPolishScenarioSelector" Grid.Column="1" ItemsSource="{Binding PolishScenarios}" SelectedItem="{Binding DefaultPolishScenario}" Style="{StaticResource GlassComboBox}" VerticalAlignment="Center" />
                     </Grid>
                     <Border Style="{StaticResource AbilityDivider}" />
-                    <Grid Style="{StaticResource AbilitySettingRow}">
+                    <Grid x:Name="DefaultCategoryRow" Style="{StaticResource AbilitySettingRow}" Visibility="{Binding DefaultMode, Converter={StaticResource ModeVisibility}, ConverterParameter=PromptOptimize}">
                         <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="230" /></Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center"><TextBlock Text="提示词类别" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" /><TextBlock Text="决定目标、约束和输出格式的组织方式" Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0" /></StackPanel>
                         <ComboBox x:Name="DefaultCategorySelector" Grid.Column="1" ItemsSource="{Binding Categories}" SelectedItem="{Binding DefaultCategory}" Style="{StaticResource GlassComboBox}" VerticalAlignment="Center"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumDisplayName}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox>
@@ -127,9 +130,21 @@
                 </StackPanel>
             </Border>
 
-            <TextBlock Text="个性化" Style="{StaticResource AbilitySectionHeading}" />
+            <TextBlock Text="主界面显示" Style="{StaticResource AbilitySectionHeading}" />
+            <Border Style="{StaticResource SectionCard}" Padding="18,14">
+                <StackPanel>
+                    <TextBlock Text="只控制主界面显示哪些类别按钮，不改变模型输出内容。默认类别始终保留。" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" TextWrapping="Wrap" Margin="0,0,0,10" />
+                    <ItemsControl x:Name="PromptCategoryOptionsList" ItemsSource="{Binding PromptCategoryOptions}">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate><DataTemplate><CheckBox Content="{Binding Name}" IsChecked="{Binding Enabled}" Margin="0,0,18,4" /></DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="我的风格与身份" Style="{StaticResource AbilitySectionHeading}" />
             <Border Style="{StaticResource SectionCard}" Padding="18,2">
                 <StackPanel>
+                    <TextBlock Text="以下设置只调整语气和身份，可按需填写其中一项。事实保真与安全规则始终优先。" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,12,0,2" />
                     <Grid Style="{StaticResource AbilitySettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="230" /></Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center"><TextBlock Text="输出风格" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" /><TextBlock Text="在保留事实的前提下调整语气" Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0" /></StackPanel>
@@ -143,19 +158,20 @@
                     </Grid>
                 </StackPanel>
             </Border>
-            <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding PreferenceSummary}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" VerticalAlignment="Center" /><Button Grid.Column="1" Style="{StaticResource AbilityLinkButton}" Content="重置偏好" Command="{Binding ResetExpressionPreferencesCommand}" Margin="14,0,0,0" /></Grid>
+            <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding PreferenceSummary}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" VerticalAlignment="Center" /><Button Grid.Column="1" Style="{StaticResource AbilityLinkButton}" Content="恢复默认" Command="{Binding ResetExpressionPreferencesCommand}" Margin="14,0,0,0" ToolTip="清除本地学习到的表达偏好" /></Grid>
 
-            <TextBlock Text="表达规则" Style="{StaticResource AbilitySectionHeading}" />
+            <TextBlock Text="自定义规则（高级）" Style="{StaticResource AbilitySectionHeading}" />
             <Border Style="{StaticResource SectionCard}" Padding="18,14">
                 <StackPanel>
                     <TextBlock Text="角色与背景" Style="{StaticResource LabelText}" />
                     <TextBox Text="{Binding Persona, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource GlassPlainTextBox}" TextWrapping="Wrap" AcceptsReturn="True" MinHeight="54" MaxHeight="100" Margin="0,6,0,12" VerticalScrollBarVisibility="Auto" />
                     <TextBlock Text="偏好与禁止表达" Style="{StaticResource LabelText}" />
                     <TextBox x:Name="CustomStyleInstructionsTextBox" Text="{Binding CustomStyleInstructions, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource GlassPlainTextBox}" TextWrapping="Wrap" AcceptsReturn="True" MinHeight="54" MaxHeight="100" Margin="0,6,0,12" VerticalScrollBarVisibility="Auto" />
-                    <WrapPanel Margin="0,0,0,10"><CheckBox x:Name="PreserveMeaningCheckBox" Content="保留原意" IsChecked="{Binding PreserveMeaning}" Margin="0,0,18,0" /><CheckBox x:Name="MinimalRewriteCheckBox" Content="减少不必要改写" IsChecked="{Binding MinimalRewrite}" Margin="0,0,18,0" /><CheckBox x:Name="ProfessionalToneCheckBox" Content="专业克制" IsChecked="{Binding ProfessionalTone}" /></WrapPanel>
+                    <TextBlock Text="事实保真由内置规则保护" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,10" />
+                    <WrapPanel Margin="0,0,0,10"><CheckBox x:Name="MinimalRewriteCheckBox" Content="减少不必要改写" IsChecked="{Binding MinimalRewrite}" Margin="0,0,18,0" /><CheckBox x:Name="ProfessionalToneCheckBox" Content="专业克制" IsChecked="{Binding ProfessionalTone}" /></WrapPanel>
                     <TextBlock Text="自定义系统提示词（可选）" Style="{StaticResource LabelText}" />
                     <TextBox x:Name="CustomSystemPromptTextBox" Text="{Binding CustomSystemPrompt, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource GlassPlainTextBox}" TextWrapping="Wrap" AcceptsReturn="True" MinHeight="74" MaxHeight="150" Margin="0,6,0,10" VerticalScrollBarVisibility="Auto" ToolTip="留空使用话匣子内置安全规则" />
-                    <Grid Margin="0,4,0,6"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="常用优化预设" Style="{StaticResource LabelText}" VerticalAlignment="Center" /><StackPanel Grid.Column="1" Orientation="Horizontal"><Button Style="{StaticResource ToolIconButton}" Command="{Binding AddOptimizationPresetCommand}" ToolTip="保存当前设置为新预设"><Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconPlus}" /></Button><Button Style="{StaticResource ToolIconButton}" Command="{Binding RemoveOptimizationPresetCommand}" ToolTip="删除所选预设"><Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconMinus}" /></Button></StackPanel></Grid>
+                    <Grid Margin="0,4,0,6"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="风格方案" Style="{StaticResource LabelText}" /><TextBlock Text="把当前表达设置保存为一键方案" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" Margin="0,3,0,0" /></StackPanel><StackPanel Grid.Column="1" Orientation="Horizontal"><Button Style="{StaticResource ToolIconButton}" Command="{Binding AddOptimizationPresetCommand}" ToolTip="保存当前设置为一键方案"><Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconPlus}" /></Button><Button Style="{StaticResource ToolIconButton}" Command="{Binding RemoveOptimizationPresetCommand}" ToolTip="删除所选方案"><Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconMinus}" /></Button></StackPanel></Grid>
                     <ListBox x:Name="OptimizationPresetList" ItemsSource="{Binding OptimizationPresets}" SelectedItem="{Binding SelectedOptimizationPreset}" DisplayMemberPath="Name" ItemContainerStyle="{StaticResource PresetListItem}" MinHeight="52" MaxHeight="100" Background="{DynamicResource InputBrush}" BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="1" Padding="4" ScrollViewer.VerticalScrollBarVisibility="Disabled" local:NestedScrollBehavior.ForwardMouseWheelToParent="True" />
                 </StackPanel>
             </Border>
@@ -166,8 +182,8 @@
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Button x:Name="BackToExpressionOverviewButton" Style="{StaticResource ToolIconButton}" Content="←" Command="{Binding OpenExpressionOverviewCommand}" ToolTip="返回表达能力" /><StackPanel Margin="10,0,0,0"><TextBlock Text="能力管理" Style="{StaticResource SectionTitle}" /><TextBlock Text="每次只采用一项外部能力；事实保真与安全规则始终由话匣子控制。" Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0" /></StackPanel></StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"><Button x:Name="ImportSkillButton" Style="{StaticResource PrimaryButton}" Content="导入 Skill" Click="ImportSkill_OnClick" ToolTip="从 SKILL.md 或 ZIP 导入" /><Button Style="{StaticResource GlassButton}" Content="重新导入预置" Command="{Binding UseDefaultStrategiesCommand}" Margin="8,0,0,0" ToolTip="恢复随话匣子提供的默认能力" /></StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Button x:Name="BackToExpressionOverviewButton" Style="{StaticResource ToolIconButton}" Content="←" Command="{Binding OpenExpressionOverviewCommand}" ToolTip="返回表达与生成" /><StackPanel Margin="10,0,0,0"><TextBlock Text="能力管理" Style="{StaticResource SectionTitle}" /><TextBlock Text="每次只采用一项外部能力；事实保真与安全规则始终由话匣子控制。" Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0" /></StackPanel></StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"><Button x:Name="ImportSkillButton" Style="{StaticResource PrimaryButton}" Content="导入能力" Click="ImportSkill_OnClick" ToolTip="从 SKILL.md 或 ZIP 导入表达能力" /><Button Style="{StaticResource GlassButton}" Content="恢复默认能力" Command="{Binding UseDefaultStrategiesCommand}" Margin="8,0,0,0" ToolTip="恢复随话匣子提供的默认能力" /></StackPanel>
             </Grid>
             <Border Grid.Row="1" Background="{DynamicResource InputBrush}" BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardRadius}" Padding="12,9" Margin="0,18,0,0"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions><Ellipse Width="8" Height="8" Fill="{DynamicResource BrandBrush}" VerticalAlignment="Center" Margin="0,0,8,0" /><StackPanel Grid.Column="1"><TextBlock Text="外部能力只改变表达方法，不会读取密钥、历史正文或执行脚本。" Foreground="{DynamicResource MutedBrush}" /><TextBlock Text="{Binding StrategyStatus}" Foreground="{DynamicResource BodyTextBrush}" Margin="0,4,0,0" TextWrapping="Wrap" /></StackPanel></Grid></Border>
             <Grid x:Name="SkillColumnsFrame" Grid.Row="2" Height="440" Margin="0,18,0,0">
@@ -178,7 +194,7 @@
                         <Grid Margin="8,2,8,8"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="已安装能力" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" /><TextBlock Text="{Binding AgentSkillItems.Count, StringFormat={}{0} 项}" Grid.Column="1" Foreground="{DynamicResource MutedBrush}" /></Grid>
                         <ListBox x:Name="AgentSkillList" Grid.Row="1" ItemsSource="{Binding AgentSkillItems}" SelectedItem="{Binding SelectedAgentSkill}" ItemContainerStyle="{StaticResource SkillListItem}" BorderThickness="0" Background="Transparent" MinHeight="300" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" local:NestedScrollBehavior.ForwardMouseWheelToParent="True" IsEnabled="{Binding IsStrategiesLoading, Converter={StaticResource InverseBool}}">
                             <ListBox.Resources><Style TargetType="{x:Type ScrollViewer}" BasedOn="{StaticResource OverlayScrollViewer}" /></ListBox.Resources>
-                            <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="{Binding EffectiveDisplayName}" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding SourceDisplay}" Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0" /><TextBlock Text="{Binding ModeDisplay}" Foreground="{DynamicResource MutedBrush}" Margin="0,2,0,0" /></StackPanel><TextBlock Grid.Column="1" Text="{Binding StateDisplay}" Foreground="{DynamicResource BrandBrush}" Margin="8,0,0,0" VerticalAlignment="Center" /></Grid></DataTemplate></ListBox.ItemTemplate>
+                            <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="{Binding EffectiveDisplayName}" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding EffectiveDescription}" Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0" TextWrapping="Wrap" MaxHeight="34" TextTrimming="CharacterEllipsis" /></StackPanel><TextBlock Grid.Column="1" Text="{Binding StateDisplay}" Foreground="{DynamicResource BrandBrush}" Margin="8,0,0,0" VerticalAlignment="Top" /></Grid></DataTemplate></ListBox.ItemTemplate>
                         </ListBox>
                         <TextBlock Grid.Row="1" Text="正在加载能力…" Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding IsStrategiesLoading, Converter={StaticResource BoolToVisibility}}" />
                         <Button Grid.Row="2" Style="{StaticResource GlassButton}" Content="重新加载" Command="{Binding RetryExpressionSkillsLoadCommand}" HorizontalAlignment="Left" Margin="8,10,0,0" />
@@ -206,22 +222,26 @@
                                       local:NestedScrollBehavior.ForwardMouseWheelToParent="True"
                                       Padding="0,0,8,0">
                             <StackPanel x:Name="SkillDetailsPane">
-                                <TextBlock Text="{Binding SelectedAgentSkill.EffectiveDisplayName}" Style="{StaticResource SectionTitle}" />
+                                <TextBlock Text="能力名称" Style="{StaticResource LabelText}" />
+                                <Grid Margin="0,6,0,8"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBox x:Name="SkillDisplayNameTextBox" Grid.Column="0" Text="{Binding SkillDisplayName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource GlassPlainTextBox}" MinHeight="34" />
+                                    <Button Grid.Column="1" Style="{StaticResource GlassButton}" Content="应用名称" Command="{Binding SaveSkillDisplayNameCommand}" Margin="8,0,0,0" />
+                                </Grid>
                                 <TextBlock Text="{Binding SelectedAgentSkill.EffectiveDescription}" Foreground="{DynamicResource MutedBrush}"
-                                           TextWrapping="Wrap" Margin="0,5,0,18" />
+                                           TextWrapping="Wrap" Margin="0,2,0,14" />
                                 <Grid x:Name="SkillSummaryAndActionsGrid">
                                     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                                    <TextBlock x:Name="SkillModeLabel" Text="{Binding SelectedAgentSkill.ModeDisplay}"
+                                    <TextBlock x:Name="SkillModeLabel" Text="{Binding SelectedAgentSkill.ModeDisplay, StringFormat=适用于：{0}}"
                                                Foreground="{DynamicResource BodyTextBrush}" VerticalAlignment="Center" />
                                     <WrapPanel x:Name="SkillActionsPanel" Grid.Row="1" HorizontalAlignment="Left" Margin="0,10,0,0">
                                         <Button Style="{StaticResource GlassButton}" Content="{Binding SelectedAgentSkill.ToggleActionDisplay}" Command="{Binding ToggleSelectedAgentSkillCommand}" />
-                                        <Button Style="{StaticResource GlassButton}" Content="编辑副本" Command="{Binding EditSelectedAgentSkillCommand}" Margin="8,0,0,0" />
+                                        <Button Style="{StaticResource GlassButton}" Content="编辑内容" Command="{Binding EditSelectedAgentSkillCommand}" Margin="8,0,0,0" />
                                         <Button x:Name="ExportSkillButton" Style="{StaticResource GlassButton}" Content="导出" Click="ExportSkill_OnClick" Margin="8,0,0,0" />
                                         <Button Style="{StaticResource GlassButton}" Content="删除" Command="{Binding DeleteSelectedAgentSkillCommand}"
                                                 IsEnabled="{Binding SelectedAgentSkill.CanDelete}" Foreground="{DynamicResource DangerBrush}" Margin="8,0,0,0" />
                                     </WrapPanel>
                                 </Grid>
-                                <Expander Header="来源与兼容详情" Style="{StaticResource SettingsExpander}" Margin="0,18,0,0">
+                                <Expander Header="详细信息（高级）" Style="{StaticResource SettingsExpander}" Margin="0,16,0,0">
                                 <Grid Margin="0,12,0,0">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Margin="0,0,28,0">
@@ -245,7 +265,7 @@
                                     Visibility="{Binding HasSelectedAgentSkill, Converter={StaticResource BoolToVisibility}, ConverterParameter=Inverse}"
                                     VerticalAlignment="Center">
                             <TextBlock Text="选择一项能力" Style="{StaticResource SectionTitle}" HorizontalAlignment="Center" />
-                            <TextBlock Text="从左侧选择能力后，可查看用途、来源并执行启用、编辑副本或导出。"
+                            <TextBlock Text="查看用途、启停状态或自定义名称。"
                                        Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" TextAlignment="Center"
                                        HorizontalAlignment="Center" MaxWidth="300" Margin="0,8,0,0" />
                         </StackPanel>

@@ -188,6 +188,28 @@ public class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public void CompanionState_UsesDistinctStatesForStartProcessingQuestionAndCompletion()
+    {
+        var vm = new MainViewModel();
+
+        vm.SetCompanionWorkPhase(CompanionWorkPhase.Starting);
+        vm.IsBusy = true;
+        Assert.Equal(CompanionVisualState.Working, vm.CompanionState);
+
+        vm.SetCompanionWorkPhase(CompanionWorkPhase.Processing);
+        Assert.Equal(CompanionVisualState.Thinking, vm.CompanionState);
+
+        vm.IsBusy = false;
+        vm.HasClarification = true;
+        Assert.Equal(CompanionVisualState.Curious, vm.CompanionState);
+
+        vm.HasClarification = false;
+        vm.ArchiveStatus = "未归档";
+        vm.SetCompanionCompletion(true);
+        Assert.Equal(CompanionVisualState.Happy, vm.CompanionState);
+    }
+
+    [Fact]
     public void IsDisplayTextEmpty_TracksCurrentEditorContent()
     {
         var root = Path.Combine(Path.GetTempPath(), "HuaxiaziEmptyEditor_" + Guid.NewGuid().ToString("N"));

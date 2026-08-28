@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using Huaxiazi.Models;
+using Huaxiazi.Services;
 using Huaxiazi.ViewModels;
 using Huaxiazi.Views;
 using Xunit;
@@ -81,6 +82,61 @@ public sealed class CompanionUiContractTests
             Assert.True(eye.X > 0 && eye.Y > 0);
             Assert.True(mouth.X > 0 && mouth.Y > 0);
             Assert.True(Math.Abs(eye.Y - mouth.Y) < 2.6);
+        });
+    }
+
+    [Fact]
+    public void CompanionFace_DefaultVectorFaceRaisesEyesAboveTheMouth()
+    {
+        RunSta(() =>
+        {
+            EnsureApplicationResources();
+            App.ReplaceSettings(new AppSettings { AnimationsEnabled = false, IncognitoMode = true });
+            var face = new CompanionFace();
+            var eyes = Assert.IsAssignableFrom<FrameworkElement>(face.FindName("EyeLayer"));
+            var offset = Assert.IsType<TranslateTransform>(face.FindName("EyeVisualOffset"));
+
+            Assert.Equal(-1.5, offset.Y, 2);
+            Assert.True(CompanionFaceKinematics.FeatureGap >= 8.5);
+            Assert.Equal(Visibility.Visible, eyes.Visibility);
+        });
+    }
+
+    [Fact]
+    public void CompanionFace_UsesDifferentExpressionsForWorkingAndThinking()
+    {
+        RunSta(() =>
+        {
+            EnsureApplicationResources();
+            App.ReplaceSettings(new AppSettings { AnimationsEnabled = false, IncognitoMode = true });
+            var face = new CompanionFace();
+            var leftEye = Assert.IsType<Path>(face.FindName("LeftEye"));
+
+            face.State = CompanionVisualState.Working;
+            var workingEye = leftEye.Data.ToString();
+            face.State = CompanionVisualState.Thinking;
+            var thinkingEye = leftEye.Data.ToString();
+
+            Assert.NotEqual(workingEye, thinkingEye);
+        });
+    }
+
+    [Fact]
+    public void FloatingBall_ForwardsWorkflowStateToItsCompanionFace()
+    {
+        RunSta(() =>
+        {
+            EnsureApplicationResources();
+            App.ReplaceSettings(new AppSettings { AnimationsEnabled = false, IncognitoMode = true });
+            var window = new FloatingBallWindow();
+
+            window.SetCompanionState(CompanionVisualState.Working);
+
+            var face = Assert.IsType<CompanionFace>(window.FindName("CompanionFace"));
+            Assert.Equal(CompanionVisualState.Working, face.State);
+            var orb = Assert.IsAssignableFrom<FrameworkElement>(window.FindName("Orb"));
+            Assert.Contains("已开始处理", Assert.IsType<string>(orb.ToolTip));
+            window.Close();
         });
     }
 

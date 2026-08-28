@@ -46,6 +46,8 @@ public enum ApiKeyStatusKind
     NotRequired
 }
 
+public sealed record InferenceLevelOption(InferenceLevel Value, string DisplayName, string Description);
+
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly ArchiveService _archiveService;
@@ -57,20 +59,27 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly DataManagementService _dataManagement = new();
     private readonly AppSettings _originalDisplaySettings;
     public IReadOnlyList<string> Sections { get; } =
-        ["模型与 API", "表达能力", "历史与会话", "界面与显示", "窗口与行为", "快捷键", "数据管理", "关于与更新"];
-    [ObservableProperty] private string _selectedSection = "模型与 API";
+        ["表达与生成", "模型连接", "外观与窗口", "快捷键", "历史与留存", "数据维护", "关于与更新"];
+    [ObservableProperty] private string _selectedSection = "表达与生成";
     [ObservableProperty] private ExpressionAbilityPane _expressionAbilityPane = ExpressionAbilityPane.Overview;
     public IReadOnlyList<PromptCategory> Categories => PromptCategoryMetadata.AllCategories;
     public IReadOnlyList<PromptDepth> Depths => PromptDepthMetadata.AllDepths;
     public IReadOnlyList<ApplicationMode> Modes { get; } = [ApplicationMode.Polish, ApplicationMode.PromptOptimize];
     public IReadOnlyList<string> OutputStyles { get; } = ["自然", "克制", "亲切", "专业", "正式", "简洁"];
+    public IReadOnlyList<InferenceLevelOption> InferenceLevels { get; } =
+    [
+        new(InferenceLevel.Low, "低", "响应更快，适合简单润色与日常问答"),
+        new(InferenceLevel.Medium, "中", "速度与思考深度平衡（推荐）"),
+        new(InferenceLevel.High, "高", "更充分推理，适合复杂分析与长文本"),
+        new(InferenceLevel.Custom, "自定义", "自行调整采样、输出上限与超时")
+    ];
     public IReadOnlyList<string> PolishScenarios { get; } = ["私人沟通", "职场沟通", "公开发布", "正式材料", "其他"];
     public IReadOnlyList<SettingOption> ThemeModes { get; } =
         [new("System", "跟随 Windows"), new("Light", "浅色"), new("Dark", "深色")];
     public IReadOnlyList<CompanionDriverModeOption> CompanionDriverModes { get; } =
     [
-        new(CompanionDriverMode.Local, "本地响应（推荐）", "仅根据鼠标、窗口、编辑和生成结果驱动动画，零额外 Token。"),
-        new(CompanionDriverMode.EmotionAssistant, "情绪助手", "不增加额外请求；会在原生成中增加少量提示词与输出 Token。")
+        new(CompanionDriverMode.Local, "仅显示状态（推荐）", "根据鼠标、窗口、编辑和生成结果显示状态，不分析回答语气。"),
+        new(CompanionDriverMode.EmotionAssistant, "根据语气反馈", "让角色根据回答语气给出反馈；不会增加额外请求，可能略微增加用量。")
     ];
     public ObservableCollection<SettingOption> SpecialSkins { get; } =
         [new("default", "默认外观"), new("LuoXiaoHei", "罗小黑"), new("MaoDie", "耄耋")];
@@ -466,6 +475,9 @@ public sealed partial class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(SelectedProviderApiKeyUrl));
                 OnPropertyChanged(nameof(ModelId));
                 OnPropertyChanged(nameof(ApiBaseInput));
+                OnPropertyChanged(nameof(SelectedInferenceLevel));
+                OnPropertyChanged(nameof(IsCustomInference));
+                OnPropertyChanged(nameof(SelectedInferenceDescription));
                 OnPropertyChanged(nameof(ShowLegacyModelMapping));
                 OnPropertyChanged(nameof(ProviderVerificationText));
                 OnPropertyChanged(nameof(CanDuplicateOrEditProvider));
@@ -490,6 +502,19 @@ public sealed partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(ActiveProviderProfileId));
         OnPropertyChanged(nameof(IsSelectedProviderActive));
         OnPropertyChanged(nameof(FilteredProviderProfiles));
+    }
+
+    /// <summary>
+    /// Notifies the list page that a profile edited through a direct object
+    /// binding has changed. ProviderProfile remains a serialization-friendly
+    /// POCO, so the editor calls this at the point of user input.
+    /// </summary>
+    public void NotifyProviderProfileEdited()
+    {
+        HasChanges = true;
+        OnPropertyChanged(nameof(FilteredProviderProfiles));
+        OnPropertyChanged(nameof(CanDuplicateOrEditProvider));
+        OnPropertyChanged(nameof(CanRemoveProvider));
     }
     public ProviderPlatformOption? SelectedProviderPlatform
     {
@@ -518,6 +543,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             OnPropertyChanged(nameof(ApiBaseInput));
             OnPropertyChanged(nameof(ShowLegacyModelMapping));
             OnPropertyChanged(nameof(ProviderVerificationText));
+            OnPropertyChanged(nameof(FilteredProviderProfiles));
             HasChanges = true;
             ConnectionStatus = $"已切换到 {value.DisplayName}，请填写 API Key 并测试连接";
             ConnectionStatusKind = ConnectionStatusKind.Neutral;
@@ -537,6 +563,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             ResetConnectionVerification();
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectedModel));
+            OnPropertyChanged(nameof(FilteredProviderProfiles));
         }
     }
 
@@ -553,6 +580,24 @@ public sealed partial class SettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
+
+    public InferenceLevel SelectedInferenceLevel
+    {
+        get => SelectedProviderProfile?.InferenceLevel ?? InferenceLevel.Medium;
+        set
+        {
+            if (SelectedProviderProfile is null || SelectedProviderProfile.InferenceLevel == value) return;
+            ProviderInferencePresets.Apply(SelectedProviderProfile, value);
+            HasChanges = true;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsCustomInference));
+            OnPropertyChanged(nameof(SelectedInferenceDescription));
+            OnPropertyChanged(nameof(SelectedProviderProfile));
+        }
+    }
+
+    public bool IsCustomInference => SelectedInferenceLevel == InferenceLevel.Custom;
+    public string SelectedInferenceDescription => InferenceLevels.FirstOrDefault(x => x.Value == SelectedInferenceLevel)?.Description ?? string.Empty;
 
     public bool ShowLegacyModelMapping => SelectedProviderProfile?.EnableModelMapping == true;
     public string ProviderVerificationText => SelectedProviderPlatform is { } option
@@ -796,6 +841,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private AgentSkillRecord? _selectedAgentSkill;
     [ObservableProperty] private AgentSkillCandidate? _pendingAgentSkill;
     [ObservableProperty] private string _skillEditorText = string.Empty;
+    [ObservableProperty] private string _skillDisplayName = string.Empty;
     [ObservableProperty] private bool _isSkillEditorOpen;
     [ObservableProperty] private string _strategyStatus = "内置策略始终可用；外部 Skill 仅作为受限表达方法运行。";
     [ObservableProperty] private bool _isStrategiesLoading;
@@ -807,6 +853,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public bool HasPendingAgentSkill => PendingAgentSkill is not null;
     partial void OnSelectedAgentSkillChanged(AgentSkillRecord? value)
     {
+        SkillDisplayName = value?.EffectiveDisplayName ?? string.Empty;
         OnPropertyChanged(nameof(HasSelectedAgentSkill));
         OnPropertyChanged(nameof(IsSkillDetailsVisible));
     }
@@ -835,8 +882,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     partial void OnSelectedSectionChanged(string value)
     {
-        // “专业能力”管理统一从“表达能力”概览的“管理能力”入口进入，避免重复入口。
-        if (value == "表达能力") ExpressionAbilityPane = ExpressionAbilityPane.Overview;
+        // “专业能力”管理统一从“表达与生成”概览的“管理能力”入口进入，避免重复入口。
+        if (value == "表达与生成") ExpressionAbilityPane = ExpressionAbilityPane.Overview;
         else if (ExpressionAbilityPane != ExpressionAbilityPane.Overview)
             ExpressionAbilityPane = ExpressionAbilityPane.Overview;
     }
@@ -962,6 +1009,20 @@ public sealed partial class SettingsViewModel : ObservableObject
             IsSkillEditorOpen = false;
             ReloadStrategyItems(selectedName);
             StrategyStatus = "自定义 Skill 已保存并设为当前策略。";
+        }
+        catch (Exception exception) { StrategyStatus = exception.Message; }
+    }
+
+    [RelayCommand]
+    private void SaveSkillDisplayName()
+    {
+        if (SelectedAgentSkill is null || !EnsureStrategiesLoaded()) return;
+        try
+        {
+            _agentSkillPackages!.RenameDisplayName(SelectedAgentSkill.Id, SkillDisplayName);
+            var selectedName = SelectedAgentSkill.Id;
+            ReloadStrategyItems(selectedName);
+            StrategyStatus = "显示名称已更新；运行时仍使用同一项能力。";
         }
         catch (Exception exception) { StrategyStatus = exception.Message; }
     }
@@ -1139,6 +1200,15 @@ public sealed partial class SettingsViewModel : ObservableObject
         await TestSelectedConnectionAsync();
     }
 
+    /// <summary>配置列表中的可选连通性检查；保存和退出不再隐式触发网络请求。</summary>
+    [RelayCommand]
+    private async Task TestProviderProfile(ProviderProfile? profile)
+    {
+        if (profile is null) return;
+        SelectedProviderProfile = profile;
+        await TestSelectedConnectionAsync();
+    }
+
     [RelayCommand]
     private void CopyConnectionDiagnostic()
     {
@@ -1158,6 +1228,18 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (SelectedProviderProfile is null) return null;
         if (_pendingApiKeys.TryGetValue(SelectedProviderProfile.SecretId, out var pending)) return pending;
         return _secretStore.Read(SelectedProviderProfile.SecretId);
+    }
+
+    /// <summary>
+    /// 仅供 API Key 编辑器初始化时读取。不会写入 ApiKey 草稿、配置文件、日志或诊断信息；
+    /// 显示仍由 PasswordBox 掩码控制，用户点击眼睛后才会看到明文。
+    /// </summary>
+    internal string GetApiKeyForEditor()
+    {
+        if (SelectedProviderProfile is null) return string.Empty;
+        if (_pendingApiKeys.TryGetValue(SelectedProviderProfile.SecretId, out var pending))
+            return pending ?? string.Empty;
+        return _secretStore.Read(SelectedProviderProfile.SecretId) ?? string.Empty;
     }
 
     private async Task<ConnectionTestResult?> TestSelectedConnectionAsync(CancellationToken cancellationToken = default)
@@ -1206,7 +1288,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public async Task<bool> TrySaveAsync(bool saveWithoutVerification = false, CancellationToken cancellationToken = default)
     {
-        while (IsTestingConnection)
+        // Exit-save is deliberately non-blocking. An optional list test may still be in flight;
+        // its result can update the status card later without holding the settings window open.
+        while (!saveWithoutVerification && IsTestingConnection)
         {
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(40, cancellationToken);

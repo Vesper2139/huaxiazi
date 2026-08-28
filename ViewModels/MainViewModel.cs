@@ -12,6 +12,14 @@ using Huaxiazi.Services;
 
 namespace Huaxiazi.ViewModels;
 
+/// <summary>一次表达任务在悬浮球上的可见工作阶段。</summary>
+public enum CompanionWorkPhase
+{
+    Ready,
+    Starting,
+    Processing
+}
+
 public sealed partial class MainViewModel : ObservableObject
 {
     private readonly WorkspaceDraftService _draftStore;
@@ -39,6 +47,7 @@ public sealed partial class MainViewModel : ObservableObject
     private AssistantEmotionHint? _assistantEmotion;
     private CancellationTokenSource? _assistantEmotionCancellation;
     private GenerationFailureException? _lastGenerationFailure;
+    private bool _companionCompleted;
     public GenerationFailureException? LastGenerationFailure
     {
         get => _lastGenerationFailure;
@@ -95,6 +104,12 @@ public sealed partial class MainViewModel : ObservableObject
             if (App.Settings.EnabledModes.Contains(value.Mode)) CurrentMode = value.Mode;
             if (App.Settings.EnabledPromptCategories.Contains(value.Category)) SelectedCategory = value.Category;
             SelectedDepth = value.Depth;
+            // A preset is a named shortcut for the complete expression configuration. Keep the
+            // global defaults as the single runtime source so polish and prompt optimization
+            // consume the same style instructions after a preset is selected.
+            App.Settings.OutputStyle = value.OutputStyle;
+            App.Settings.CustomStyleInstructions = value.Instructions;
+            App.Settings.CustomSystemPrompt = value.CustomSystemPrompt;
             MarkDraftDirty();
         }
     }
@@ -208,10 +223,19 @@ public sealed partial class MainViewModel : ObservableObject
         : HasClarification
             ? CompanionVisualState.Curious
                 : IsBusy
-                    ? CompanionVisualState.Thinking
+                    ? _companionWorkPhase switch
+                    {
+                        CompanionWorkPhase.Starting => CompanionVisualState.Working,
+                        CompanionWorkPhase.Processing => CompanionVisualState.Thinking,
+                        _ => CompanionVisualState.Thinking
+                    }
+                : _companionCompleted
+                    ? CompanionVisualState.Happy
                     : _assistantEmotion is not null
                         ? CompanionEmotionMapper.ToVisualState(_assistantEmotion)
-                : ArchiveStatus.StartsWith("已归档", StringComparison.Ordinal) || ArchiveStatus == "已复制"
+                : ArchiveStatus.StartsWith("已归档", StringComparison.Ordinal) ||
+                  ArchiveStatus.StartsWith("已采用", StringComparison.Ordinal) ||
+                  ArchiveStatus == "已复制"
                     ? CompanionVisualState.Happy
                     : CompanionVisualState.Idle;
     public string OperationalNotice => HasError
@@ -219,7 +243,11 @@ public sealed partial class MainViewModel : ObservableObject
         : HasClarification
             ? "请补充信息后继续"
             : IsBusy
-                ? (IsPolishMode ? "正在整理表达，请稍候…" : "正在优化提示词，请稍候…")
+                ? _companionWorkPhase == CompanionWorkPhase.Starting
+                    ? (IsPolishMode ? "已开始整理表达…" : "已开始优化提示词…")
+                    : (IsPolishMode ? "正在整理表达，请稍候…" : "正在优化提示词，请稍候…")
+                : _companionCompleted
+                    ? (IsPolishMode ? "表达润色完成" : "提示词优化完成")
                 : ArchiveStatus;
     /// <summary>澄清面板中的实际问题；标题状态栏只显示概括提示，避免挤占标题并泄露长原文。</summary>
     public string ClarificationPrompt => string.Join("  ", ClarificationQuestions);
@@ -243,6 +271,24 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(PrimaryActionText));
         NotifyCompanionFeedbackChanged();
         RegenerateCommand.NotifyCanExecuteChanged();
+    }
+    private CompanionWorkPhase _companionWorkPhase = CompanionWorkPhase.Ready;
+
+    public CompanionWorkPhase CompanionWorkPhase => _companionWorkPhase;
+
+    internal void SetCompanionWorkPhase(CompanionWorkPhase phase)
+    {
+        if (_companionWorkPhase == phase) return;
+        _companionWorkPhase = phase;
+        OnPropertyChanged(nameof(CompanionWorkPhase));
+        NotifyCompanionFeedbackChanged();
+    }
+
+    internal void SetCompanionCompletion(bool completed)
+    {
+        if (_companionCompleted == completed) return;
+        _companionCompleted = completed;
+        NotifyCompanionFeedbackChanged();
     }
     [ObservableProperty] private string _errorMessage = string.Empty;
     partial void OnErrorMessageChanged(string value) => NotifyCompanionFeedbackChanged();
@@ -533,6 +579,8 @@ public sealed partial class MainViewModel : ObservableObject
         ApplyAssistantEmotion(null);
         HasClarification = false;
         ClarificationQuestions = [];
+        SetCompanionCompletion(false);
+        SetCompanionWorkPhase(CompanionWorkPhase.Starting);
         IsBusy = true;
         var requestVersion = Interlocked.Increment(ref _requestVersion);
         var requestMode = CurrentMode;
@@ -542,6 +590,11 @@ public sealed partial class MainViewModel : ObservableObject
 
         try
         {
+            // Yield once so the user can see the distinct “开始处理” face
+            // before the sustained network/thinking state takes over.
+            await Task.Yield();
+            if (requestVersion == Volatile.Read(ref _requestVersion) && IsBusy)
+                SetCompanionWorkPhase(CompanionWorkPhase.Processing);
             var parsedInput = InputContextParser.Parse(_clarificationSubmission ?? UserInput);
             var profile = App.Settings.GetActiveProviderProfile();
             var key = App.SecretStore.Read(profile.SecretId);
@@ -643,6 +696,9 @@ public sealed partial class MainViewModel : ObservableObject
                 RecordWorkspaceUndo();
                 OptimizedResult = result;
                 ViewMode = ViewMode.Optimized;
+                // 生成结果进入与历史成稿一致的可编辑状态，用户无需再寻找隐藏的“编辑”动作。
+                _generatedResultBeforeEdit = result;
+                IsEditingResult = true;
                 AddHistory(UserInput.Trim());
                 if (ShouldArchive())
                 {
@@ -689,7 +745,14 @@ public sealed partial class MainViewModel : ObservableObject
         }
         finally
         {
-            if (requestVersion == Volatile.Read(ref _requestVersion)) IsBusy = false;
+            if (requestVersion == Volatile.Read(ref _requestVersion))
+            {
+                var completed = !HasError && !HasClarification &&
+                    ViewMode == ViewMode.Optimized && !string.IsNullOrWhiteSpace(OptimizedResult);
+                SetCompanionWorkPhase(CompanionWorkPhase.Ready);
+                SetCompanionCompletion(completed);
+                IsBusy = false;
+            }
         }
     }
 
@@ -919,6 +982,8 @@ public sealed partial class MainViewModel : ObservableObject
                 _currentScenario = string.IsNullOrWhiteSpace(result.Response.Scenario) ? "其他" : result.Response.Scenario;
                 _currentTopic = string.IsNullOrWhiteSpace(result.Response.Topic) ? "未命名表达" : result.Response.Topic;
                 ViewMode = ViewMode.Optimized;
+                // 润色成稿与提示词优化结果保持一致：生成后即可直接修改，无需额外寻找编辑入口。
+                IsEditingResult = true;
                 AddHistory(UserInput.Trim());
                 if (result.SavedRevision is { } revision)
                 {

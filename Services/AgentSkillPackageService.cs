@@ -147,6 +147,21 @@ public sealed class AgentSkillPackageService
         WriteInstallMetadata(record.Candidate.PackageRoot, record.Mode, record.Candidate.Sha256, record.Source, enabled, record.Id, ToManifest(record));
     }
 
+    /// <summary>
+    /// Changes only the local, user-facing label. The package id, upstream files and routing
+    /// metadata remain untouched, so renaming is safe for both preset and custom skills.
+    /// </summary>
+    public void RenameDisplayName(string name, string displayName)
+    {
+        var normalized = displayName?.Trim() ?? string.Empty;
+        if (normalized.Length is < 1 or > 60 || normalized.Any(char.IsControl))
+            throw new ArgumentException("显示名称需为 1–60 个可读字符。", nameof(displayName));
+
+        var record = RequireInstalled(name);
+        WriteInstallMetadata(record.Candidate.PackageRoot, record.Mode, record.Candidate.Sha256,
+            record.Source, record.IsEnabled, record.Id, ToManifest(record, normalized));
+    }
+
     public AgentSkillRecord CloneForEditing(string name, string cloneName)
     {
         var source = RequireInstalled(name);
@@ -509,10 +524,10 @@ public sealed class AgentSkillPackageService
         return Convert.ToHexString(sha.Hash!).ToLowerInvariant();
     }
 
-    private static SkillPresetManifest ToManifest(AgentSkillRecord record) => new()
+    private static SkillPresetManifest ToManifest(AgentSkillRecord record, string? displayName = null) => new()
     {
         Id = record.Id,
-        DisplayName = record.EffectiveDisplayName,
+        DisplayName = displayName ?? record.EffectiveDisplayName,
         DisplayDescription = record.EffectiveDescription,
         Mode = record.Mode,
         SourceRepository = record.SourceRepository,

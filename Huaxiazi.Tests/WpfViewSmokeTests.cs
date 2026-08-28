@@ -704,11 +704,10 @@ public sealed class WpfViewSmokeTests
                 AssertBinding(view, "StartWithWindowsCheckBox", System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, "StartWithWindows");
                 AssertBinding(ability, "DefaultCategorySelector", ComboBox.SelectedItemProperty, "DefaultCategory");
                 AssertBinding(ability, "DefaultDepthSelector", ComboBox.SelectedItemProperty, "DefaultDepth");
-                AssertBinding(view, "PromptCategoryOptionsList", ItemsControl.ItemsSourceProperty, "PromptCategoryOptions");
+                AssertBinding(ability, "PromptCategoryOptionsList", ItemsControl.ItemsSourceProperty, "PromptCategoryOptions");
                 AssertBinding(view, "UpdateCheckUrlTextBox", TextBox.TextProperty, "UpdateCheckUrl");
                 AssertBinding(FindProfileEditor(view), "ModelSelector", ComboBox.TextProperty, "ModelId");
                 AssertBinding(ability, "CustomSystemPromptTextBox", TextBox.TextProperty, "CustomSystemPrompt");
-                AssertBinding(ability, "PreserveMeaningCheckBox", System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, "PreserveMeaning");
                 AssertBinding(ability, "MinimalRewriteCheckBox", System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, "MinimalRewrite");
                 AssertBinding(ability, "ProfessionalToneCheckBox", System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, "ProfessionalTone");
                 AssertBinding(ability, "OptimizationPresetList", ItemsControl.ItemsSourceProperty, "OptimizationPresets");

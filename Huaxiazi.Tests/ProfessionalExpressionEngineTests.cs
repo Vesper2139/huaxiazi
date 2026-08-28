@@ -158,6 +158,27 @@ public sealed class ProfessionalExpressionEngineTests
     }
 
     [Fact]
+    public async Task PromptWorkflow_ClientEmptyResponse_IsRetriedAndCanComplete()
+    {
+        var client = new ThrowOnceEmptyClient("结构化后的提示词");
+        var request = new PromptRequest { UserInput = "写一个项目说明", Category = PromptCategory.Writing, Depth = PromptDepth.Standard };
+        var plan = new ProfessionalizationPlanner().Create(new ProfessionalizationRequest
+        {
+            Input = request.UserInput,
+            Mode = ApplicationMode.PromptOptimize,
+            Category = request.Category,
+            Depth = request.Depth
+        });
+
+        var result = await new PromptOptimizationWorkflowService(client, new PromptBuilderService())
+            .ExecuteAsync(request, plan);
+
+        Assert.False(result.IsBlocked);
+        Assert.Equal("结构化后的提示词", result.Content);
+        Assert.Equal(2, client.Calls);
+    }
+
+    [Fact]
     public void StructuredPreferenceLearning_DoesNotPersistGeneratedOrEditedText()
     {
         var profile = new ExpressionPreferenceProfile();
@@ -184,6 +205,18 @@ public sealed class ProfessionalExpressionEngineTests
             var value = responses[Math.Min(_index, responses.Length - 1)];
             _index++;
             return Task.FromResult(value);
+        }
+    }
+
+    private sealed class ThrowOnceEmptyClient(string successfulResponse) : ITextGenerationClient
+    {
+        public int Calls { get; private set; }
+
+        public Task<string> GenerateAsync(string systemPrompt, string userInput, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            if (Calls == 1) throw new InvalidOperationException("模型返回为空，请重试。");
+            return Task.FromResult(successfulResponse);
         }
     }
 }

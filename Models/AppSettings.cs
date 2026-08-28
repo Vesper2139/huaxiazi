@@ -83,20 +83,11 @@ public sealed class AppSettings
     [JsonPropertyName("customSystemPrompt")]
     public string CustomSystemPrompt { get; set; } = string.Empty;
 
-    [JsonPropertyName("externalStrategiesEnabled")]
-    public bool ExternalStrategiesEnabled { get; set; } = true;
-
     [JsonPropertyName("preferenceLearningEnabled")]
     public bool PreferenceLearningEnabled { get; set; } = true;
 
     [JsonPropertyName("expressionPreferenceProfile")]
     public ExpressionPreferenceProfile ExpressionPreferenceProfile { get; set; } = new();
-
-    [JsonPropertyName("polishStrategyId")]
-    public string PolishStrategyId { get; set; } = "text-polisher";
-
-    [JsonPropertyName("promptStrategyId")]
-    public string PromptStrategyId { get; set; } = "prompt-optimizer";
 
     [JsonPropertyName("preserveMeaning")]
     public bool PreserveMeaning { get; set; } = true;

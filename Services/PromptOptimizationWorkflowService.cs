@@ -21,10 +21,37 @@ public sealed class PromptOptimizationWorkflowService
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(plan);
         var mode = App.Settings.CompanionDriverMode;
-        var firstRaw = await _client.GenerateAsync(
-            AssistantEmotionProtocol.DecorateSystemPrompt(_builder.Build(request, plan), mode),
-            _builder.BuildUserMessage(request),
-            cancellationToken).ConfigureAwait(false);
+        var firstPrompt = AssistantEmotionProtocol.DecorateSystemPrompt(_builder.Build(request, plan), mode);
+        var userMessage = _builder.BuildUserMessage(request);
+        string firstRaw;
+        try
+        {
+            firstRaw = await _client.GenerateAsync(firstPrompt, userMessage, cancellationToken).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException exception) when (IsEmptyResponse(exception))
+        {
+            // 某些兼容网关会以 2xx + 空 content 返回，AIService 会在解析层报告空响应。
+            // 只做一次轻量重试，不把空结果交给质量门禁，也不无限重试造成重复计费。
+            try
+            {
+                var retryRaw = await _client.GenerateAsync(
+                    AssistantEmotionProtocol.DecorateSystemPrompt(
+                        _builder.BuildRepairPrompt(request, plan, [new QualityIssue("empty-output", "模型没有返回可用内容", QualityIssueSeverity.Quality)]), mode),
+                    userMessage,
+                    cancellationToken).ConfigureAwait(false);
+                var retry = AssistantEmotionProtocol.ParseContent(retryRaw, mode);
+                var retryReport = ProfessionalQualityValidator.Validate(plan, retry.Content);
+                if (retryReport.IsValid)
+                    return Result(retry.Content, plan, true, false, retryReport, retry.Hint);
+            }
+            catch (InvalidOperationException retryException) when (IsEmptyResponse(retryException))
+            {
+                // 继续走统一的阻断结果，UI 会显示可执行的“模型返回为空”提示。
+            }
+
+            return Result(string.Empty, plan, true, true,
+                new QualityReport { Issues = [new QualityIssue("empty-output", "模型没有返回可用内容", QualityIssueSeverity.Quality)] }, null);
+        }
         var first = AssistantEmotionProtocol.ParseContent(firstRaw, mode);
         var initialReport = ProfessionalQualityValidator.Validate(plan, first.Content);
         if (initialReport.IsValid) return Result(first.Content, plan, false, false, initialReport, first.Hint);
@@ -41,6 +68,10 @@ public sealed class PromptOptimizationWorkflowService
             return Result(first.Content, plan, true, false, initialReport, first.Hint);
         return Result(string.Empty, plan, true, true, repairedReport, null);
     }
+
+    private static bool IsEmptyResponse(InvalidOperationException exception) =>
+        exception.Message.Contains("返回为空", StringComparison.Ordinal) ||
+        exception.Message.Contains("没有返回可用内容", StringComparison.Ordinal);
 
     private static TransformationResult Result(
         string content,

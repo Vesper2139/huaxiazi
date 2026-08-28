@@ -79,6 +79,7 @@ public partial class App : System.Windows.Application
 
     /// <summary>悬浮球窗口（收缩态）。</summary>
     private FloatingBallWindow? _floatingBall;
+    private CompanionVisualState _companionState = CompanionVisualState.Idle;
     private Point? _ballOriginBeforeExpand;
     private readonly FloatingUiStateMachine _floatingUi = new();
     private SingleInstanceGuard? _singleInstance;
@@ -368,6 +369,13 @@ public partial class App : System.Windows.Application
         _mainWindow.Focus();
     }
 
+    /// <summary>将主窗口的工作状态投影到悬浮球；悬浮球不维护独立状态。</summary>
+    internal void UpdateCompanionState(CompanionVisualState state)
+    {
+        _companionState = state;
+        _floatingBall?.SetCompanionState(state);
+    }
+
     internal void OpenSettingsView()
     {
         ShowMainWindow();
@@ -448,6 +456,7 @@ public partial class App : System.Windows.Application
         }
 
         _floatingBall.Show();
+        _floatingBall.SetCompanionState(_companionState);
         _floatingBall.Activate();
     }
 
