@@ -11,6 +11,7 @@ namespace Huaxiazi.Services;
 public sealed class ErrorLogService
 {
     private const int MaximumEntryCharacters = 64 * 1024;
+    private static readonly TimeSpan RedactionTimeout = TimeSpan.FromMilliseconds(250);
     private readonly string _directory;
     private readonly long _maxBytes;
     private readonly TimeSpan _throttleWindow;
@@ -62,13 +63,21 @@ public sealed class ErrorLogService
         if (string.IsNullOrEmpty(value)) return value;
         var redacted = Regex.Replace(value,
             @"(?i)\bauthorization\s*:\s*bearer\s+[^\s&;,]+",
-            "Authorization: Bearer [REDACTED]", RegexOptions.CultureInvariant);
+            "Authorization: Bearer [REDACTED]", RegexOptions.CultureInvariant, RedactionTimeout);
         redacted = Regex.Replace(redacted,
             @"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password)\s*[:=]\s*([^\s&;,]+)",
-            "$1=[REDACTED]", RegexOptions.CultureInvariant);
-        return Regex.Replace(redacted,
+            "$1=[REDACTED]", RegexOptions.CultureInvariant, RedactionTimeout);
+        redacted = Regex.Replace(redacted,
             @"(?i)([?&](?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password)=)[^&#\s]+",
-            "$1[REDACTED]", RegexOptions.CultureInvariant);
+            "$1[REDACTED]", RegexOptions.CultureInvariant, RedactionTimeout);
+        redacted = Regex.Replace(redacted,
+            @"(?i)\b(?:x-api-key|x-goog-api-key|api-key)\s*:\s*[^\s&;,]+",
+            "[REDACTED-API-KEY]", RegexOptions.CultureInvariant, RedactionTimeout);
+        redacted = Regex.Replace(redacted,
+            @"(?i)([""](?:key|client_secret)[""]\s*:\s*[""])[^""]*([""])" ,
+            "$1[REDACTED]$2", RegexOptions.CultureInvariant, RedactionTimeout);
+        return redacted.Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
     }
 
     public void Prepare()

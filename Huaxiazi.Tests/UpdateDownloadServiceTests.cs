@@ -30,6 +30,36 @@ public sealed class UpdateDownloadServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task DownloadAsync_RejectsResponseLargerThanSafetyLimit()
+    {
+        using var client = new HttpClient(new OversizedContentLengthHandler());
+        var service = new UpdateDownloadService(client);
+        var target = Path.Combine(_root, "HuaxiaziSetup.exe");
+
+        var result = await service.DownloadAsync(
+            "https://example.com/HuaxiaziSetup.exe",
+            new string('0', 64),
+            target);
+
+        Assert.Equal(UpdateDownloadStatus.Error, result.Status);
+        Assert.Contains("大小", result.Message);
+        Assert.False(File.Exists(target + ".download"));
+    }
+
+    private sealed class OversizedContentLengthHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("small")
+            };
+            response.Content.Headers.ContentLength = 1024L * 1024 * 1024;
+            return Task.FromResult(response);
+        }
+    }
+
+    [Fact]
     public async Task DownloadAsync_HttpUrl_ReturnsError()
     {
         using var client = new HttpClient();

@@ -7,8 +7,10 @@ namespace Huaxiazi.Tests;
 public sealed class AcceptanceSecurityRegressionTests
 {
     [Theory]
-    [InlineData("https://example.com/path", true)]
-    [InlineData("http://example.com/path", true)]
+    [InlineData("https://platform.openai.com/path", true)]
+    [InlineData("https://platform.deepseek.com/docs", true)]
+    [InlineData("https://example.com/path", false)]
+    [InlineData("http://platform.openai.com/path", false)]
     [InlineData("file:///C:/Windows/System32/calc.exe", false)]
     [InlineData("ms-msdt:/id/PCWDiagnostic", false)]
     [InlineData("javascript:alert(1)", false)]

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -138,6 +139,8 @@ public sealed class HealthCheckService
         {
             using var request = new HttpRequestMessage(HttpMethod.Head, endpoint);
             using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+                return Failed("Provider", HealthCheckScope.External, "端点返回认证失败，请检查 API Key 和访问权限。");
             return (int)response.StatusCode >= 500
                 ? Failed("Provider", HealthCheckScope.External, $"端点返回 HTTP {(int)response.StatusCode}。")
                 : Healthy("Provider", HealthCheckScope.External, $"端点可达（HTTP {(int)response.StatusCode}）。");

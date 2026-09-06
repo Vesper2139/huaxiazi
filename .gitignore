@@ -10,11 +10,8 @@ coverage.*
 out/
 deploy/out/
 
-# release/ 只允许可直接交付的包入库；不提交展开发布目录、PDB 或中间文件
-release/*
-!release/Huaxiazi.exe
-!release/Huaxiazi-Portable.zip
-!release/Huaxiazi-Setup.exe
+# 发布物只由受保护的 CI 构建并作为 Release artifact 分发，不进入源码仓库
+release/
 
 # ===== Visual Studio / IDE =====
 .vs/

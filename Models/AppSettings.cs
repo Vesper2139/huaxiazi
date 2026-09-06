@@ -345,6 +345,22 @@ public sealed class AppSettings
         }
     }
 
+    /// <summary>
+    /// Rebind credential slots when loading untrusted JSON. A copied config must
+    /// not be able to name an existing profile's secret slot.
+    /// </summary>
+    internal bool NormalizeLoadedCredentialBindings()
+    {
+        var changed = false;
+        foreach (var profile in ProviderProfiles ?? [])
+        {
+            var expected = "provider-" + profile.Id;
+            changed |= !string.Equals(profile.SecretId, expected, StringComparison.Ordinal);
+            profile.SecretId = expected;
+        }
+        return changed;
+    }
+
     public ProviderProfile GetActiveProviderProfile()
     {
         NormalizeProviderProfiles();

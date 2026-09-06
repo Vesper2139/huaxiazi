@@ -355,14 +355,11 @@ public sealed class AgentSkillPackageService
             long total = 0;
             foreach (var entry in archive.Entries)
             {
-                total += entry.Length;
-                if (total > 20 * 1024 * 1024) throw new InvalidDataException("Skill ZIP 解压大小超出安全限制。");
                 var destination = Path.GetFullPath(Path.Combine(stagingRoot, entry.FullName.Replace('/', Path.DirectorySeparatorChar)));
                 if (!destination.StartsWith(stagingRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("Skill ZIP 包含越界路径。");
                 if (string.IsNullOrEmpty(entry.Name)) { Directory.CreateDirectory(destination); continue; }
-                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                entry.ExtractToFile(destination, true);
+                total = SafeArchiveExtraction.ExtractToFile(entry, destination, total, 20 * 1024 * 1024);
             }
             var candidates = Directory.EnumerateFiles(stagingRoot, "SKILL.md", SearchOption.AllDirectories)
                 .Select(file => InspectDirectory(Path.GetDirectoryName(file)!, zipPath)).ToArray();

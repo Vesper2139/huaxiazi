@@ -23,6 +23,15 @@ public sealed class ErrorLogServiceTests : IDisposable
     }
 
     [Fact]
+    public void RedactSensitiveData_RedactsProviderSpecificHeaders()
+    {
+        var redacted = ErrorLogService.RedactSensitiveData("x-api-key: secret-value x-goog-api-key=other-secret");
+
+        Assert.DoesNotContain("secret-value", redacted);
+        Assert.DoesNotContain("other-secret", redacted);
+    }
+
+    [Fact]
     public void Write_WhenActiveLogExceedsLimit_RotatesBeforeAppending()
     {
         Directory.CreateDirectory(_root);

@@ -96,6 +96,10 @@ public sealed class ConfigService
             }
             settings.NormalizeProductModes();
             settings.NormalizeProviderProfiles();
+            if (settings.NormalizeLoadedCredentialBindings())
+            {
+                try { Save(settings); } catch { /* keep the sanitized in-memory binding */ }
+            }
             settings.NormalizeResidentEntrypoints();
             settings.NormalizePromptSettings();
             settings.NormalizeDisplaySettings();

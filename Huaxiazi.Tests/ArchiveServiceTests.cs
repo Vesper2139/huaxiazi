@@ -304,18 +304,16 @@ public sealed class ArchiveServiceTests : IDisposable
     }
 
     [Fact]
-    public void PermanentlyDeleteAll_CreatesRecoverableSafetyBackupFirst()
+    public void PermanentlyDeleteAll_DoesNotLeaveRecoverableSafetyBackup()
     {
         var service = new ArchiveService(_root);
         service.SaveRevision(new ArchiveDraft { FinalText = "不可误删的记录" }, DateTimeOffset.UtcNow);
 
         service.PermanentlyDeleteAll();
 
-        var backup = Assert.Single(Directory.GetFiles(Path.Combine(_root, "backups"), "before-clear-*.db"));
-        var recoveredRoot = Path.Combine(_root, "recovered");
-        Directory.CreateDirectory(Path.Combine(recoveredRoot, "data"));
-        File.Copy(backup, Path.Combine(recoveredRoot, "data", "huaxiazi.db"));
-        Assert.Equal("不可误删的记录", Assert.Single(new ArchiveService(recoveredRoot).Search(null)).FinalText);
+        var backupDirectory = Path.Combine(_root, "backups");
+        Assert.True(!Directory.Exists(backupDirectory) ||
+                    Directory.GetFiles(backupDirectory, "before-clear-*.db").Length == 0);
     }
 
     [Fact]

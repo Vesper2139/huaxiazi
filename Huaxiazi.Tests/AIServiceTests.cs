@@ -638,6 +638,21 @@ public class AIServiceTests
     }
 
     [Fact]
+    public async Task GenerateAsync_OversizedProviderResponseIsRejected()
+    {
+        var profile = new ProviderProfile { Type = ProviderType.Cloud };
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(new string('x', 5 * 1024 * 1024), Encoding.UTF8, "application/json")
+        };
+        using var service = new AIService(profile, "key", new StaticResponseHandler(response));
+
+        var error = await Assert.ThrowsAsync<GenerationFailureException>(() => service.GenerateAsync("system", "user"));
+
+        Assert.Contains("过大", error.Message);
+    }
+
+    [Fact]
     public async Task GenerateAsync_HttpError_DoesNotExposeResponseBody()
     {
         var profile = new ProviderProfile { Type = ProviderType.Cloud };
@@ -655,7 +670,7 @@ public class AIServiceTests
     }
 
     [Fact]
-    public async Task GenerateAsync_JsonHttpError_ShowsProviderMessageWithoutLeakingOtherFields()
+    public async Task GenerateAsync_JsonHttpError_DoesNotPersistProviderMessage()
     {
         var profile = new ProviderProfile { Type = ProviderType.Cloud };
         var response = new HttpResponseMessage(HttpStatusCode.BadRequest)
@@ -666,7 +681,7 @@ public class AIServiceTests
 
         var error = await Assert.ThrowsAsync<GenerationFailureException>(() => service.GenerateAsync("system", "user"));
 
-        Assert.Contains("temperature is not supported", error.Message);
+        Assert.DoesNotContain("temperature is not supported", error.Message);
         Assert.DoesNotContain("secret-id", error.Message);
         Assert.Equal(GenerationFailureKind.RequestRejected, error.Kind);
     }

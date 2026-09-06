@@ -15,14 +15,14 @@ public sealed class DpapiSecretStore : ISecretStore
     public DpapiSecretStore(string directory)
     {
         _directory = directory ?? throw new ArgumentNullException(nameof(directory));
+        EnsureHardened();
     }
 
     public void Save(string id, string secret)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(secret);
-        Directory.CreateDirectory(_directory);
-        HardenDirectoryAccess();
+        EnsureHardened();
 
         var encrypted = ProtectedData.Protect(
             Encoding.UTF8.GetBytes(secret), Entropy, DataProtectionScope.CurrentUser);
@@ -35,6 +35,7 @@ public sealed class DpapiSecretStore : ISecretStore
     public string? Read(string id)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        EnsureHardened();
         var path = GetPath(id);
         if (!File.Exists(path))
         {
@@ -62,12 +63,14 @@ public sealed class DpapiSecretStore : ISecretStore
     public bool Exists(string id)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        EnsureHardened();
         return File.Exists(GetPath(id));
     }
 
     public void Delete(string id)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        EnsureHardened();
         var path = GetPath(id);
         if (File.Exists(path))
         {
@@ -79,6 +82,12 @@ public sealed class DpapiSecretStore : ISecretStore
     {
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(id)));
         return Path.Combine(_directory, hash + ".secret");
+    }
+
+    private void EnsureHardened()
+    {
+        Directory.CreateDirectory(_directory);
+        HardenDirectoryAccess();
     }
 
     private void HardenDirectoryAccess()

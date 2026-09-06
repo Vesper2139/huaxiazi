@@ -1,9 +1,11 @@
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Huaxiazi.Models;
+using Huaxiazi.Services;
 using Huaxiazi.ViewModels;
 
 namespace Huaxiazi.Views;
@@ -135,10 +137,18 @@ public partial class ProviderProfileEditView : UserControl
         }
     }
 
-    private static bool IsAllowedExternalUrl(string url) =>
-        !string.IsNullOrWhiteSpace(url) &&
-        Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
-        (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp);
+    private static bool IsAllowedExternalUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+            uri.Scheme != Uri.UriSchemeHttps || uri.UserInfo.Length > 0 ||
+            !string.IsNullOrEmpty(uri.Fragment)) return false;
+
+        return ProviderPlatformCatalog.Options
+            .SelectMany(option => new[] { option.WebsiteUrl, option.ApiKeyUrl })
+            .Where(candidate => Uri.TryCreate(candidate, UriKind.Absolute, out _))
+            .Select(candidate => new Uri(candidate).IdnHost)
+            .Contains(uri.IdnHost, StringComparer.OrdinalIgnoreCase);
+    }
 
     private void ModelSelector_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {

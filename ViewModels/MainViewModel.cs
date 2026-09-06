@@ -115,6 +115,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private string _userInput = string.Empty;
+    private bool _clipboardPrefilled;
     public string UserInput
     {
         get => _userInput;
@@ -122,6 +123,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _userInput, value))
             {
+                _clipboardPrefilled = false;
                 MarkDraftDirty();
                 OnPropertyChanged(nameof(DisplayText));
                 OnPropertyChanged(nameof(IsDisplayTextEmpty));
@@ -248,6 +250,8 @@ public sealed partial class MainViewModel : ObservableObject
                     : (IsPolishMode ? "正在整理表达，请稍候…" : "正在优化提示词，请稍候…")
                 : _companionCompleted
                     ? (IsPolishMode ? "表达润色完成" : "提示词优化完成")
+                : _clipboardPrefilled
+                    ? "已填入剪贴板内容，请确认后再发送"
                 : ArchiveStatus;
     /// <summary>澄清面板中的实际问题；标题状态栏只显示概括提示，避免挤占标题并泄露长原文。</summary>
     public string ClarificationPrompt => string.Join("  ", ClarificationQuestions);
@@ -281,6 +285,12 @@ public sealed partial class MainViewModel : ObservableObject
         if (_companionWorkPhase == phase) return;
         _companionWorkPhase = phase;
         OnPropertyChanged(nameof(CompanionWorkPhase));
+        NotifyCompanionFeedbackChanged();
+    }
+
+    internal void MarkClipboardPrefilled()
+    {
+        _clipboardPrefilled = true;
         NotifyCompanionFeedbackChanged();
     }
 

@@ -9,12 +9,14 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using System.IO;
 using Huaxiazi.Models;
 
 namespace Huaxiazi.Services;
 
 public sealed class AIService : ITextGenerationClient, IDisposable
 {
+    private const int MaximumResponseBytes = 4 * 1024 * 1024;
     private static readonly HttpClient SharedClient = CreateSharedClient();
 
     private static HttpClient CreateSharedClient()
@@ -104,7 +106,7 @@ public sealed class AIService : ITextGenerationClient, IDisposable
                     using var response = await _httpClient.SendAsync(request, timeoutSource.Token).ConfigureAwait(false);
                     if (response.IsSuccessStatusCode)
                     {
-                        var responseBody = await response.Content.ReadAsStringAsync(timeoutSource.Token).ConfigureAwait(false);
+                        var responseBody = await ReadResponseBodyLimitedAsync(response.Content, timeoutSource.Token).ConfigureAwait(false);
                         return ParseProtocolContent(responseBody, _protocol);
                     }
 
@@ -114,9 +116,9 @@ public sealed class AIService : ITextGenerationClient, IDisposable
                         continue;
                     }
 
-                    var errorBody = await response.Content.ReadAsStringAsync(timeoutSource.Token).ConfigureAwait(false);
-                    var providerMessage = TryReadProviderErrorMessage(errorBody);
-                    throw BuildGenerationFailure(response.StatusCode, response.ReasonPhrase, providerMessage);
+                    // Do not read arbitrary provider error bodies: they may echo the
+                    // user's prompt or contain server-side secrets.
+                    throw BuildGenerationFailure(response.StatusCode, response.ReasonPhrase);
                 }
                 catch (InvalidOperationException exception) when (attempt == 0 && IsDeepSeekV4 && IsEmptyModelResponse(exception))
                 {
@@ -143,6 +145,13 @@ public sealed class AIService : ITextGenerationClient, IDisposable
                 $"请求超时（>{_timeout.TotalSeconds:0} 秒），请检查网络或模型配置。",
                 isTransient: true);
         }
+        catch (ResponseTooLargeException)
+        {
+            throw new GenerationFailureException(
+                GenerationFailureKind.ProviderUnavailable,
+                "模型服务响应过大，已停止读取。",
+                isTransient: false);
+        }
         catch (HttpRequestException ex)
         {
             throw new GenerationFailureException(
@@ -155,8 +164,7 @@ public sealed class AIService : ITextGenerationClient, IDisposable
 
     private static GenerationFailureException BuildGenerationFailure(
         HttpStatusCode statusCode,
-        string? reasonPhrase,
-        string? providerMessage)
+        string? reasonPhrase)
     {
         if (statusCode == HttpStatusCode.TooManyRequests)
         {
@@ -175,10 +183,11 @@ public sealed class AIService : ITextGenerationClient, IDisposable
             _ when (int)statusCode >= 500 => GenerationFailureKind.ProviderUnavailable,
             _ => GenerationFailureKind.RequestRejected
         };
-        var detail = string.IsNullOrWhiteSpace(providerMessage) ? string.Empty : $"：{providerMessage}";
+        // Provider error bodies are untrusted and may echo user input or server secrets.
+        // Keep user-facing/logged failures to a normalized status only.
         return new GenerationFailureException(
             kind,
-            $"API 返回错误 {(int)statusCode} {reasonPhrase}{detail}。",
+            $"API 返回错误 {(int)statusCode} {reasonPhrase}。",
             statusCode,
             kind is GenerationFailureKind.Timeout or GenerationFailureKind.ProviderUnavailable);
     }
@@ -239,7 +248,7 @@ public sealed class AIService : ITextGenerationClient, IDisposable
                             stopwatch.ElapsedMilliseconds, baseUri, requestId);
                     }
 
-                    var body = await response.Content.ReadAsStringAsync(timeoutSource.Token).ConfigureAwait(false);
+                    var body = await ReadResponseBodyLimitedAsync(response.Content, timeoutSource.Token).ConfigureAwait(false);
                     try
                     {
                         _ = ParseProtocolContent(body, _protocol);
@@ -282,6 +291,30 @@ public sealed class AIService : ITextGenerationClient, IDisposable
                 "无法连接模型服务，请检查网络、代理、DNS 或 TLS 设置。", null,
                 stopwatch.ElapsedMilliseconds, baseUri, null);
         }
+        catch (ResponseTooLargeException)
+        {
+            return BuildConnectionResult(ConnectionTestStatus.InvalidResponse,
+                "服务返回内容过大，已停止读取。", null,
+                stopwatch.ElapsedMilliseconds, baseUri, null);
+        }
+    }
+
+    private static async Task<string> ReadResponseBodyLimitedAsync(HttpContent content, CancellationToken cancellationToken)
+    {
+        if (content.Headers.ContentLength is > MaximumResponseBytes)
+            throw new ResponseTooLargeException();
+
+        await using var input = await content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        while (true)
+        {
+            var read = await input.ReadAsync(chunk.AsMemory(), cancellationToken).ConfigureAwait(false);
+            if (read == 0) break;
+            if (buffer.Length + read > MaximumResponseBytes) throw new ResponseTooLargeException();
+            await buffer.WriteAsync(chunk.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+        }
+        return Encoding.UTF8.GetString(buffer.GetBuffer(), 0, checked((int)buffer.Length));
     }
 
     private static bool IsTransient(HttpStatusCode statusCode) =>
@@ -454,28 +487,7 @@ public sealed class AIService : ITextGenerationClient, IDisposable
         return null;
     }
 
-    private static string? TryReadProviderErrorMessage(string responseBody)
-    {
-        if (string.IsNullOrWhiteSpace(responseBody)) return null;
-        try
-        {
-            using var document = JsonDocument.Parse(responseBody);
-            if (!document.RootElement.TryGetProperty("error", out var error)) return null;
-            string? message = error.ValueKind switch
-            {
-                JsonValueKind.String => error.GetString(),
-                JsonValueKind.Object when error.TryGetProperty("message", out var value) && value.ValueKind == JsonValueKind.String => value.GetString(),
-                _ => null
-            };
-            message = message?.Trim();
-            if (string.IsNullOrWhiteSpace(message)) return null;
-            return message.Length <= 300 ? message : message[..300] + "…";
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
+    private sealed class ResponseTooLargeException : Exception;
 
     internal static string ParseContent(string responseBody) => ParseProtocolContent(responseBody, ProviderProtocol.OpenAICompatible);
 

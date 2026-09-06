@@ -67,7 +67,7 @@ public sealed class CompanionGenerationIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task AIService_BadRequestThrowsStructuredFailureWithoutLosingProviderDetails()
+    public async Task AIService_BadRequestThrowsStructuredFailureWithoutPersistingProviderDetails()
     {
         var response = new HttpResponseMessage(HttpStatusCode.BadRequest)
         {
@@ -81,7 +81,7 @@ public sealed class CompanionGenerationIntegrationTests : IDisposable
 
         Assert.Equal(GenerationFailureKind.RequestRejected, error.Kind);
         Assert.Equal(HttpStatusCode.BadRequest, error.HttpStatusCode);
-        Assert.Contains("invalid input", error.Message);
+        Assert.DoesNotContain("invalid input", error.Message);
     }
 
     [Fact]

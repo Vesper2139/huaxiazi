@@ -19,7 +19,7 @@ public static class ExternalSkillStrategyResolver
         {
             var skill = new AgentSkillPackageService(installRoot).LoadInstalled(configuredSkillId, mode);
             return skill is { CanEnable: true }
-                ? (skill.Name, skill.Instructions)
+                ? (skill.Name, ExpressionSkillRouter.ProjectInstructions(skill.Instructions, Array.Empty<string>()))
                 : (string.Empty, string.Empty);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)

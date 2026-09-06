@@ -574,9 +574,23 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             if (SelectedProviderProfile is null || SelectedProviderProfile.ApiBase == value) return;
             SelectedProviderProfile.ApiBase = value;
+            // An endpoint change is a new authorization boundary. Existing
+            // credentials must not follow the destination silently.
+            _pendingApiKeys[SelectedProviderProfile.SecretId] = null;
+            _apiKey = string.Empty;
+            try
+            {
+                var host = Uri.TryCreate(value, UriKind.Absolute, out var endpoint) ? endpoint.IdnHost : "invalid";
+                App.SecurityEventLog.Append("EndpointChanged", SelectedProviderProfile.Id, "newHost=" + host);
+            }
+            catch { }
             HasChanges = true;
             _providerConnectionChanged = true;
             ResetConnectionVerification();
+            OnPropertyChanged(nameof(ApiKey));
+            OnPropertyChanged(nameof(HasStoredApiKey));
+            OnPropertyChanged(nameof(ApiKeyStateText));
+            OnPropertyChanged(nameof(ApiKeyStatusKind));
             OnPropertyChanged();
         }
     }
@@ -1472,8 +1486,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     public void RestoreBackup(string path)
     {
         _dataManagement.RestoreBackup(path, App.DataRoot);
+        try { App.SecurityEventLog.Append("BackupRestored", Path.GetFileName(path), "backup restored without config.json"); } catch { }
         LoadArchive();
-        DataStatus = "备份已恢复；请重新启动话匣子以重新载入资料库。";
+        DataStatus = "备份资料已恢复；模型端点、密钥绑定和表达策略未被覆盖，请重新打开设置确认。";
     }
 
     public void MigrateData(string destination)

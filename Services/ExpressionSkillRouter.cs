@@ -51,12 +51,17 @@ public sealed class ExpressionSkillRouter(string installRoot) : IExpressionSkill
         return score;
     }
 
-    private static string ProjectInstructions(string source, IReadOnlyList<string> excludedSections)
+    internal static string ProjectInstructions(string source, IReadOnlyList<string> excludedSections)
     {
+        var normalizedSource = NormalizeUntrustedText(source);
+        // Treat a package as a single untrusted document for injection checks;
+        // otherwise an attacker can split a forbidden instruction across lines.
+        var detectionText = normalizedSource.Replace('\n', ' ');
+        var documentContainsUnsafeInstruction = LooksLikePromptInjection(detectionText) || RequestsExternalCapability(detectionText);
         var excluded = new HashSet<string>(excludedSections, StringComparer.OrdinalIgnoreCase);
         var output = new StringBuilder();
         var skipLevel = 0;
-        foreach (var line in source.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'))
+        foreach (var line in normalizedSource.Split('\n'))
         {
             var heading = Regex.Match(line, @"^(?<marks>#{1,6})\s+(?<title>.+?)\s*$");
             if (heading.Success)
@@ -65,7 +70,10 @@ public sealed class ExpressionSkillRouter(string installRoot) : IExpressionSkill
                 if (skipLevel > 0 && level <= skipLevel) skipLevel = 0;
                 if (excluded.Contains(heading.Groups["title"].Value.Trim())) { skipLevel = level; continue; }
             }
-            if (skipLevel == 0 && !RequestsExternalCapability(line)) output.AppendLine(line);
+            var lineContainsUnsafeFragment = documentContainsUnsafeInstruction &&
+                Regex.IsMatch(line, @"(?i)\b(?:ignore|disregard|forget|override|reveal|leak|previous|system|prompt|instructions?|rules?|secret|token)\b|(?:忽略|无视|覆盖|忘记|之前|系统提示|系统规则|密钥|令牌)", RegexOptions.CultureInvariant);
+            if (skipLevel == 0 && !RequestsExternalCapability(line) && !LooksLikePromptInjection(line) && !lineContainsUnsafeFragment)
+                output.AppendLine(line);
         }
         var projected = output.ToString().Trim();
         if (projected.Length <= 12_000) return projected;
@@ -80,6 +88,25 @@ public sealed class ExpressionSkillRouter(string installRoot) : IExpressionSkill
         return Regex.IsMatch(text, @"\b(?:Google Drive|Slack|MCP|Shell|PowerShell|browser)\b", RegexOptions.IgnoreCase) ||
                Regex.IsMatch(text, @"\b(?:pull|read|scan|search|gather)\b.*\b(?:files?|documents?|email|calendar|sources?|context)\b", RegexOptions.IgnoreCase);
     }
+
+    private static bool LooksLikePromptInjection(string line)
+    {
+        var text = line.Trim();
+        if (text.Length == 0) return false;
+        return Regex.IsMatch(text,
+            @"(?i)\b(?:ignore|disregard|override|forget|reveal|leak|exfiltrate|disclose|print|show)\b.*\b(?:previous|system|prompt|instructions?|rules?|secret|api\s*key|token)\b") ||
+               Regex.IsMatch(text,
+            @"(?:忽略|无视|覆盖|忘记|泄露|输出|显示|绕过).*(?:之前|系统提示|系统规则|隐藏提示|密钥|令牌|安全边界)", RegexOptions.CultureInvariant);
+    }
+
+    private static string NormalizeUntrustedText(string source) =>
+        source.Normalize(NormalizationForm.FormKC)
+            .Replace("\u200B", string.Empty, StringComparison.Ordinal)
+            .Replace("\u200C", string.Empty, StringComparison.Ordinal)
+            .Replace("\u200D", string.Empty, StringComparison.Ordinal)
+            .Replace("\uFEFF", string.Empty, StringComparison.Ordinal)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n');
 
     private static ExpressionSkillRouteResult Fallback() => new()
     {

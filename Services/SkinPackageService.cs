@@ -43,14 +43,14 @@ public sealed class SkinPackageService
         Directory.CreateDirectory(temporaryDirectory);
         try
         {
+            long written = 0;
             foreach (var entry in archive.Entries)
             {
                 if (string.IsNullOrEmpty(entry.Name)) continue;
                 var destination = Path.GetFullPath(Path.Combine(temporaryDirectory, entry.FullName.Replace('/', Path.DirectorySeparatorChar)));
                 if (!destination.StartsWith(temporaryDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("皮肤包包含越界路径。");
-                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                entry.ExtractToFile(destination, overwrite: false);
+                written = SafeArchiveExtraction.ExtractToFile(entry, destination, written, MaxUncompressedBytes);
             }
             Directory.CreateDirectory(Path.GetDirectoryName(finalDirectory)!);
             if (Directory.Exists(finalDirectory)) Directory.Delete(finalDirectory, recursive: true);
@@ -132,7 +132,6 @@ public sealed class SkinPackageService
     private static void ValidateEntries(ZipArchive archive)
     {
         if (archive.Entries.Count > MaxEntries) throw new InvalidDataException("皮肤包文件数量过多。");
-        long total = 0;
         foreach (var entry in archive.Entries)
         {
             var normalized = entry.FullName.Replace('\\', '/');
@@ -140,8 +139,6 @@ public sealed class SkinPackageService
                 throw new InvalidDataException("皮肤包包含越界路径。");
             if (!string.IsNullOrEmpty(entry.Name) && !AllowedExtensions.Contains(Path.GetExtension(entry.Name)))
                 throw new InvalidDataException($"皮肤包包含不允许的文件：{entry.FullName}");
-            total += entry.Length;
-            if (total > MaxUncompressedBytes) throw new InvalidDataException("皮肤包解压后过大。");
         }
     }
 

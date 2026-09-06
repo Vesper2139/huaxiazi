@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -11,6 +12,8 @@ public sealed record DataStatistics(int RevisionCount, long TotalBytes, DateTime
 
 public sealed class DataManagementService
 {
+    private const int MaximumBackupEntries = 2000;
+    private const long MaximumBackupExpandedBytes = 512L * 1024 * 1024;
     private sealed class ImportedRecord
     {
         public ApplicationMode Mode { get; set; } = ApplicationMode.Polish;
@@ -101,7 +104,7 @@ public sealed class DataManagementService
                 archive.CreateEntryFromFile(effectiveConfigPath, "config.json", CompressionLevel.Optimal);
             var notice = archive.CreateEntry("恢复说明.txt", CompressionLevel.Optimal);
             using var writer = new StreamWriter(notice.Open());
-            writer.Write("备份包含本地资料库、草稿与配置。API Key 由 Windows DPAPI 绑定当前用户与设备，不随备份迁移；换机或重装后请重新填写。");
+            writer.Write("备份包含本地资料库、草稿与配置快照。恢复时不会覆盖当前配置、模型端点、密钥绑定或表达策略；API Key 由 Windows DPAPI 绑定当前用户与设备，不随备份迁移。");
         }
         File.Move(temporaryPath, backupPath, true);
     }
@@ -147,17 +150,50 @@ public sealed class DataManagementService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(backupPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationRoot);
-        var fullRoot = Path.GetFullPath(destinationRoot) + Path.DirectorySeparatorChar;
-        Directory.CreateDirectory(fullRoot);
+        var destinationPath = Path.GetFullPath(destinationRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var fullRoot = destinationPath + Path.DirectorySeparatorChar;
         using var archive = ZipFile.OpenRead(backupPath);
+        if (archive.Entries.Count > MaximumBackupEntries)
+            throw new InvalidDataException("备份条目数量超出安全限制。");
+
+        var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in archive.Entries)
         {
             if (string.IsNullOrEmpty(entry.Name)) continue;
             var target = Path.GetFullPath(Path.Combine(fullRoot, entry.FullName));
-            if (!target.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("备份包含不安全路径。");
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            entry.ExtractToFile(target, overwrite: true);
+            if (!target.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase) || !targets.Add(target))
+                throw new InvalidDataException("备份包含不安全或重复路径。");
+        }
+
+        var stagingRoot = destinationPath + ".restore-" + Guid.NewGuid().ToString("N") + Path.DirectorySeparatorChar;
+        Directory.CreateDirectory(stagingRoot);
+        try
+        {
+            long expandedBytes = 0;
+            foreach (var entry in archive.Entries)
+            {
+                if (string.IsNullOrEmpty(entry.Name)) continue;
+                // Backups may contain preferences, but never replace the live
+                // control plane (provider endpoints, secret bindings or prompts)
+                // without an explicit re-authorization flow.
+                if (string.Equals(entry.FullName.Replace('\\', '/'), "config.json", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var target = Path.GetFullPath(Path.Combine(stagingRoot, entry.FullName));
+                expandedBytes = SafeArchiveExtraction.ExtractToFile(entry, target, expandedBytes, MaximumBackupExpandedBytes);
+            }
+
+            Directory.CreateDirectory(fullRoot);
+            foreach (var file in Directory.EnumerateFiles(stagingRoot, "*", SearchOption.AllDirectories))
+            {
+                var relative = Path.GetRelativePath(stagingRoot, file);
+                var target = Path.GetFullPath(Path.Combine(fullRoot, relative));
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(file, target, overwrite: true);
+            }
+        }
+        finally
+        {
+            try { if (Directory.Exists(stagingRoot)) Directory.Delete(stagingRoot, true); } catch { }
         }
     }
 

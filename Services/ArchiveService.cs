@@ -320,7 +320,6 @@ public sealed class ArchiveService
 
     public void PermanentlyDeleteAll()
     {
-        CreateSafetyBackup("before-clear");
         using (var connection = OpenConnection())
         using (var transaction = connection.BeginTransaction())
         {
@@ -337,23 +336,6 @@ public sealed class ArchiveService
 
         DeleteTextFiles(_draftsDirectory);
         DeleteTextFiles(_trashDirectory);
-    }
-
-    private string CreateSafetyBackup(string reason)
-    {
-        var backupDirectory = Path.Combine(_root, "backups");
-        Directory.CreateDirectory(backupDirectory);
-        var path = Path.Combine(backupDirectory, $"{reason}-{DateTime.Now:yyyyMMdd-HHmmssfff}.db");
-        using var source = OpenConnection();
-        using var destination = new SqliteConnection(new SqliteConnectionStringBuilder
-        {
-            DataSource = path,
-            Mode = SqliteOpenMode.ReadWriteCreate,
-            Pooling = false
-        }.ToString());
-        destination.Open();
-        source.BackupDatabase(destination);
-        return path;
     }
 
     public int PurgeDeletedBefore(DateTimeOffset cutoff)

@@ -78,10 +78,13 @@ public sealed class UpdateDownloadResult
 /// </summary>
 public sealed class UpdateDownloadService
 {
+    private const long MaximumDownloadBytes = 512L * 1024 * 1024;
     private readonly HttpClient _client;
     private readonly IAuthenticodeVerifier _signatureVerifier;
 
-    public UpdateDownloadService() : this(new HttpClient { Timeout = TimeSpan.FromMinutes(10) }, new AuthenticodeVerifier())
+    public UpdateDownloadService() : this(
+        new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromMinutes(10) },
+        new AuthenticodeVerifier())
     {
     }
 
@@ -124,6 +127,8 @@ public sealed class UpdateDownloadService
                 .ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             var total = response.Content.Headers.ContentLength;
+            if (total is > MaximumDownloadBytes)
+                throw new DownloadTooLargeException();
             await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             await using var output = new FileStream(
                 temporaryPath,
@@ -142,6 +147,8 @@ public sealed class UpdateDownloadService
                 await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
                 hash.AppendData(buffer, 0, read);
                 received += read;
+                if (received > MaximumDownloadBytes)
+                    throw new DownloadTooLargeException();
                 if (total is > 0) progress?.Report((double)received / total.Value);
             }
             await output.FlushAsync(cancellationToken).ConfigureAwait(false);
@@ -177,6 +184,11 @@ public sealed class UpdateDownloadService
                 Message = "下载与校验完成。"
             };
         }
+        catch (DownloadTooLargeException)
+        {
+            DeleteTemporaryFile(temporaryPath);
+            return Error("安装包超过 512 MB 大小上限，已停止下载。");
+        }
         catch (OperationCanceledException)
         {
             DeleteTemporaryFile(temporaryPath);
@@ -210,4 +222,6 @@ public sealed class UpdateDownloadService
         Status = UpdateDownloadStatus.Error,
         Message = message
     };
+
+    private sealed class DownloadTooLargeException : Exception;
 }

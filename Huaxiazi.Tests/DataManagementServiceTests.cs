@@ -1,4 +1,5 @@
 using System;
+using System.IO.Compression;
 using System.IO;
 using Huaxiazi.Models;
 using Huaxiazi.Services;
@@ -38,6 +39,23 @@ public sealed class DataManagementServiceTests : IDisposable
         Assert.Contains(marker, File.ReadAllText(path));
         Assert.Contains("导出原文", File.ReadAllText(path));
         Assert.Contains("导出成稿", File.ReadAllText(path));
+    }
+
+    [Fact]
+    public void RestoreBackup_RejectsExcessiveEntryCountBeforeWriting()
+    {
+        var backup = Path.Combine(_root, "oversized.zip");
+        Directory.CreateDirectory(_root);
+        using (var archive = ZipFile.Open(backup, ZipArchiveMode.Create))
+        {
+            for (var index = 0; index < 2001; index++)
+                archive.CreateEntry($"data/{index}.txt");
+        }
+
+        var restoredRoot = Path.Combine(_root, "restored");
+
+        Assert.Throws<InvalidDataException>(() => new DataManagementService().RestoreBackup(backup, restoredRoot));
+        Assert.False(Directory.Exists(restoredRoot));
     }
 
     [Fact]

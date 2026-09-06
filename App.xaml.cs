@@ -70,6 +70,10 @@ public partial class App : System.Windows.Application
         new DpapiSecretStore(Path.Combine(DataRoot, "secrets")));
     internal static DpapiSecretStore SecretStore => SecretStoreInstance.Value;
 
+    private static readonly Lazy<SecurityEventLogService> SecurityEventLogInstance = new(() =>
+        new SecurityEventLogService(DataRoot));
+    internal static SecurityEventLogService SecurityEventLog => SecurityEventLogInstance.Value;
+
     private static readonly Lazy<WorkspaceDraftService> WorkspaceDraftServiceInstance = new(() =>
         new WorkspaceDraftService(DataRoot));
     internal static WorkspaceDraftService WorkspaceDraftService => WorkspaceDraftServiceInstance.Value;

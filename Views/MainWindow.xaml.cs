@@ -113,6 +113,7 @@ public partial class MainWindow : Window
             if (!string.IsNullOrWhiteSpace(clip) && clip.Length <= 2000)
             {
                 _vm.UserInput = clip;
+                _vm.MarkClipboardPrefilled();
             }
         }
         _vm.ShowDiff = App.Settings.ShowDiff;

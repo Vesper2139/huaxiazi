@@ -51,6 +51,18 @@ public sealed class HealthCheckServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task CheckAsync_UnauthorizedProviderIsNotReportedHealthy()
+    {
+        var service = new HealthCheckService(new StubHandler(HttpStatusCode.Unauthorized));
+
+        var report = await service.CheckAsync(LocalSettings(), _root, _ => null, hotkeyRegistered: true);
+
+        var provider = Assert.Single(report.Items, item => item.Name == "Provider");
+        Assert.Equal(HealthCheckStatus.Failed, provider.Status);
+        Assert.Contains("认证", provider.Message);
+    }
+
+    [Fact]
     public async Task CheckAsync_CloudProviderWithoutCredential_FailsOnlyExternalProviderCheck()
     {
         var settings = LocalSettings();
