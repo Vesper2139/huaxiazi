@@ -275,6 +275,28 @@ public class ConfigServiceTests
     }
 
     [Fact]
+    public void Save_DirectCallerNeverPersistsApiKeyToConfig()
+    {
+        var dir = MakeTempConfigDir();
+        try
+        {
+            TestHelpers.RedirectConfigTo(dir);
+            var settings = new AppSettings { ApiKey = "sk-synthetic-test-value-never-persist" };
+
+            new ConfigService().Save(settings);
+
+            var json = File.ReadAllText(Path.Combine(dir, "config.json"));
+            Assert.DoesNotContain("sk-synthetic-test-value-never-persist", json, StringComparison.Ordinal);
+            Assert.Equal(string.Empty, JsonDocument.Parse(json).RootElement.GetProperty("apiKey").GetString());
+        }
+        finally
+        {
+            TestHelpers.ResetConfigToDefault();
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
     public void Save_ThenLoad_PreservesHistoryBeyondMax()
     {
         var dir = MakeTempConfigDir();
@@ -629,6 +651,27 @@ public class ConfigServiceTests
             TestHelpers.ResetConfigToDefault();
             Directory.Delete(dir, true);
         }
+    }
+
+    [Fact]
+    public void RedactSensitiveJson_CoversSnakeCaseAndCompoundTokenNames()
+    {
+        const string raw = """
+            {
+              "api_key": "api-secret",
+              "accessToken": "access-secret",
+              "refresh_token": "refresh-secret",
+              "safe": "visible"
+            }
+            """;
+
+        var redacted = ConfigService.RedactSensitiveJson(raw);
+
+        Assert.NotNull(redacted);
+        Assert.DoesNotContain("api-secret", redacted);
+        Assert.DoesNotContain("access-secret", redacted);
+        Assert.DoesNotContain("refresh-secret", redacted);
+        Assert.Contains("visible", redacted);
     }
 
     [Fact]

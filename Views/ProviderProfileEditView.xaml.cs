@@ -124,7 +124,7 @@ public partial class ProviderProfileEditView : UserControl
 
     private static void OpenExternalUrl(string url)
     {
-        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out _)) return;
+        if (!IsAllowedExternalUrl(url)) return;
         try
         {
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
@@ -134,6 +134,11 @@ public partial class ProviderProfileEditView : UserControl
             // 外部浏览器启动失败时安静忽略，不影响设置操作
         }
     }
+
+    private static bool IsAllowedExternalUrl(string url) =>
+        !string.IsNullOrWhiteSpace(url) &&
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+        (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp);
 
     private void ModelSelector_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {

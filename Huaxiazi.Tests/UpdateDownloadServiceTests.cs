@@ -6,6 +6,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Reflection;
+using System.Security.Cryptography.X509Certificates;
 using Huaxiazi.Services;
 using Xunit;
 
@@ -92,6 +94,23 @@ public sealed class UpdateDownloadServiceTests : IDisposable
         Assert.Equal(UpdateDownloadStatus.SignatureInvalid, result.Status);
         Assert.False(File.Exists(target));
         Assert.False(File.Exists(target + ".download"));
+    }
+
+    [Fact]
+    public void AuthenticodeTrust_RequiresExactPinnedCertificateHashNotPublisherSubstring()
+    {
+        using var signerKey = RSA.Create(2048);
+        var request = new CertificateRequest("CN=Evil Huaxiazi Malware Inc.", signerKey,
+            HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var trustedHash = Convert.ToHexString(SHA256.HashData(certificate.RawData));
+        var method = typeof(UpdateDownloadService).Assembly
+            .GetType("Huaxiazi.Services.AuthenticodeVerifier")?
+            .GetMethod("CertificateMatchesPin", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+
+        Assert.NotNull(method);
+        Assert.True(Assert.IsType<bool>(method!.Invoke(null, [certificate, trustedHash])));
+        Assert.False(Assert.IsType<bool>(method.Invoke(null, [certificate, new string('0', 64)])));
     }
 
     private sealed class StubAuthenticodeVerifier(bool isValid) : IAuthenticodeVerifier

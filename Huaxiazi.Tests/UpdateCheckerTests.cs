@@ -3,6 +3,9 @@ using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text.Json.Nodes;
 using Huaxiazi.Services;
 using Xunit;
 
@@ -31,6 +34,18 @@ public class UpdateCheckerTests
 
     private static UpdateChecker CreateWithHandler(Func<HttpRequestMessage, HttpResponseMessage> responder)
         => new UpdateChecker(new HttpClient(new StubHttpMessageHandler(responder)));
+
+    private static UpdateChecker CreateWithTrustedHandler(Func<HttpRequestMessage, HttpResponseMessage> responder)
+    {
+        var client = new HttpClient(new StubHttpMessageHandler(responder));
+        var constructor = typeof(UpdateChecker).GetConstructor(
+            BindingFlags.Instance | BindingFlags.NonPublic,
+            binder: null,
+            [typeof(HttpClient), typeof(Func<string, string?>)],
+            modifiers: null);
+        Assert.NotNull(constructor);
+        return (UpdateChecker)constructor!.Invoke([client, (Func<string, string?>)(raw => raw)]);
+    }
 
     private static HttpResponseMessage JsonResponse(string json, HttpStatusCode code = HttpStatusCode.OK)
         => new HttpResponseMessage(code)
@@ -184,7 +199,7 @@ public class UpdateCheckerTests
     [Fact]
     public async Task CheckAsync_SuccessfulResponse_ParsesCorrectly()
     {
-        var checker = CreateWithHandler(_ => JsonResponse("{ \"version\": \"1.0.0.0\" }"));
+        var checker = CreateWithTrustedHandler(_ => JsonResponse("{ \"version\": \"1.0.0.0\" }"));
         var result = await checker.CheckAsync("https://example.com/version.json");
 
         Assert.Equal(UpdateStatus.UpToDate, result.Status);
@@ -192,9 +207,48 @@ public class UpdateCheckerTests
     }
 
     [Fact]
+    public async Task CheckAsync_UnsignedManifest_IsRejectedByDefault()
+    {
+        var checker = CreateWithHandler(_ => JsonResponse("{ \"version\": \"999.0.0\" }"));
+
+        var result = await checker.CheckAsync("https://example.com/version.json");
+
+        Assert.Equal(UpdateStatus.Error, result.Status);
+        Assert.Contains("签名", result.Message);
+    }
+
+    [Fact]
+    public void ManifestSignature_ValidSignaturePassesAndPayloadTamperingFails()
+    {
+        using var rsa = RSA.Create(2048);
+        var publicKey = Convert.ToBase64String(rsa.ExportSubjectPublicKeyInfo());
+        var unsigned = """
+            {"version":"2.0.0","url":"https://example.com/app.exe","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","publishedAt":"2026-08-30T00:00:00Z","releaseNotes":"safe"}
+            """;
+        var utility = typeof(UpdateChecker).Assembly.GetType("Huaxiazi.Services.UpdateManifestSignature");
+        Assert.NotNull(utility);
+        var verifyMethod = utility!.GetMethod("TryVerifyAndExtract", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+        Assert.NotNull(verifyMethod);
+        var payload = System.Text.Encoding.UTF8.GetBytes(unsigned);
+        var signature = Convert.ToBase64String(rsa.SignData(payload, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1));
+        var signed = new JsonObject
+        {
+            ["payload"] = Convert.ToBase64String(payload),
+            ["signature"] = signature
+        };
+        var arguments = new object?[] { signed.ToJsonString(), publicKey, null };
+
+        Assert.True(Assert.IsType<bool>(verifyMethod.Invoke(null, arguments)));
+        Assert.Equal(unsigned, arguments[2]);
+        signed["payload"] = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(unsigned.Replace("2.0.0", "99.0.0")));
+        arguments = [signed.ToJsonString(), publicKey, null];
+        Assert.False(Assert.IsType<bool>(verifyMethod.Invoke(null, arguments)));
+    }
+
+    [Fact]
     public async Task CheckAsync_RejectsCrossHostDownloadManifest()
     {
-        var checker = CreateWithHandler(_ => JsonResponse(
+        var checker = CreateWithTrustedHandler(_ => JsonResponse(
             "{ \"version\": \"999.0.0\", \"url\": \"https://attacker.example/payload.exe\", \"sha256\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\" }"));
         var result = await checker.CheckAsync("https://updates.example/version.json");
 

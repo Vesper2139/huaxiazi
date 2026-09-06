@@ -193,12 +193,15 @@ public sealed class ConfigService
         }
     }
 
-    private static bool IsSensitiveProperty(string name) =>
-        name.Contains("apikey", StringComparison.OrdinalIgnoreCase) ||
-        name.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
-        name.Contains("password", StringComparison.OrdinalIgnoreCase) ||
-        name.Equals("token", StringComparison.OrdinalIgnoreCase) ||
-        name.Contains("authorization", StringComparison.OrdinalIgnoreCase);
+    private static bool IsSensitiveProperty(string name)
+    {
+        var normalized = new string(name.Where(char.IsLetterOrDigit).ToArray());
+        return normalized.Contains("apikey", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("password", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("token", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("authorization", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static void CleanupCorruptBackups(string sourcePath)
     {
@@ -229,6 +232,9 @@ public sealed class ConfigService
         {
             Directory.CreateDirectory(AppDataFolder);
             settings.ConfigVersion = CurrentConfigVersion;
+            // 防御纵深：任何调用方直接保存配置时，也不得把密钥写入 config.json。
+            // API Key 的唯一持久化位置是 DPAPI SecretStore。
+            settings.ApiKey = string.Empty;
             SanitizeCoordinates(settings);
             var json = JsonSerializer.Serialize(settings, _jsonOptions);
             var temporaryPath = ConfigFilePath + ".tmp";

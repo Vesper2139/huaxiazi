@@ -1,10 +1,25 @@
 using System.IO;
+using System.Reflection;
 using Xunit;
 
 namespace Huaxiazi.Tests;
 
 public sealed class AcceptanceSecurityRegressionTests
 {
+    [Theory]
+    [InlineData("https://example.com/path", true)]
+    [InlineData("http://example.com/path", true)]
+    [InlineData("file:///C:/Windows/System32/calc.exe", false)]
+    [InlineData("ms-msdt:/id/PCWDiagnostic", false)]
+    [InlineData("javascript:alert(1)", false)]
+    public void ProviderExternalLinkPolicy_AllowsOnlyHttpAndHttps(string value, bool expected)
+    {
+        var method = typeof(Huaxiazi.Views.ProviderProfileEditView).GetMethod(
+            "IsAllowedExternalUrl", BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+        Assert.Equal(expected, method!.Invoke(null, [value]));
+    }
     [Fact]
     public void ApiService_DisablesAutomaticRedirectsForCredentialBearingRequests()
     {

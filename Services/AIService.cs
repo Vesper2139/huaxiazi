@@ -296,16 +296,17 @@ public sealed class AIService : ITextGenerationClient, IDisposable
 
     private void ValidateConfiguration(out Uri baseUri)
     {
-        if (_providerType == ProviderType.Cloud && string.IsNullOrWhiteSpace(_apiKey))
-            throw new InvalidOperationException("API Key 未配置。请到“设置 → 模型配置”中填写密钥。");
-        if (!Uri.TryCreate(_apiBase, UriKind.Absolute, out baseUri!) ||
-            (baseUri.Scheme != Uri.UriSchemeHttp && baseUri.Scheme != Uri.UriSchemeHttps))
-            throw new InvalidOperationException("API 地址无效，请填写完整的 http 或 https 地址。");
-        if (_providerType == ProviderType.Cloud && baseUri.Scheme != Uri.UriSchemeHttps)
-            throw new InvalidOperationException("云端模型必须使用 HTTPS 地址，已阻止通过明文 HTTP 发送 API Key。");
-        if (_protocol == ProviderProtocol.OpenAICompatible && baseUri.Scheme == Uri.UriSchemeHttp && !baseUri.IsLoopback)
-            throw new InvalidOperationException("OpenAI 兼容接口使用远程 HTTP 地址不安全，请改用 HTTPS 或仅限本地 localhost 测试。");
-        if (string.IsNullOrWhiteSpace(_model)) throw new InvalidOperationException("模型名称不能为空。");
+        var profile = new ProviderProfile
+        {
+            Type = _providerType,
+            Platform = _platform,
+            Protocol = _protocol,
+            ApiBase = _apiBase,
+            Model = _model
+        };
+        if (!ProviderEndpointPolicy.TryValidate(profile, _apiKey, out var validatedUri, out var error))
+            throw new InvalidOperationException(error);
+        baseUri = validatedUri!;
     }
 
     private HttpRequestMessage CreateRequest(

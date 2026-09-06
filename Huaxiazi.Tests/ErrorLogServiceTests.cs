@@ -76,6 +76,25 @@ public sealed class ErrorLogServiceTests : IDisposable
         Assert.EndsWith("errors-20260804120000.log", retained[1]);
     }
 
+    [Fact]
+    public void Write_ExceptionContainingCredentials_RedactsAllSensitiveValues()
+    {
+        var service = new ErrorLogService(_root);
+        var exception = new InvalidOperationException(
+            "api_key=sk-api-secret token: token-secret Authorization: Bearer bearer-secret " +
+            "https://example.test/callback?access_token=query-secret&safe=value");
+
+        service.Write("Provider", exception);
+
+        var text = File.ReadAllText(Path.Combine(_root, "errors.log"));
+        Assert.DoesNotContain("sk-api-secret", text);
+        Assert.DoesNotContain("token-secret", text);
+        Assert.DoesNotContain("bearer-secret", text);
+        Assert.DoesNotContain("query-secret", text);
+        Assert.Contains("[REDACTED]", text);
+        Assert.Contains("safe=value", text);
+    }
+
     private static int CountOccurrences(string text, string value) =>
         (text.Length - text.Replace(value, string.Empty, StringComparison.Ordinal).Length) / value.Length;
 

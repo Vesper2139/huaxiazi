@@ -280,6 +280,7 @@ public class AIServiceTests
         var profile = new ProviderProfile
         {
             Type = ProviderType.Local,
+            Platform = ProviderPlatform.Ollama,
             ApiBase = "http://localhost:11434/v1",
             Model = "qwen"
         };
@@ -314,6 +315,69 @@ public class AIServiceTests
     }
 
     [Fact]
+    public async Task GenerateAsync_LocalNonOpenAiProtocol_RemoteHttp_IsRejected()
+    {
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK));
+        var profile = new ProviderProfile
+        {
+            Type = ProviderType.Local,
+            Platform = ProviderPlatform.CustomOpenAICompatible,
+            Protocol = ProviderProtocol.AnthropicMessages,
+            ApiBase = "http://remote-server.example.com",
+            Model = "claude-test"
+        };
+        using var service = new AIService(profile, "secret", handler);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GenerateAsync("system", "user"));
+
+        Assert.Contains("HTTPS", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(handler.Request);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_OfficialPlatformEndpointTampering_IsRejectedBeforeSendingKey()
+    {
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK));
+        var profile = new ProviderProfile
+        {
+            Type = ProviderType.Cloud,
+            Platform = ProviderPlatform.OpenAI,
+            Protocol = ProviderProtocol.OpenAICompatible,
+            ApiBase = "https://attacker.example/v1",
+            Model = "gpt-test"
+        };
+        using var service = new AIService(profile, "sk-sensitive", handler);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GenerateAsync("system", "user"));
+
+        Assert.Contains("官方", error.Message);
+        Assert.Null(handler.Request);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_LoopbackHttpWithApiKey_IsRejectedBeforeSendingCredential()
+    {
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK));
+        var profile = new ProviderProfile
+        {
+            Type = ProviderType.Local,
+            Platform = ProviderPlatform.Ollama,
+            Protocol = ProviderProtocol.OpenAICompatible,
+            ApiBase = "http://localhost:11434/v1",
+            Model = "qwen3"
+        };
+        using var service = new AIService(profile, "local-secret", handler);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GenerateAsync("system", "user"));
+
+        Assert.Contains("API Key", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(handler.Request);
+    }
+
+    [Fact]
     public async Task GenerateAsync_OpenAICompatible_LocalhostHttp_IsAllowed()
     {
         var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -323,6 +387,7 @@ public class AIServiceTests
         var profile = new ProviderProfile
         {
             Type = ProviderType.Local,
+            Platform = ProviderPlatform.Ollama,
             Protocol = ProviderProtocol.OpenAICompatible,
             ApiBase = "http://localhost:11434/v1",
             Model = "local-model"
@@ -364,6 +429,7 @@ public class AIServiceTests
         });
         var profile = new ProviderProfile
         {
+            Platform = ProviderPlatform.CustomOpenAICompatible,
             Protocol = ProviderProtocol.OpenAICompatible,
             ApiBase = "https://api.example.com/v1",
             Model = "claude-sonnet",
@@ -387,6 +453,7 @@ public class AIServiceTests
         });
         var profile = new ProviderProfile
         {
+            Platform = ProviderPlatform.CustomOpenAICompatible,
             Protocol = ProviderProtocol.OpenAICompatible,
             ApiBase = "https://api.example.com/v1",
             Model = "unmapped-alias",
@@ -410,6 +477,7 @@ public class AIServiceTests
         });
         var profile = new ProviderProfile
         {
+            Platform = ProviderPlatform.CustomOpenAICompatible,
             Protocol = ProviderProtocol.OpenAICompatible,
             ApiBase = "https://api.example.com/v1",
             Model = "alias-model",
@@ -606,7 +674,12 @@ public class AIServiceTests
     [Fact]
     public async Task GenerateAsync_UserCancellation_RemainsCancellation()
     {
-        var profile = new ProviderProfile { Type = ProviderType.Local };
+        var profile = new ProviderProfile
+        {
+            Type = ProviderType.Local,
+            Platform = ProviderPlatform.Ollama,
+            ApiBase = "http://localhost:11434/v1"
+        };
         using var source = new CancellationTokenSource();
         source.Cancel();
         using var service = new AIService(profile, null, new StaticResponseHandler(new HttpResponseMessage(HttpStatusCode.OK)));
@@ -652,7 +725,7 @@ public class AIServiceTests
         {
             Content = new StringContent($"{{\"content\":[{{\"type\":\"text\",\"text\":{jsonText}}}]}}", Encoding.UTF8, "application/json")
         };
-        var profile = new ProviderProfile { Protocol = ProviderProtocol.AnthropicMessages, ApiBase = "https://api.anthropic.com", Model = "claude" };
+        var profile = new ProviderProfile { Platform = ProviderPlatform.Anthropic, Protocol = ProviderProtocol.AnthropicMessages, ApiBase = "https://api.anthropic.com", Model = "claude" };
         using var service = new AIService(profile, "key", new StaticResponseHandler(response));
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateAsync("system", "user"));
@@ -718,7 +791,7 @@ public class AIServiceTests
         {
             Content = new StringContent($"{{\"candidates\":[{{\"content\":{{\"parts\":[{{\"text\":{jsonText}}}]}}}}]}}", Encoding.UTF8, "application/json")
         };
-        var profile = new ProviderProfile { Protocol = ProviderProtocol.GeminiGenerateContent, ApiBase = "https://generativelanguage.googleapis.com/v1beta", Model = "gemini" };
+        var profile = new ProviderProfile { Platform = ProviderPlatform.Gemini, Protocol = ProviderProtocol.GeminiGenerateContent, ApiBase = "https://generativelanguage.googleapis.com/v1beta", Model = "gemini" };
         using var service = new AIService(profile, "key", new StaticResponseHandler(response));
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateAsync("system", "user"));
@@ -804,6 +877,7 @@ public class AIServiceTests
         var profile = new ProviderProfile
         {
             Type = ProviderType.Local,
+            Platform = ProviderPlatform.Ollama,
             ApiBase = "http://localhost:11434/v1",
             Model = "test-model"
         };

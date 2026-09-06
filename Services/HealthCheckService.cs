@@ -131,10 +131,8 @@ public sealed class HealthCheckService
         CancellationToken cancellationToken)
     {
         if (provider is null) return Failed("Provider", HealthCheckScope.External, "没有可用的活动模型配置。");
-        if (provider.Type == ProviderType.Cloud && string.IsNullOrWhiteSpace(apiKey))
-            return Failed("Provider", HealthCheckScope.External, "云模型未配置 API Key。");
-        if (!Uri.TryCreate(provider.ApiBase, UriKind.Absolute, out var endpoint))
-            return Failed("Provider", HealthCheckScope.External, "模型 API 地址无效。");
+        if (!ProviderEndpointPolicy.TryValidate(provider, apiKey, out var endpoint, out var validationError))
+            return Failed("Provider", HealthCheckScope.External, validationError);
 
         try
         {

@@ -144,6 +144,9 @@ public sealed class AgentSkillPackageService
     public void SetEnabled(string name, bool enabled)
     {
         var record = RequireInstalled(name);
+        if (enabled && (!record.Candidate.CanEnable ||
+                        !string.Equals(record.PackageSha256, record.Candidate.Sha256, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("Skill 内容已变化或不再满足安全要求，请重新导入并审查后再启用。");
         WriteInstallMetadata(record.Candidate.PackageRoot, record.Mode, record.Candidate.Sha256, record.Source, enabled, record.Id, ToManifest(record));
     }
 
@@ -230,7 +233,7 @@ public sealed class AgentSkillPackageService
         try
         {
             var record = ReadRecord(directory, candidate);
-            return record.IsEnabled && record.Mode == mode ? candidate : null;
+            return record.IsEnabled && candidate.CanEnable && record.Mode == mode ? candidate : null;
         }
         catch (JsonException) { return null; }
         catch (InvalidDataException) { return null; }
@@ -258,8 +261,11 @@ public sealed class AgentSkillPackageService
     {
         var mode = candidate.Modes.Count == 1 ? candidate.Modes[0] : candidate.SuggestedMode;
         var source = AgentSkillSource.User;
-        var enabled = true;
+        // An unregistered directory is data, not an installed/approved Skill.
+        // Fail closed so dropping SKILL.md into the catalog cannot enter prompts.
+        var enabled = false;
         var packageSha256 = candidate.Sha256;
+        var hasRecordedHash = false;
         var manifest = Path.Combine(directory, ".huaxiazi.json");
         if (File.Exists(manifest))
         {
@@ -268,8 +274,14 @@ public sealed class AgentSkillPackageService
             if (root.TryGetProperty("enabled", out var enabledValue)) enabled = enabledValue.GetBoolean();
             if (root.TryGetProperty("mode", out var modeValue) && Enum.TryParse<ApplicationMode>(modeValue.GetString(), true, out var parsedMode)) mode = parsedMode;
             if (root.TryGetProperty("source", out var sourceValue) && Enum.TryParse<AgentSkillSource>(sourceValue.GetString(), true, out var parsedSource)) source = parsedSource;
-            if (root.TryGetProperty("sha256", out var hashValue) && !string.IsNullOrWhiteSpace(hashValue.GetString())) packageSha256 = hashValue.GetString()!;
+            if (root.TryGetProperty("sha256", out var hashValue) && !string.IsNullOrWhiteSpace(hashValue.GetString()))
+            {
+                packageSha256 = hashValue.GetString()!;
+                hasRecordedHash = true;
+            }
         }
+        enabled = enabled && candidate.CanEnable && hasRecordedHash &&
+                  string.Equals(packageSha256, candidate.Sha256, StringComparison.OrdinalIgnoreCase);
         var id = Path.GetFileName(directory);
         var displayName = string.Empty;
         var displayDescription = string.Empty;
@@ -367,6 +379,7 @@ public sealed class AgentSkillPackageService
 
     private AgentSkillCandidate InspectDirectory(string packageRoot, string sourcePath)
     {
+        RejectReparsePoints(packageRoot);
         var skillFile = Path.Combine(packageRoot, "SKILL.md");
         var content = File.ReadAllText(skillFile, Encoding.UTF8);
         var (metadata, body) = ParseFrontMatter(content);
@@ -477,6 +490,7 @@ public sealed class AgentSkillPackageService
 
     private static void CopySupportedFiles(string source, string target)
     {
+        RejectReparsePoints(source);
         Directory.CreateDirectory(target);
         foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
         {
@@ -491,6 +505,7 @@ public sealed class AgentSkillPackageService
 
     private static void CopyAllFiles(string source, string target)
     {
+        RejectReparsePoints(source);
         Directory.CreateDirectory(target);
         long total = 0;
         var count = 0;
@@ -522,6 +537,25 @@ public sealed class AgentSkillPackageService
         }
         sha.TransformFinalBlock([], 0, 0);
         return Convert.ToHexString(sha.Hash!).ToLowerInvariant();
+    }
+
+    private static void RejectReparsePoints(string root)
+    {
+        var pending = new Stack<string>();
+        pending.Push(Path.GetFullPath(root));
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+            if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException("Skill 包含不允许的链接或重解析点。");
+            foreach (var entry in Directory.EnumerateFileSystemEntries(current, "*", SearchOption.TopDirectoryOnly))
+            {
+                var attributes = File.GetAttributes(entry);
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidDataException("Skill 包含不允许的链接或重解析点。");
+                if ((attributes & FileAttributes.Directory) != 0) pending.Push(entry);
+            }
+        }
     }
 
     private static SkillPresetManifest ToManifest(AgentSkillRecord record, string? displayName = null) => new()

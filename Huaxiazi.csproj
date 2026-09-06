@@ -19,6 +19,10 @@
     <Authors>Huaxiazi</Authors>
     <Copyright>Copyright © Huaxiazi</Copyright>
     <LangVersion>latest</LangVersion>
+    <!-- Release builds inject the base64 SubjectPublicKeyInfo for signed update manifests.
+         Empty local builds fail closed: update checks cannot trust unsigned metadata. -->
+    <HuaxiaziUpdateManifestPublicKey Condition="'$(HuaxiaziUpdateManifestPublicKey)' == ''"></HuaxiaziUpdateManifestPublicKey>
+    <HuaxiaziUpdateSignerCertificateSha256 Condition="'$(HuaxiaziUpdateSignerCertificateSha256)' == ''"></HuaxiaziUpdateSignerCertificateSha256>
     <!-- 显式版本号：作为自动更新检查（UpdateChecker）比较的“当前版本”权威来源 -->
     <Version>2.0.0</Version>
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
@@ -27,11 +31,22 @@
     <ApplicationIcon>Resources\Brand\Huaxiazi.ico</ApplicationIcon>
   </PropertyGroup>
 
+  <ItemGroup>
+    <AssemblyMetadata Include="UpdateManifestPublicKey" Value="$(HuaxiaziUpdateManifestPublicKey)" />
+    <AssemblyMetadata Include="UpdateSignerCertificateSha256" Value="$(HuaxiaziUpdateSignerCertificateSha256)" />
+  </ItemGroup>
+
   <!-- Public release packages must not contain portable PDBs, which are not
        required at runtime and may expose local source-document paths. -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <!-- BinaryFormatter is unsafe even when no current call site uses it. Keep the
+       runtime fail-closed so a future dependency cannot silently re-enable RCE. -->
+  <PropertyGroup>
+    <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
   </PropertyGroup>
 
   <!-- 排除嵌套的测试工程：SDK 默认的 **\*.cs 规则会把 Huaxiazi.Tests 下的
@@ -72,8 +87,8 @@
   <ItemGroup>
     <!-- MVVM source generators ([ObservableProperty], [RelayCommand]) -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.21" />
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.30" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.13" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 

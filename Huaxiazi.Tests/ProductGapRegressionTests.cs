@@ -337,6 +337,7 @@ public sealed class ProductGapRegressionTests : IDisposable
     private static ProviderProfile LocalProfile() => new()
     {
         Type = ProviderType.Local,
+        Platform = ProviderPlatform.Ollama,
         ApiBase = "http://localhost:11434/v1",
         Model = "test"
     };

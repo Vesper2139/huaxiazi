@@ -212,7 +212,7 @@ public sealed class AppSettings
 
     /// <summary>
     /// 更新检查源 URL（指向 <c>version.json</c>）。为空字符串表示禁用自动更新检查（默认）。
-    /// <c>version.json</c> 格式：<c>{ "version": "x.y.z", "url": "https://...release" }</c>。
+    /// <c>version.json</c> 必须是由发布密钥生成的 RSA 签名信封；无签名清单会被拒绝。
     /// UI 仅在用户主动点击“检查更新”时拉取，启动不强制检查，以避免引入任何网络硬依赖。
     /// 所有拉取失败（离线 / HTTP 错误 / 坏 JSON）均安全降级，不会抛未处理异常。
     /// </summary>

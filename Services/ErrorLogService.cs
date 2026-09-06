@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Huaxiazi.Services;
 
@@ -40,7 +41,7 @@ public sealed class ErrorLogService
         ArgumentNullException.ThrowIfNull(exception);
         source = string.IsNullOrWhiteSpace(source) ? "Unknown" : source.Trim();
         var now = _utcNow();
-        var signature = $"{source}|{exception.GetType().FullName}|{exception.Message}";
+        var signature = $"{source}|{exception.GetType().FullName}|{RedactSensitiveData(exception.Message)}";
         lock (_gate)
         {
             if (_lastWritten.TryGetValue(signature, out var previous) && now - previous < _throttleWindow) return false;
@@ -49,11 +50,25 @@ public sealed class ErrorLogService
             var activePath = Path.Combine(_directory, "errors.log");
             RotateIfNeeded(activePath, now);
             PruneArchives();
-            var details = exception.ToString();
+            var details = RedactSensitiveData(exception.ToString());
             if (details.Length > MaximumEntryCharacters) details = details[..MaximumEntryCharacters] + "…[truncated]";
             File.AppendAllText(activePath, $"{now:O} [{source}] {details}{Environment.NewLine}", new UTF8Encoding(false));
             return true;
         }
+    }
+
+    internal static string RedactSensitiveData(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return value;
+        var redacted = Regex.Replace(value,
+            @"(?i)\bauthorization\s*:\s*bearer\s+[^\s&;,]+",
+            "Authorization: Bearer [REDACTED]", RegexOptions.CultureInvariant);
+        redacted = Regex.Replace(redacted,
+            @"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password)\s*[:=]\s*([^\s&;,]+)",
+            "$1=[REDACTED]", RegexOptions.CultureInvariant);
+        return Regex.Replace(redacted,
+            @"(?i)([?&](?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password)=)[^&#\s]+",
+            "$1[REDACTED]", RegexOptions.CultureInvariant);
     }
 
     public void Prepare()

@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Copies the self-contained publish output (out\publish\win-x64\) to
-        %LocalAppData%\Programs\Huaxiazi\
+        %ProgramFiles%\Huaxiazi\
     creates a Start Menu shortcut and a Desktop shortcut, writes an uninstall
     registry entry, and generates a self-contained uninstall.ps1 next to the
     installed binaries.
@@ -12,16 +12,17 @@
     SAFETY / ROBUSTNESS:
       * Idempotent: re-running overwrites in place without errors.
       * Handles an existing install directory gracefully (updates it).
-      * Elevation: attempts to write the uninstall key under HKLM first; if that
-        fails (e.g. no administrator rights), it safely falls back to HKCU and
-        informs the user. No crash either way.
+      * Elevation: requires an administrator token and a target below Program Files.
+        This prevents a standard user from replacing application DLLs or the
+        generated uninstall helper after installation.
       * Zero external dependencies: only built-in PowerShell + WScript.Shell COM.
 
 .PARAMETER SourceDir
     Folder with the published binaries (default: <repo root>\out\publish\win-x64).
 
 .PARAMETER InstallDir
-    Install target (default: %LocalAppData%\Programs\Huaxiazi).
+    Install target (default: %ProgramFiles%\Huaxiazi). Custom targets must remain
+    below %ProgramFiles% and the script must run elevated.
 
 .PARAMETER Force
     Reinstall even if the target directory already exists (default behaviour also
@@ -53,9 +54,20 @@ if (-not [System.IO.Path]::IsPathRooted($SourceDir)) {
 $SourceDir = [System.IO.Path]::GetFullPath($SourceDir)
 
 if ([string]::IsNullOrWhiteSpace($InstallDir)) {
-    $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\Huaxiazi"
+    $InstallDir = Join-Path $env:ProgramFiles "Huaxiazi"
 }
 $InstallDir = [System.IO.Path]::GetFullPath($InstallDir)
+
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+    [Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    throw "此安装程序必须以管理员身份运行，才能将程序安装到受保护的 Program Files 目录。"
+}
+
+$programFilesRoot = [System.IO.Path]::GetFullPath($env:ProgramFiles).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+if (-not $InstallDir.StartsWith($programFilesRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "安装目录必须位于受保护的 Program Files 目录下。"
+}
 
 $AppExe       = Join-Path $InstallDir "Huaxiazi.exe"
 $SourceExe    = Join-Path $SourceDir "Huaxiazi.exe"
@@ -157,8 +169,6 @@ function Set-UninstallEntry([string]$root) {
     New-ItemProperty -Path $key -Name "NoModify"        -Value 1              -PropertyType DWord  -Force | Out-Null
     New-ItemProperty -Path $key -Name "NoRepair"        -Value 1              -PropertyType DWord  -Force | Out-Null
 }
-
-$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 $registryWritten = $false
 if ($isAdmin) {

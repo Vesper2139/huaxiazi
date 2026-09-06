@@ -6,10 +6,8 @@
     One command that produces a directly runnable, self-contained artifact:
         dotnet publish -c Release -r win-x64 --self-contained true -o out/publish/win-x64
 
-    Optionally signs the published binaries when a code-signing certificate is
-    supplied via -CertPath / -CertPassword (PFX file) or -CertSha1 (cert store
-    thumbprint). Signing is OFF unless a certificate is provided, so the script
-    is safe to run with no signing infrastructure present.
+    Release publishing is fail-closed: a code-signing certificate must be supplied
+    via -CertPath / -CertPassword (PFX file) or -CertSha1 (certificate store).
 
     This script is standalone and has no external dependencies beyond the
     .NET 8 SDK and (optionally) signtool.exe.
@@ -36,6 +34,10 @@
 .PARAMETER SigntoolPath
     Explicit path to signtool.exe (auto-detected from the Windows SDK if omitted).
 
+.PARAMETER UpdateManifestPublicKey
+    Base64-encoded RSA SubjectPublicKeyInfo pinned into the release binary.
+    Required for every release publish.
+
 .PARAMETER Clean
     Clean bin/obj/<OutputDir> before publishing.
 
@@ -57,11 +59,15 @@ param(
     [string]$CertPassword  = "",
     [string]$CertSha1      = "",
     [string]$SigntoolPath  = "",
+    [string]$UpdateManifestPublicKey = "",
     [switch]$Clean,
     [switch]$SkipTests
 )
 
 $ErrorActionPreference = "Stop"
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    throw "PowerShell 7 or newer is required for secure release publishing. Run this script with pwsh."
+}
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $MainProj  = Join-Path $ScriptDir "Huaxiazi.csproj"
@@ -86,6 +92,26 @@ try {
 catch {
     Write-Error "dotnet not found. Install the .NET 8 SDK (https://dotnet.microsoft.com/download) first."
 }
+if (-not $CertPath -and -not $CertSha1) {
+    throw "Release signing is mandatory. Supply -CertPath or -CertSha1; use build.ps1 for unsigned local development builds."
+}
+if (-not $UpdateManifestPublicKey) {
+    throw "-UpdateManifestPublicKey is mandatory so release builds can verify signed update manifests."
+}
+$releaseCertificate = if ($CertPath) {
+    [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+        [IO.Path]::GetFullPath($CertPath), $CertPassword,
+        [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
+}
+else {
+    Get-ChildItem Cert:\CurrentUser\My, Cert:\LocalMachine\My |
+        Where-Object Thumbprint -eq ($CertSha1 -replace '\s', '') |
+        Select-Object -First 1
+}
+if (-not $releaseCertificate) { throw "Unable to load the release signing certificate." }
+$signerCertificateSha256 = [Convert]::ToHexString(
+    [Security.Cryptography.SHA256]::HashData($releaseCertificate.RawData))
+$releaseCertificate.Dispose()
 
 # ---------- 1. Optional clean ----------
 if ($Clean) {
@@ -136,7 +162,9 @@ if (-not $SkipTests) {
 
 # ---------- 3. Self-contained publish ----------
 Write-Step "Publish: self-contained $Runtime -> $OutputDir"
-dotnet publish $MainProj -c $Configuration -r $Runtime --self-contained true -o $DistDir
+dotnet publish $MainProj -c $Configuration -r $Runtime --self-contained true -o $DistDir `
+    -p:HuaxiaziUpdateManifestPublicKey=$UpdateManifestPublicKey `
+    -p:HuaxiaziUpdateSignerCertificateSha256=$signerCertificateSha256
 if (-not $?) { throw "Self-contained publish failed." }
 
 Write-Host "Publish succeeded: $DistDir\Huaxiazi.exe" -ForegroundColor Green
@@ -151,7 +179,9 @@ dotnet publish $MainProj -c $Configuration -r $Runtime --self-contained true -o 
     -p:IncludeAllContentForSelfExtract=true `
     -p:EnableCompressionInSingleFile=true `
     -p:DebugType=None `
-    -p:DebugSymbols=false
+    -p:DebugSymbols=false `
+    -p:HuaxiaziUpdateManifestPublicKey=$UpdateManifestPublicKey `
+    -p:HuaxiaziUpdateSignerCertificateSha256=$signerCertificateSha256
 if (-not $?) { throw "Standalone single-file publish failed." }
 $singleFileSource = Join-Path $SingleFileDir "Huaxiazi.exe"
 if (-not (Test-Path $singleFileSource -PathType Leaf)) {
@@ -159,9 +189,9 @@ if (-not (Test-Path $singleFileSource -PathType Leaf)) {
 }
 Write-Host "Standalone publish succeeded: $singleFileSource" -ForegroundColor Green
 
-# ---------- 4. Optional code signing ----------
+# ---------- 4. Mandatory code signing ----------
 if ($CertPath -or $CertSha1) {
-    Write-Step "Code signing (optional, certificate supplied)"
+    Write-Step "Code signing (mandatory release gate)"
     $signScript = Join-Path (Join-Path $ScriptDir "deploy") "sign.ps1"
     if (-not (Test-Path $signScript)) {
         throw "deploy/sign.ps1 not found; cannot sign."
@@ -179,9 +209,6 @@ if ($CertPath -or $CertSha1) {
     }
     Write-Host "Code signing complete." -ForegroundColor Green
 }
-else {
-    Write-Host "Skipping code signing (no -CertPath / -CertSha1 provided)." -ForegroundColor Yellow
-}
 
 # ---------- 5. Stable client delivery files ----------
 Write-Step "Package standalone EXE"
@@ -198,6 +225,9 @@ Write-Host "Portable ZIP: $portableZip" -ForegroundColor Green
 
 # ---------- 6. Optional Inno Setup installer ----------
 $isccCandidates = @(
+    (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 7\ISCC.exe"),
+    (Join-Path $env:ProgramFiles "Inno Setup 7\ISCC.exe"),
+    (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 7\ISCC.exe"),
     (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe"),
     (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"),
     (Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe")
@@ -209,6 +239,13 @@ if ($iscc) {
     if (-not $?) { throw "Installer build failed." }
     $installer = Join-Path $PackagesDir "Huaxiazi-Setup.exe"
     if (Test-Path $installer) {
+        $installerSignParams = @{ DistDir = $PackagesDir }
+        if ($CertPath)     { $installerSignParams['CertPath'] = $CertPath }
+        if ($CertPassword) { $installerSignParams['CertPassword'] = $CertPassword }
+        if ($CertSha1)     { $installerSignParams['CertSha1'] = $CertSha1 }
+        if ($SigntoolPath) { $installerSignParams['SigntoolPath'] = $SigntoolPath }
+        & (Join-Path $ScriptDir "deploy\sign.ps1") @installerSignParams
+        if (-not $?) { throw "Installer signing failed." }
         Write-Host "Installer: $installer" -ForegroundColor Green
     }
 }

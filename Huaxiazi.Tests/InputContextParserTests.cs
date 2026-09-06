@@ -18,6 +18,8 @@ public sealed class InputContextParserTests
         Assert.Equal("专业、克制", parsed.Formality);
         Assert.Equal("高", parsed.Weight);
         Assert.Contains("优先级：高", parsed.Instructions);
+        Assert.Contains("不可信", parsed.Instructions);
+        Assert.DoesNotContain("高权重要求", parsed.Instructions);
     }
 
     [Fact]

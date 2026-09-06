@@ -38,8 +38,11 @@
 .PARAMETER OutputPath
     Destination file path (default: release/version.json relative to repo root).
 
+.PARAMETER SigningKeyPath
+    RSA private key in PEM format. Required; unsigned update manifests are refused.
+
 .EXAMPLE
-    .\deploy\generate-manifest.ps1 -Version 2.0.0 -Sha256 (Get-FileHash release\Huaxiazi-Setup.exe -Algorithm SHA256).Hash
+    .\deploy\generate-manifest.ps1 -Version 2.0.0 -Sha256 (Get-FileHash release\Huaxiazi-Setup.exe -Algorithm SHA256).Hash -SigningKeyPath $env:RUNNER_TEMP\update-private.pem
 #>
 
 [CmdletBinding()]
@@ -49,12 +52,20 @@ param(
     [string]$DownloadUrl   = "",
     [string]$ReleaseNotes  = "",
     [string]$PublishedAt   = "",
-    [string]$OutputPath    = ""
+    [string]$OutputPath    = "",
+    [Parameter(Mandatory = $true)][string]$SigningKeyPath
 )
 
 $ErrorActionPreference = "Stop"
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    throw "PowerShell 7 or newer is required for RSA PEM manifest signing. Run this script with pwsh."
+}
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$SigningKeyPath = [System.IO.Path]::GetFullPath($SigningKeyPath)
+if (-not (Test-Path -LiteralPath $SigningKeyPath -PathType Leaf)) {
+    throw "更新清单 RSA 私钥不存在：$SigningKeyPath"
+}
 $TemplatePath = Join-Path $ScriptDir "update-manifest.template.json"
 if (-not (Test-Path $TemplatePath)) {
     throw "Template not found: $TemplatePath"
@@ -106,11 +117,32 @@ if ($manifest.version -ne $Version) {
     throw "版本门禁失败：清单版本 $($manifest.version) 与 csproj 版本 $Version 不一致。"
 }
 
+$privateKeyPem = Get-Content -LiteralPath $SigningKeyPath -Raw
+$rsa = [System.Security.Cryptography.RSA]::Create()
+try {
+    $rsa.ImportFromPem($privateKeyPem)
+    if ($rsa.KeySize -lt 2048) { throw "更新清单 RSA 密钥不得小于 2048 位。" }
+    $utf8 = [System.Text.UTF8Encoding]::new($false)
+    $payloadBytes = $utf8.GetBytes($rendered)
+    $signatureBytes = $rsa.SignData(
+        $payloadBytes,
+        [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+        [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+    $envelope = [ordered]@{
+        payload = [Convert]::ToBase64String($payloadBytes)
+        signature = [Convert]::ToBase64String($signatureBytes)
+    } | ConvertTo-Json
+}
+finally {
+    $rsa.Dispose()
+    $privateKeyPem = $null
+}
+
 $targetDir = Split-Path -Parent $OutputPath
 if (-not (Test-Path $targetDir)) {
     New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
 }
-Set-Content -LiteralPath $OutputPath -Value $rendered -Encoding UTF8
+[System.IO.File]::WriteAllText([System.IO.Path]::GetFullPath($OutputPath), $envelope, [System.Text.UTF8Encoding]::new($false))
 Write-Host "update manifest 已生成: $OutputPath" -ForegroundColor Green
 Write-Host "  version      : $($manifest.version)" -ForegroundColor Green
 Write-Host "  sha256       : $($manifest.sha256)" -ForegroundColor Green

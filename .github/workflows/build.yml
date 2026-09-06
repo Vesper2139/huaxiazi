@@ -17,19 +17,65 @@ jobs:
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.x'
+          dotnet-version: '8.0.424'
 
-      - name: Restore
-        run: dotnet restore Huaxiazi.sln
+      - name: Restore locked dependency graph
+        run: dotnet restore Huaxiazi.sln --locked-mode
+
+      - name: Audit direct and transitive packages
+        shell: pwsh
+        run: |
+          dotnet list Huaxiazi.csproj package --vulnerable --include-transitive
+          if ($LASTEXITCODE -ne 0) { throw "Application dependency audit failed." }
+          dotnet list Huaxiazi.Tests/Huaxiazi.Tests.csproj package --vulnerable --include-transitive
+          if ($LASTEXITCODE -ne 0) { throw "Test dependency audit failed." }
 
       - name: Build (Release)
         run: dotnet build Huaxiazi.sln -c Release --no-restore
 
-      - name: Test (Release)
-        run: dotnet test Huaxiazi.Tests/Huaxiazi.Tests.csproj -c Release --no-build
+      - name: Test core (Release)
+        shell: pwsh
+        run: |
+          $excluded = @(
+            'WpfViewSmokeTests','BrandIconTests','CompanionUiContractTests','ThemeSwapRegressionTests',
+            'AcceptanceDefectTests','InteractionLayoutReverifyTests','ResponsiveLayoutRegressionTests',
+            'ScrollBehaviorTests','IntegerInputBehaviorTests','DecimalInputBehaviorTests',
+            'ExceptionPresentationPolicyTests','HotkeyParserTests','SettingsViewModelTests',
+            'ThemeServiceTests','WindowPlacementServiceTests'
+          )
+          $filter = ($excluded | ForEach-Object { "FullyQualifiedName!~$_" }) -join '&'
+          dotnet test Huaxiazi.Tests/Huaxiazi.Tests.csproj -c Release --no-build --filter $filter
+          if ($LASTEXITCODE -ne 0) { throw "Core tests failed." }
+
+      - name: Test WPF-sensitive groups in isolated hosts
+        shell: pwsh
+        run: |
+          $groups = @(
+            'WpfViewSmokeTests','BrandIconTests','CompanionUiContractTests','ThemeSwapRegressionTests',
+            'AcceptanceDefectTests','InteractionLayoutReverifyTests','ResponsiveLayoutRegressionTests',
+            'ScrollBehaviorTests','IntegerInputBehaviorTests','DecimalInputBehaviorTests',
+            'ExceptionPresentationPolicyTests','HotkeyParserTests','SettingsViewModelTests',
+            'ThemeServiceTests','WindowPlacementServiceTests'
+          )
+          foreach ($group in $groups) {
+            dotnet test Huaxiazi.Tests/Huaxiazi.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~$group"
+            if ($LASTEXITCODE -ne 0) { throw "Isolated test group failed: $group" }
+          }
 
       - name: Publish self-contained (win-x64)
-        run: dotnet publish Huaxiazi.csproj -c Release -r win-x64 --self-contained true -o out/publish/win-x64
+        shell: pwsh
+        env:
+          UPDATE_MANIFEST_PUBLIC_KEY: ${{ secrets.UPDATE_MANIFEST_PUBLIC_KEY }}
+          SIGNER_CERTIFICATE_SHA256: ${{ secrets.SIGNER_CERTIFICATE_SHA256 }}
+        run: |
+          $properties = @()
+          if ($env:UPDATE_MANIFEST_PUBLIC_KEY) {
+            $properties += "-p:HuaxiaziUpdateManifestPublicKey=$env:UPDATE_MANIFEST_PUBLIC_KEY"
+          }
+          if ($env:SIGNER_CERTIFICATE_SHA256) {
+            $properties += "-p:HuaxiaziUpdateSignerCertificateSha256=$env:SIGNER_CERTIFICATE_SHA256"
+          }
+          dotnet publish Huaxiazi.csproj -c Release -r win-x64 --self-contained true -o out/publish/win-x64 @properties
 
       # Update-manifest generation gate. Catches regressions such as the template
       # reverting to a hardcoded version, leftover placeholders, or a manifest
@@ -40,29 +86,65 @@ jobs:
           $csproj = Get-Content Huaxiazi.csproj -Raw
           $version = [regex]::Match($csproj, '<Version>([^<]+)</Version>').Groups[1].Value.Trim()
           if (-not $version) { throw "Could not read <Version> from Huaxiazi.csproj" }
-          & ./deploy/generate-manifest.ps1 -Version $version -Sha256 ('0' * 64) -DownloadUrl "https://example.invalid/Huaxiazi-Setup.exe" -ReleaseNotes "CI gate check" -OutputPath out/version-gate.json
+          $rsa = [System.Security.Cryptography.RSA]::Create(2048)
+          $gateKey = Join-Path $env:RUNNER_TEMP 'manifest-gate-private.pem'
+          try {
+            [IO.File]::WriteAllText($gateKey, $rsa.ExportRSAPrivateKeyPem())
+            & ./deploy/generate-manifest.ps1 -Version $version -Sha256 ('0' * 64) -DownloadUrl "https://example.invalid/Huaxiazi-Setup.exe" -ReleaseNotes "CI gate check" -SigningKeyPath $gateKey -OutputPath out/version-gate.json
+          }
+          finally {
+            $rsa.Dispose()
+            Remove-Item -LiteralPath $gateKey -Force -ErrorAction SilentlyContinue
+          }
 
-      - name: Upload publish artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Huaxiazi-portable-win-x64
-          path: out/publish/win-x64
+      - name: Require release signing secrets
+        if: ${{ github.event_name == 'push' }}
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.PFX_PASSWORD }}
+          SIGNER_CERTIFICATE_SHA256: ${{ secrets.SIGNER_CERTIFICATE_SHA256 }}
+          UPDATE_MANIFEST_PUBLIC_KEY: ${{ secrets.UPDATE_MANIFEST_PUBLIC_KEY }}
+        run: |
+          foreach ($name in 'PFX_BASE64','PFX_PASSWORD','SIGNER_CERTIFICATE_SHA256','UPDATE_MANIFEST_PUBLIC_KEY') {
+            if (-not (Get-Item "env:$name").Value) { throw "Required release secret is missing: $name" }
+          }
 
-      # Optional signing step. Enabled only on push (not PRs) and only when the
-      # repository secrets PFX_BASE64 and PFX_PASSWORD are configured. Remove or
-      # adjust if you do not use code signing.
-      - name: Decode certificate (optional)
-        if: ${{ github.event_name == 'push' && secrets.PFX_BASE64 != '' }}
-        shell: bash
-        run: echo "${{ secrets.PFX_BASE64 }}" | base64 --decode > out/publish/win-x64/sign.pfx
+      - name: Decode certificate outside artifact directory
+        if: ${{ github.event_name == 'push' }}
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.PFX_BASE64 }}
+        run: |
+          [IO.File]::WriteAllBytes((Join-Path $env:RUNNER_TEMP 'huaxiazi-sign.pfx'), [Convert]::FromBase64String($env:PFX_BASE64))
 
-      - name: Sign binaries (optional)
-        if: ${{ github.event_name == 'push' && secrets.PFX_BASE64 != '' }}
-        run: powershell -ExecutionPolicy Bypass -File deploy/sign.ps1 -DistDir out/publish/win-x64 -CertPath out/publish/win-x64/sign.pfx -CertPassword "${{ secrets.PFX_PASSWORD }}"
+      - name: Sign and verify release binaries
+        if: ${{ github.event_name == 'push' }}
+        shell: pwsh
+        env:
+          PFX_PASSWORD: ${{ secrets.PFX_PASSWORD }}
+          SIGNER_CERTIFICATE_SHA256: ${{ secrets.SIGNER_CERTIFICATE_SHA256 }}
+        run: |
+          $certificatePath = Join-Path $env:RUNNER_TEMP 'huaxiazi-sign.pfx'
+          & ./deploy/sign.ps1 -DistDir out/publish/win-x64 -CertPath $certificatePath -CertPassword $env:PFX_PASSWORD
+          if ($LASTEXITCODE -ne 0) { throw "Authenticode signing failed." }
+          foreach ($path in 'out/publish/win-x64/Huaxiazi.exe','out/publish/win-x64/Huaxiazi.dll') {
+            $signature = Get-AuthenticodeSignature -LiteralPath $path
+            if ($signature.Status -ne 'Valid') { throw "Invalid Authenticode signature: $path ($($signature.Status))" }
+            $actual = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($signature.SignerCertificate.RawData))
+            $expected = $env:SIGNER_CERTIFICATE_SHA256 -replace '[^0-9A-Fa-f]', ''
+            if ($actual -ne $expected.ToUpperInvariant()) { throw "Unexpected signer certificate: $path" }
+          }
 
-      - name: Re-upload signed publish artifact (optional)
-        if: ${{ github.event_name == 'push' && secrets.PFX_BASE64 != '' }}
+      - name: Remove decoded certificate
+        if: ${{ always() && github.event_name == 'push' }}
+        shell: pwsh
+        run: Remove-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'huaxiazi-sign.pfx') -Force -ErrorAction SilentlyContinue
+
+      - name: Upload signed publish artifact
+        if: ${{ github.event_name == 'push' }}
         uses: actions/upload-artifact@v4
         with:
           name: Huaxiazi-portable-win-x64-signed
           path: out/publish/win-x64
+          if-no-files-found: error

@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
@@ -25,26 +27,41 @@ internal interface IAuthenticodeVerifier
 
 internal sealed class AuthenticodeVerifier : IAuthenticodeVerifier
 {
+    private readonly string _trustedCertificateSha256;
+
+    internal AuthenticodeVerifier()
+    {
+        _trustedCertificateSha256 = typeof(AuthenticodeVerifier).Assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .FirstOrDefault(attribute => attribute.Key == "UpdateSignerCertificateSha256")?.Value ?? string.Empty;
+    }
+
     public bool Verify(string filePath, out string? publisher)
     {
         publisher = null;
         try
         {
-            // CreateFromSignedFile 要求 PE 带 Authenticode 签名；随后用系统证书链
-            // 验证完整性与信任链。发布者名称只作为诊断，不写入日志或用户配置。
+            if (string.IsNullOrWhiteSpace(_trustedCertificateSha256) ||
+                !WinTrust.VerifyEmbeddedSignature(filePath)) return false;
             using var certificate = new X509Certificate2(X509Certificate.CreateFromSignedFile(filePath));
             publisher = certificate.GetNameInfo(X509NameType.SimpleName, false);
-            using var chain = new X509Chain();
-            chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-            chain.ChainPolicy.VerificationFlags = X509VerificationFlags.NoFlag;
-            return chain.Build(certificate) &&
-                   !string.IsNullOrWhiteSpace(publisher) &&
-                   publisher.Contains("Huaxiazi", StringComparison.OrdinalIgnoreCase);
+            return CertificateMatchesPin(certificate, _trustedCertificateSha256);
         }
         catch
         {
             return false;
         }
+    }
+
+    internal static bool CertificateMatchesPin(X509Certificate2 certificate, string trustedCertificateSha256)
+    {
+        if (certificate is null || string.IsNullOrWhiteSpace(trustedCertificateSha256)) return false;
+        var normalized = trustedCertificateSha256.Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace(":", string.Empty, StringComparison.Ordinal);
+        if (normalized.Length != 64 || normalized.Any(character => !Uri.IsHexDigit(character))) return false;
+        var actual = Convert.ToHexString(SHA256.HashData(certificate.RawData));
+        return CryptographicOperations.FixedTimeEquals(
+            Convert.FromHexString(actual), Convert.FromHexString(normalized));
     }
 }
 

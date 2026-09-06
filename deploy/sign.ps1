@@ -46,11 +46,10 @@ param(
     [string]$CertPassword = "",
     [string]$CertSha1     = "",
     [string]$SigntoolPath = "",
-    [string]$TimestampUrl = "http://timestamp.digicert.com"
+    [string]$TimestampUrl = "https://timestamp.digicert.com"
 )
 
-# NOTE: do NOT use $ErrorActionPreference = "Stop" globally here, so that a missing
-# certificate / missing signtool degrades gracefully. We wrap the real work in try/catch.
+$ErrorActionPreference = "Stop"
 
 function Write-Step([string]$msg) {
     Write-Host ""
@@ -68,10 +67,10 @@ if (-not [System.IO.Path]::IsPathRooted($DistDir)) {
 $DistDir = [System.IO.Path]::GetFullPath($DistDir)
 
 try {
-    # ---------- 0. No certificate -> safe skip ----------
+    # ---------- 0. A release without a certificate is a failed release ----------
     if ([string]::IsNullOrWhiteSpace($CertPath) -and [string]::IsNullOrWhiteSpace($CertSha1)) {
-        Write-Host "No certificate supplied (-CertPath or -CertSha1). Skipping signing safely." -ForegroundColor Yellow
-        exit 0
+        Write-Error "A signing certificate is required (-CertPath or -CertSha1); refusing to produce an unsigned release."
+        exit 1
     }
 
     # ---------- 1. Locate signtool ----------
@@ -99,18 +98,18 @@ try {
     }
 
     if (-not $signtool) {
-        Write-Warning "signtool.exe not found (Windows SDK is not installed). Skipping signing."
-        exit 0
+        Write-Error "signtool.exe not found (Windows SDK is not installed); refusing to skip signing."
+        exit 1
     }
     Write-Host "Using signtool: $signtool" -ForegroundColor Green
 
     # ---------- 2. Collect targets ----------
     if (-not (Test-Path $DistDir)) {
-        Write-Warning "DistDir not found: $DistDir. Nothing to sign."
-        exit 0
+        Write-Error "DistDir not found: $DistDir."
+        exit 1
     }
 
-    $targetNames = @("Huaxiazi.exe", "Huaxiazi.dll")
+    $targetNames = @("Huaxiazi.exe", "Huaxiazi.dll", "Huaxiazi-Setup.exe")
     $targets = @()
     foreach ($name in $targetNames) {
         $fp = Join-Path $DistDir $name
@@ -118,8 +117,8 @@ try {
     }
 
     if ($targets.Count -eq 0) {
-        Write-Warning "No signable files found in $DistDir. Nothing to sign."
-        exit 0
+        Write-Error "No signable files found in $DistDir."
+        exit 1
     }
 
     # ---------- 3. Build base sign arguments ----------

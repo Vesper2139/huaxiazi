@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using Huaxiazi.Services;
 using Xunit;
 
@@ -30,6 +32,26 @@ public sealed class DpapiSecretStoreTests : IDisposable
         store.Delete("profile-default");
 
         Assert.Null(store.Read("profile-default"));
+    }
+
+    [Fact]
+    public void Save_SecretDirectoryDoesNotInheritBroadReadAccess()
+    {
+        var store = new DpapiSecretStore(_root);
+
+        store.Save("profile-default", "secret");
+
+        var security = new DirectoryInfo(_root).GetAccessControl();
+        Assert.True(security.AreAccessRulesProtected);
+        var rules = security.GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier))
+            .Cast<FileSystemAccessRule>()
+            .ToArray();
+        Assert.DoesNotContain(rules, rule =>
+            rule.AccessControlType == AccessControlType.Allow &&
+            rule.IdentityReference is SecurityIdentifier sid &&
+            (sid.IsWellKnown(WellKnownSidType.WorldSid) ||
+             sid.IsWellKnown(WellKnownSidType.BuiltinUsersSid) ||
+             sid.IsWellKnown(WellKnownSidType.AuthenticatedUserSid)));
     }
 
     public void Dispose()

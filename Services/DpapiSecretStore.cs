@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Security.Cryptography;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 
 namespace Huaxiazi.Services;
@@ -20,6 +22,7 @@ public sealed class DpapiSecretStore : ISecretStore
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(secret);
         Directory.CreateDirectory(_directory);
+        HardenDirectoryAccess();
 
         var encrypted = ProtectedData.Protect(
             Encoding.UTF8.GetBytes(secret), Entropy, DataProtectionScope.CurrentUser);
@@ -76,5 +79,21 @@ public sealed class DpapiSecretStore : ISecretStore
     {
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(id)));
         return Path.Combine(_directory, hash + ".secret");
+    }
+
+    private void HardenDirectoryAccess()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var currentUser = WindowsIdentity.GetCurrent().User
+            ?? throw new InvalidOperationException("无法识别当前 Windows 用户。");
+        var inheritance = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+        var security = new DirectorySecurity();
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        security.AddAccessRule(new FileSystemAccessRule(
+            currentUser, FileSystemRights.FullControl, inheritance, PropagationFlags.None, AccessControlType.Allow));
+        security.AddAccessRule(new FileSystemAccessRule(
+            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), FileSystemRights.FullControl,
+            inheritance, PropagationFlags.None, AccessControlType.Allow));
+        new DirectoryInfo(_directory).SetAccessControl(security);
     }
 }

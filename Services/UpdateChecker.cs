@@ -1,5 +1,9 @@
 using System;
+using System.Linq;
 using System.Net.Http;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -55,8 +59,8 @@ public sealed class UpdateCheckResult
 
 /// <summary>
 /// 轻量可降级的自动更新检查服务。
-/// 从可配置 URL 拉取 <c>version.json</c>（<c>{ "version": "x.y.z", "url": "https://...release" }</c>），
-/// 与安全读取的当前程序集版本（<see cref="GetCurrentVersion"/>）做语义化比较。
+/// 从可配置 URL 拉取 RSA 签名的 <c>version.json</c> 信封，先使用程序集内固定公钥
+/// 验签并提取清单，再与当前程序集版本（<see cref="GetCurrentVersion"/>）做语义化比较。
 ///
 /// 设计原则（安全优先）：
 /// <list type="bullet">
@@ -71,11 +75,14 @@ public sealed class UpdateChecker
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(10);
 
     private readonly Func<HttpClient> _clientFactory;
+    private readonly Func<string, string?> _manifestVerifier;
 
     /// <summary>
     /// 默认构造：每次检查创建带超时的 <see cref="HttpClient"/>，使用完毕后释放。
     /// </summary>
-    public UpdateChecker() : this(() => new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = DefaultTimeout })
+    public UpdateChecker() : this(
+        () => new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = DefaultTimeout },
+        UpdateManifestSignature.VerifyAndExtractWithEmbeddedKey)
     {
     }
 
@@ -83,13 +90,19 @@ public sealed class UpdateChecker
     /// 注入 <see cref="HttpClient"/>（便于单元测试用桩处理器替换网络层）。
     /// 注意：传入的客户端将在每次 <see cref="CheckAsync"/> 调用结束后被释放。
     /// </summary>
-    public UpdateChecker(HttpClient client) : this(() => client)
+    public UpdateChecker(HttpClient client) : this(() => client, UpdateManifestSignature.VerifyAndExtractWithEmbeddedKey)
     {
     }
 
-    private UpdateChecker(Func<HttpClient> clientFactory)
+    internal UpdateChecker(HttpClient client, Func<string, string?> manifestVerifier)
+        : this(() => client, manifestVerifier)
+    {
+    }
+
+    private UpdateChecker(Func<HttpClient> clientFactory, Func<string, string?> manifestVerifier)
     {
         _clientFactory = clientFactory ?? (() => new HttpClient { Timeout = DefaultTimeout });
+        _manifestVerifier = manifestVerifier ?? throw new ArgumentNullException(nameof(manifestVerifier));
     }
 
     /// <summary>
@@ -165,7 +178,18 @@ public sealed class UpdateChecker
             };
         }
 
-        var result = Evaluate(raw, GetCurrentVersion());
+        var verifiedManifest = _manifestVerifier(raw);
+        if (verifiedManifest is null)
+        {
+            return new UpdateCheckResult
+            {
+                Status = UpdateStatus.Error,
+                CurrentVersion = GetCurrentVersion(),
+                Message = "更新清单签名无效或未配置可信公钥。"
+            };
+        }
+
+        var result = Evaluate(verifiedManifest, GetCurrentVersion());
         if (result.Status == UpdateStatus.UpdateAvailable &&
             (!Uri.TryCreate(result.DownloadUrl, UriKind.Absolute, out var downloadUri) ||
              downloadUri.Scheme != Uri.UriSchemeHttps ||
@@ -302,5 +326,49 @@ public sealed class UpdateChecker
         }
 
         return Version.TryParse(text.Trim(), out version);
+    }
+}
+
+internal static class UpdateManifestSignature
+{
+    private const int MaxManifestBytes = 64 * 1024;
+
+    internal static string? VerifyAndExtractWithEmbeddedKey(string envelope)
+    {
+        var publicKey = typeof(UpdateChecker).Assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .FirstOrDefault(attribute => attribute.Key == "UpdateManifestPublicKey")?.Value;
+        return TryVerifyAndExtract(envelope, publicKey ?? string.Empty, out var payload) ? payload : null;
+    }
+
+    internal static bool TryVerifyAndExtract(string envelope, string publicKeyBase64, out string? payload)
+    {
+        payload = null;
+        if (string.IsNullOrWhiteSpace(envelope) || string.IsNullOrWhiteSpace(publicKeyBase64) ||
+            Encoding.UTF8.GetByteCount(envelope) > MaxManifestBytes) return false;
+        try
+        {
+            using var document = JsonDocument.Parse(envelope);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object ||
+                !root.TryGetProperty("payload", out var payloadElement) ||
+                !root.TryGetProperty("signature", out var signatureElement)) return false;
+            var payloadBytes = Convert.FromBase64String(payloadElement.GetString() ?? string.Empty);
+            var signature = Convert.FromBase64String(signatureElement.GetString() ?? string.Empty);
+            if (payloadBytes.Length == 0 || payloadBytes.Length > MaxManifestBytes) return false;
+            using var rsa = RSA.Create();
+            rsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(publicKeyBase64), out _);
+            if (rsa.KeySize < 2048 || !rsa.VerifyData(payloadBytes, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1))
+                return false;
+            payload = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true)
+                .GetString(payloadBytes);
+            using var payloadDocument = JsonDocument.Parse(payload);
+            return payloadDocument.RootElement.ValueKind == JsonValueKind.Object;
+        }
+        catch (Exception exception) when (exception is JsonException or FormatException or CryptographicException or DecoderFallbackException)
+        {
+            payload = null;
+            return false;
+        }
     }
 }

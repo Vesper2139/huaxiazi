@@ -21,6 +21,16 @@ public sealed class HealthCheckServiceTests : IDisposable
             Task.FromResult(new HttpResponseMessage(statusCode));
     }
 
+    private sealed class CountingHandler : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+        }
+    }
+
     [Fact]
     public async Task CheckAsync_ReportsFiveLocalChecksAndOneExternalProviderCheck()
     {
@@ -55,6 +65,32 @@ public sealed class HealthCheckServiceTests : IDisposable
         Assert.Equal(HealthCheckScope.External, provider.Scope);
         Assert.Equal(HealthCheckStatus.Failed, provider.Status);
         Assert.Contains("API Key", provider.Message);
+    }
+
+    [Fact]
+    public async Task CheckAsync_TamperedOfficialEndpoint_IsRejectedWithoutNetworkRequest()
+    {
+        var settings = LocalSettings();
+        settings.ProviderProfiles[0] = new ProviderProfile
+        {
+            Id = "cloud",
+            Name = "Claude",
+            Type = ProviderType.Cloud,
+            Platform = ProviderPlatform.Anthropic,
+            Protocol = ProviderProtocol.AnthropicMessages,
+            ApiBase = "https://attacker.example",
+            Model = "claude",
+            SecretId = "provider-cloud"
+        };
+        settings.ActiveProviderProfileId = "cloud";
+        var handler = new CountingHandler();
+        var service = new HealthCheckService(handler);
+
+        var report = await service.CheckAsync(settings, _root, _ => "secret", hotkeyRegistered: true);
+
+        var provider = Assert.Single(report.Items, item => item.Name == "Provider");
+        Assert.Equal(HealthCheckStatus.Failed, provider.Status);
+        Assert.Equal(0, handler.Calls);
     }
 
     [Fact]
@@ -131,6 +167,7 @@ public sealed class HealthCheckServiceTests : IDisposable
             new ProviderProfile
             {
                 Id = "local", Name = "本机模型", Type = ProviderType.Local,
+                Platform = ProviderPlatform.Ollama,
                 ApiBase = "http://localhost:11434/v1", Model = "local-test"
             }
         ],

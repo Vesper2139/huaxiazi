@@ -7,6 +7,10 @@
 ;
 ; The resulting setup is placed in release\Huaxiazi-Setup.exe.
 
+#if Ver < EncodeVer(6, 7, 3)
+  #error Inno Setup 6.7.3 or newer is required for security-hardened release builds.
+#endif
+
 #define MyAppName      "话匣子"
 #define MyAppVersion   "2.0.0"
 #define MyAppPublisher "Huaxiazi"
@@ -27,8 +31,9 @@ OutputBaseFilename=Huaxiazi-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-; Install per-user by default (no admin prompt); uninstall key goes to HKCU.
-PrivilegesRequired=lowest
+; Install into protected Program Files so same-user processes cannot replace
+; application DLLs or the uninstaller without elevation.
+PrivilegesRequired=admin
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
