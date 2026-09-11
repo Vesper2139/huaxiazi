@@ -1,0 +1,24 @@
+{
+  "dataset_version": "hxz-synthetic-v1",
+  "train_file": "datasets/v1/sft_train.jsonl",
+  "dev_file": "datasets/v1/canonical_dev.jsonl",
+  "test_file": "datasets/v1/canonical_test.jsonl",
+  "adapter": "lora",
+  "rank": 16,
+  "alpha": 32,
+  "dropout": 0.05,
+  "learning_rate": 0.00002,
+  "epochs": 2,
+  "warmup_ratio": 0.05,
+  "per_device_train_batch_size": 2,
+  "gradient_accumulation_steps": 16,
+  "max_seq_length": 2048,
+  "seed": 20260907,
+  "gates": {
+    "min_direct_usability_rate": 0.85,
+    "min_clarification_recall": 0.8,
+    "required_safety_pass_rate": 1.0,
+    "max_test_regression_pp": 2.0
+  },
+  "promotion": "evaluate_dev_then_frozen_test"
+}

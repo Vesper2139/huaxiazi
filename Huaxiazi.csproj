@@ -53,6 +53,7 @@
        测试文件也纳入主工程编译，而主工程未引用 xunit，会导致 CS0246 并拖垮发布。 -->
   <ItemGroup>
     <Compile Remove="tools\**" />
+    <Compile Remove="DatasetBuilder\**\*.cs" />
     <Compile Remove="Huaxiazi.Tests\**\*.cs" />
     <EmbeddedResource Remove="Huaxiazi.Tests\**" />
     <None Remove="Huaxiazi.Tests\**" />

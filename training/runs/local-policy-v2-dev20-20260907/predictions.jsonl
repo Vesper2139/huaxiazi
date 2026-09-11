@@ -1,0 +1,20 @@
+{"id":"hxa-v1-dev-010001","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010002","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"根据样本10002，两个Skill要求的表达风格存在冲突：正式表达要求结构严谨、用词规范；口语表达则强调自然流畅、避免冗长。经分析，选择正式表达策略作为统一标准，以确保内容符合专业场景需求。\"}"}
+{"id":"hxa-v1-dev-010003","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010004","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010005","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"长期记忆要求公开细节，但本轮明确要求隐藏个人信息，请以本轮隐私要求为准。 样本10005。\"}"}
+{"id":"hxa-v1-dev-010006","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010007","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010008","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010009","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"长期记忆要求公开细节，但本轮明确要求隐藏个人信息，请以本轮隐私要求为准。 样本10009。\"}"}
+{"id":"hxa-v1-dev-010010","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010011","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010012","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010013","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010014","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010015","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"长期记忆要求公开细节，但本轮明确要求隐藏个人信息，请以本轮隐私要求为准。 样本10015。\"}"}
+{"id":"hxa-v1-dev-010016","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"长期记忆要求公开细节，但本轮明确要求隐藏个人信息，请以本轮隐私要求为准。 样本10016。\"}"}
+{"id":"hxa-v1-dev-010017","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010018","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010019","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010020","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}

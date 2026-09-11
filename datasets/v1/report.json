@@ -1,0 +1,28 @@
+{
+  "total": 12000,
+  "splits": {
+    "train": 10000,
+    "dev": 1000,
+    "test": 1000
+  },
+  "modes": {
+    "polish": 6000,
+    "prompt_optimize": 6000
+  },
+  "task_types": {
+    "transform": 9000,
+    "clarify": 1200,
+    "critique_repair": 1200,
+    "safety": 600
+  },
+  "risks": {
+    "low": 5400,
+    "medium": 4200,
+    "high": 2400
+  },
+  "reviewers": {
+    "1": 8000,
+    "2": 4000
+  },
+  "leakage_issue_count": 0
+}

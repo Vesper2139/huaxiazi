@@ -56,22 +56,7 @@ public sealed class PromptBuilderService
             throw new ArgumentNullException(nameof(request));
         }
 
-        var systemPrompt = string.IsNullOrWhiteSpace(request.CustomSystemPrompt)
-            ? ReadPromptFile("SystemPrompt.txt")
-            : request.CustomSystemPrompt.Trim();
-        if (string.IsNullOrWhiteSpace(systemPrompt))
-        {
-            // 极端兜底：文件缺失时给出最小可用提示。
-            systemPrompt = "你是一个专业的 Prompt Engineer，请把用户的模糊需求重构为结构化提示词。";
-        }
-
-        var categoryText = $"{request.Category.GetDisplayName()}（优化重点：{request.Category.GetOptimizationFocus()}）";
-        var depthText = $"{request.Depth.GetDisplayName()}（{request.Depth.GetStructureTemplate()}）";
-
-        var result = systemPrompt
-            .Replace("{{Category}}", categoryText, StringComparison.Ordinal)
-            .Replace("{{Depth}}", depthText, StringComparison.Ordinal)
-            .Replace("{{UserInput}}", "[用户输入通过 user message 单独提供]", StringComparison.Ordinal);
+        var result = BuildCorePrompt(request);
 
         // 可选：注入类别增强指令文件（如 CodingPrompt.txt），缺失则跳过。
         var categoryFile = GetCategoryFileName(request.Category);
@@ -93,13 +78,71 @@ public sealed class PromptBuilderService
         if (plan is not null && !string.IsNullOrWhiteSpace(plan.StrategyInstructions))
         {
             result += $"\n\n---\n专业化执行计划（优先遵守事实保真与用户本次明确要求）：\n{plan.StrategyInstructions}\n";
+            if (plan.SelectedSkillIds.Count > 0)
+                result += $"选用 Skill：{string.Join("、", plan.SelectedSkillIds)}；权重：{string.Join("、", plan.SkillWeights.Select(item => item.Key + "=" + item.Value.ToString("0.000")))}。\n";
+            if (!string.IsNullOrWhiteSpace(plan.RecommendedModelTier))
+                result += $"建议模型档位：{plan.RecommendedModelTier}（{plan.ModelSelectionReason}）。\n";
         }
 
         var secured = new StringBuilder(result);
         PromptSecurityPolicy.AppendTrustBoundary(secured);
-        result = secured.ToString();
+        result = PromptContextBudget.Enforce(secured.ToString());
 
         return result;
+    }
+
+    /// <summary>
+    /// 生产工作流使用的分层上下文入口。保留 Build 的兼容输出，同时为新调用方提供
+    /// XML 层边界、稳定前缀哈希和可观测的省略层列表。
+    /// </summary>
+    public ComposedPrompt BuildAgentContext(PromptRequest request, ProfessionalizationPlan? plan = null, int maxCharacters = 24_000)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var personalization = PromptContextComposer.AppendPersonalization(new StringBuilder(), request.Persona, request.PreferenceInstructions).ToString();
+        var strategy = plan?.StrategyInstructions ?? string.Empty;
+        if (plan is not null && plan.SelectedSkillIds.Count > 0)
+            strategy += "\n选用 Skill：" + string.Join("、", plan.SelectedSkillIds) + "；权重：" + string.Join("、", plan.SkillWeights.Select(item => item.Key + "=" + item.Value.ToString("0.000")));
+        var developer = "类别：" + request.Category.GetDisplayName() + "；深度：" + request.Depth.GetDisplayName();
+        // A user-editable "custom system prompt" is not allowed to replace the
+        // product system layer. Compile it as untrusted, lower-priority developer
+        // guidance so safety rules and the protocol remain authoritative.
+        var customGuidance = PersonalizationConstraintCompiler.Compile(null, request.CustomSystemPrompt).Preferences;
+        if (!string.IsNullOrWhiteSpace(customGuidance))
+            developer += "\n用户自定义表达指导（低于系统安全规则）：\n" + customGuidance;
+        var categoryExtra = ReadPromptFile(GetCategoryFileName(request.Category));
+        if (!string.IsNullOrWhiteSpace(categoryExtra)) developer += "\n类别增强指令（低于系统安全规则）：\n" + ExpressionSkillRouter.ProjectInstructions(categoryExtra, Array.Empty<string>());
+        var systemLayer = new StringBuilder(BuildCorePrompt(new PromptRequest
+        {
+            UserInput = request.UserInput,
+            Category = request.Category,
+            Depth = request.Depth,
+            // Never allow user text to replace the bundled system prompt in
+            // the layered production entry point.
+            CustomSystemPrompt = string.Empty
+        }));
+        PromptSecurityPolicy.AppendTrustBoundary(systemLayer);
+
+        return AgentContextPipeline.Compose(new AgentContextInput
+        {
+            SystemPrompt = systemLayer.ToString(),
+            DeveloperPrompt = developer,
+            DeveloperStable = false,
+            FidelityAnchors = plan?.FidelityAnchors ?? Array.Empty<string>(),
+            SkillInstructions = strategy,
+            Personalization = personalization,
+            Task = "当前用户输入通过独立 user message 提供；只处理该输入，不从系统上下文臆造业务事实。"
+        }, maxCharacters);
+    }
+
+    private string BuildCorePrompt(PromptRequest request)
+    {
+        var systemPrompt = string.IsNullOrWhiteSpace(request.CustomSystemPrompt) ? ReadPromptFile("SystemPrompt.txt") : request.CustomSystemPrompt.Trim();
+        if (string.IsNullOrWhiteSpace(systemPrompt)) systemPrompt = "你是一个专业的 Prompt Engineer，请把用户的模糊需求重构为结构化提示词。";
+        var categoryText = $"{request.Category.GetDisplayName()}（优化重点：{request.Category.GetOptimizationFocus()}）";
+        var depthText = $"{request.Depth.GetDisplayName()}（{request.Depth.GetStructureTemplate()}）";
+        return systemPrompt.Replace("{{Category}}", categoryText, StringComparison.Ordinal)
+            .Replace("{{Depth}}", depthText, StringComparison.Ordinal)
+            .Replace("{{UserInput}}", "[用户输入通过 user message 单独提供]", StringComparison.Ordinal);
     }
 
     public string BuildRepairPrompt(PromptRequest request, ProfessionalizationPlan plan, System.Collections.Generic.IReadOnlyList<QualityIssue> issues)

@@ -66,6 +66,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<PromptDepth> Depths => PromptDepthMetadata.AllDepths;
     public IReadOnlyList<ApplicationMode> Modes { get; } = [ApplicationMode.Polish, ApplicationMode.PromptOptimize];
     public IReadOnlyList<string> OutputStyles { get; } = ["自然", "克制", "亲切", "专业", "正式", "简洁"];
+    /// <summary>前端可展示的用户调优白名单；系统策略和安全参数不在此集合中。</summary>
+    public IReadOnlyList<AgentTuningOption> UserTuningOptions { get; } = AgentTuningExposurePolicy.ForUi();
     public IReadOnlyList<InferenceLevelOption> InferenceLevels { get; } =
     [
         new(InferenceLevel.Low, "低", "响应更快，适合简单润色与日常问答"),
@@ -522,11 +524,15 @@ public sealed partial class SettingsViewModel : ObservableObject
         set
         {
             if (SelectedProviderProfile is null || value is null || SelectedProviderProfile.Platform == value.Platform) return;
-            _pendingApiKeys[SelectedProviderProfile.SecretId] = null;
+            var previousSecretId = SelectedProviderProfile.SecretId;
             _apiKey = string.Empty;
             _providerConnectionChanged = true;
             ResetConnectionVerification();
             ProviderPlatformCatalog.ApplyPreset(SelectedProviderProfile, value.Platform);
+            // A provider switch is an authorization-boundary change even when
+            // the profile id stays the same. Do not let the previous provider's
+            // key follow the new endpoint; the user must explicitly supply it.
+            RebindCredentialSlot(SelectedProviderProfile, previousSecretId, forceEndpointBinding: true);
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsApiBaseEditable));
             OnPropertyChanged(nameof(SelectedProviderProfile));
@@ -573,10 +579,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         set
         {
             if (SelectedProviderProfile is null || SelectedProviderProfile.ApiBase == value) return;
+            var previousSecretId = SelectedProviderProfile.SecretId;
             SelectedProviderProfile.ApiBase = value;
             // An endpoint change is a new authorization boundary. Existing
             // credentials must not follow the destination silently.
-            _pendingApiKeys[SelectedProviderProfile.SecretId] = null;
+            RebindCredentialSlot(SelectedProviderProfile, previousSecretId);
             _apiKey = string.Empty;
             try
             {
@@ -1163,7 +1170,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void AddProvider()
     {
         var id = "profile-" + Guid.NewGuid().ToString("N")[..8];
-        var profile = new ProviderProfile { Id = id, Name = "新模型", SecretId = "provider-" + id };
+        var profile = new ProviderProfile { Id = id, Name = "新模型" };
+        profile.SecretId = ProviderCredentialBinding.ForProfile(profile);
         ProviderProfiles.Add(profile);
         SelectedProviderProfile = profile;
         HasChanges = true;
@@ -1180,7 +1188,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         FlushModelMapping(); // 复制前把当前映射编辑写回，随 Clone 一并保留
         var duplicate = SelectedProviderProfile.Clone();
         duplicate.Id = "profile-" + Guid.NewGuid().ToString("N")[..8];
-        duplicate.SecretId = "provider-" + duplicate.Id;
+        duplicate.SecretId = ProviderCredentialBinding.ForProfile(duplicate);
         duplicate.Name = string.IsNullOrWhiteSpace(duplicate.Name) ? "配置副本" : duplicate.Name + " 副本";
         ProviderProfiles.Add(duplicate);
         SelectedProviderProfile = duplicate;
@@ -1345,6 +1353,22 @@ public sealed partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(CanRemoveProvider));
         if (ProviderViewMode == ProviderProfileViewMode.Edit)
             NavigateToProviderList();
+    }
+
+    private void RebindCredentialSlot(ProviderProfile profile, string previousSecretId, bool forceEndpointBinding = false)
+    {
+        profile.SecretId = forceEndpointBinding
+            ? ProviderCredentialBinding.ForProviderSwitch(profile)
+            : ProviderCredentialBinding.ForProfile(profile);
+        if (string.Equals(previousSecretId, profile.SecretId, StringComparison.Ordinal))
+        {
+            _pendingApiKeys[profile.SecretId] = null;
+            return;
+        }
+
+        _removedSecretIds.Add(previousSecretId);
+        _pendingApiKeys.Remove(previousSecretId);
+        _pendingApiKeys[profile.SecretId] = null;
     }
 
     [RelayCommand]

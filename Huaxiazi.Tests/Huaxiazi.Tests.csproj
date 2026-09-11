@@ -25,6 +25,7 @@
   <ItemGroup>
     <!-- 引用主工程，从而复用 Models / Services 的纯逻辑实现 -->
     <ProjectReference Include="..\Huaxiazi.csproj" />
+    <ProjectReference Include="..\DatasetBuilder\Huaxiazi.DatasetBuilder.csproj" />
   </ItemGroup>
 
   <Target Name="CopyHuaxiaziAssets" AfterTargets="Build">

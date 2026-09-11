@@ -1,0 +1,1 @@
+{"id":"hxa-v1-dev-010001","architecture_id":"policy-first-v2","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}

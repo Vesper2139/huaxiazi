@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.1",
+  "dataset_version": "hxz-prompt-architecture-v1",
+  "purpose": "prompt_architecture_search",
+  "generated_at_utc": "2026-09-07T06:59:36.6232073+00:00",
+  "seed": 20260907,
+  "counts": {
+    "total": 12000,
+    "train": 10000,
+    "dev": 1000,
+    "test": 1000
+  },
+  "layers": [
+    "system",
+    "developer",
+    "skill",
+    "harness",
+    "output_contract"
+  ],
+  "variants": [
+    "minimal",
+    "explicit",
+    "policy_first",
+    "examples_first"
+  ],
+  "scenarios": [
+    "normal_request",
+    "ambiguity",
+    "prompt_injection",
+    "high_risk_fact",
+    "tool_failure",
+    "format_violation",
+    "long_context",
+    "skill_conflict",
+    "memory_conflict",
+    "tool_parallel"
+  ],
+  "constraint_fields": [
+    "required_constraints",
+    "forbidden_constraints",
+    "fidelity_anchors"
+  ],
+  "split_policy": {
+    "train": "family-00..07",
+    "dev": "family-08..09",
+    "test": "family-10..11",
+    "input_and_family_disjoint": true
+  },
+  "files": {
+    "train": "architecture_train.jsonl",
+    "dev": "architecture_dev.jsonl",
+    "test": "architecture_test.jsonl"
+  }
+}

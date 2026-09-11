@@ -336,7 +336,7 @@ public sealed class AppSettings
             profile.Temperature = System.Math.Clamp(profile.Temperature, 0, 2);
             profile.TopP = System.Math.Clamp(profile.TopP, 0, 1);
             profile.MaxTokens = System.Math.Clamp(profile.MaxTokens, 128, 32768);
-            if (string.IsNullOrWhiteSpace(profile.SecretId)) profile.SecretId = "provider-" + profile.Id;
+            if (string.IsNullOrWhiteSpace(profile.SecretId)) profile.SecretId = ProviderCredentialBinding.ForProfile(profile);
         }
 
         if (!ProviderProfiles.Any(profile => profile.Id == ActiveProviderProfileId))
@@ -354,9 +354,18 @@ public sealed class AppSettings
         var changed = false;
         foreach (var profile in ProviderProfiles ?? [])
         {
-            var expected = "provider-" + profile.Id;
-            changed |= !string.Equals(profile.SecretId, expected, StringComparison.Ordinal);
-            profile.SecretId = expected;
+            // Custom endpoints are an authorization boundary. Do not let an
+            // imported profile reuse a legacy slot such as provider-default.
+            var stable = ProviderCredentialBinding.ForProfile(profile);
+            var switchedProvider = ProviderCredentialBinding.ForEndpointIdentity(profile);
+            var valid = string.Equals(profile.SecretId, stable, StringComparison.Ordinal)
+                || (profile.Platform != ProviderPlatform.CustomOpenAICompatible
+                    && string.Equals(profile.SecretId, switchedProvider, StringComparison.Ordinal));
+            changed |= !valid;
+            // Every loaded profile is untrusted input. Keep only the stable
+            // slot or the exact endpoint-bound slot produced by a provider
+            // switch; never honor an arbitrary SecretId from JSON.
+            if (!valid) profile.SecretId = stable;
         }
         return changed;
     }

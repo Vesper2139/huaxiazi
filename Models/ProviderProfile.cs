@@ -18,6 +18,7 @@ public enum ProviderPlatform
     Anthropic,
     Gemini,
     DeepSeek,
+    MiMo,
     Qwen,
     Doubao,
     Kimi,

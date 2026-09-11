@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Linq;
 using System.Threading;
@@ -99,7 +100,10 @@ public sealed class PolishWorkflowService
                     request.Formality,
                     request.Scenario,
                     request.Persona,
-                    request.CustomStyleInstructions
+                    request.CustomStyleInstructions,
+                    selectedSkillIds = request.Professionalization?.SelectedSkillIds ?? [],
+                    skillWeights = request.Professionalization?.SkillWeights ?? new Dictionary<string, double>(),
+                    skillConflictDetected = request.Professionalization?.SkillConflictDetected ?? false
                 }),
                 Style = request.OutputStyle,
                 ModelProfileId = request.ModelProfileId,

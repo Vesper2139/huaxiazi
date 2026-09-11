@@ -19,6 +19,9 @@ public sealed class ProfessionalizationRequest
     public string PreferredStrategyName { get; init; } = string.Empty;
     public string StrategyInstructions { get; init; } = string.Empty;
     public string PreferenceInstructions { get; init; } = string.Empty;
+    public IReadOnlyList<string> SelectedSkillIds { get; init; } = [];
+    public IReadOnlyDictionary<string, double> SkillWeights { get; init; } = new Dictionary<string, double>();
+    public bool SkillConflictDetected { get; init; }
 }
 
 public sealed class ProfessionalizationPlan
@@ -38,6 +41,11 @@ public sealed class ProfessionalizationPlan
     public IReadOnlyList<string> FidelityAnchors { get; init; } = [];
     public bool NeedsClarification { get; init; }
     public IReadOnlyList<string> ClarificationQuestions { get; init; } = [];
+    public IReadOnlyList<string> SelectedSkillIds { get; init; } = [];
+    public IReadOnlyDictionary<string, double> SkillWeights { get; init; } = new Dictionary<string, double>();
+    public bool SkillConflictDetected { get; init; }
+    public string RecommendedModelTier { get; init; } = "Balanced";
+    public string ModelSelectionReason { get; init; } = string.Empty;
 }
 
 public enum QualityIssueSeverity { Quality, Unsafe }

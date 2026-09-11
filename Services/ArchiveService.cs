@@ -26,6 +26,7 @@ public sealed class ArchiveService
     private readonly string _trashDirectory;
     private readonly string _connectionString;
     private readonly int _yearArchiveThreshold;
+    private readonly DatabaseCorruptedException? _initializationFailure = null;
     private bool _yearArchiveActivated;
 
     public ArchiveService(string rootDirectory, int yearArchiveThreshold = 100)
@@ -47,7 +48,24 @@ public sealed class ArchiveService
             Pooling = false,
             DefaultTimeout = 5
         }.ToString();
-        Initialize();
+        try
+        {
+            Initialize();
+        }
+        catch (DatabaseCorruptedException exception)
+        {
+            // Keep the service constructible so startup health checks can report
+            // recovery guidance instead of crashing the application.
+            _initializationFailure = exception;
+        }
+        catch (SqliteException exception) when (exception.SqliteErrorCode is 11 or 26)
+        {
+            // A corrupt database can open successfully and fail only when the
+            // schema command is prepared. Normalize that path to the same
+            // recoverable domain error as an open-time failure.
+            _initializationFailure = new DatabaseCorruptedException(
+                "本地资料库已损坏，请恢复备份或在数据管理中重置资料库。", exception);
+        }
     }
 
     public ContentRevision SavePolishRevision(ArchiveDraft draft, DateTimeOffset createdAt)
@@ -176,6 +194,8 @@ public sealed class ArchiveService
 
     public ArchiveIntegrityResult CheckIntegrity()
     {
+        if (_initializationFailure is not null)
+            return new ArchiveIntegrityResult(false, _initializationFailure.Message);
         try
         {
             using var connection = OpenConnection();
@@ -451,12 +471,27 @@ public sealed class ArchiveService
 
     private SqliteConnection OpenConnection()
     {
+        if (_initializationFailure is not null)
+            throw new DatabaseCorruptedException(_initializationFailure.Message, _initializationFailure);
         var connection = new SqliteConnection(_connectionString);
-        connection.Open();
-        using var pragma = connection.CreateCommand();
-        pragma.CommandText = "PRAGMA busy_timeout=5000;";
-        pragma.ExecuteNonQuery();
-        return connection;
+        try
+        {
+            connection.Open();
+            using var pragma = connection.CreateCommand();
+            pragma.CommandText = "PRAGMA busy_timeout=5000;";
+            pragma.ExecuteNonQuery();
+            return connection;
+        }
+        catch (SqliteException exception) when (exception.SqliteErrorCode is 11 or 26)
+        {
+            connection.Dispose();
+            throw new DatabaseCorruptedException("本地资料库已损坏，请恢复备份或在数据管理中重置资料库。", exception);
+        }
+        catch
+        {
+            connection.Dispose();
+            throw;
+        }
     }
 
     private static (string Scenario, string Topic) ReadItem(SqliteConnection connection, SqliteTransaction transaction, Guid itemId)

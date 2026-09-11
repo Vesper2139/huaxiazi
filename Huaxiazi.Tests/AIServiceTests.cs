@@ -2,6 +2,7 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Huaxiazi.Models;
@@ -293,6 +294,30 @@ public class AIServiceTests
         var result = await service.GenerateAsync("system", "user");
 
         Assert.Equal("本地结果", result);
+    }
+
+    [Fact]
+    public async Task GenerateStructuredAsync_OpenAiCompatible_AddsStrictJsonSchema()
+    {
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"choices\":[{\"message\":{\"content\":\"{\\\"answer\\\":\\\"完成\\\"}\"}}]}", Encoding.UTF8, "application/json")
+        });
+        var profile = new ProviderProfile
+        {
+            Type = ProviderType.Local,
+            Platform = ProviderPlatform.Ollama,
+            ApiBase = "http://localhost:11434/v1",
+            Model = "qwen3:4b"
+        };
+        using var service = new AIService(profile, null, handler);
+
+        var result = await service.GenerateStructuredAsync("system", "user", "{\"type\":\"object\",\"properties\":{\"answer\":{\"type\":\"string\"}},\"required\":[\"answer\"],\"additionalProperties\":false}");
+
+        Assert.Contains("answer", result);
+        using var body = JsonDocument.Parse(handler.Body!);
+        Assert.Equal("json_schema", body.RootElement.GetProperty("response_format").GetProperty("type").GetString());
+        Assert.True(body.RootElement.GetProperty("response_format").GetProperty("json_schema").GetProperty("strict").GetBoolean());
     }
 
     [Fact]

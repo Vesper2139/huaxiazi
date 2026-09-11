@@ -18,8 +18,8 @@ public sealed class PromptRequest
     public PromptDepth Depth { get; init; } = PromptDepth.Standard;
 
     /// <summary>
-    /// 用户画像 / 角色设定（可选）。非空时由 PromptBuilderService 追加到 System Prompt，
-    /// 让优化结果贴合用户身份与偏好。
+    /// 用户画像 / 角色设定（可选）。非空时由 PromptBuilderService 追加到受约束的个性化层，
+    /// 让优化结果贴合用户身份与偏好，同时不覆盖内置系统安全规则。
     /// </summary>
     public string Persona { get; init; } = string.Empty;
     public string CustomSystemPrompt { get; init; } = string.Empty;

@@ -34,6 +34,8 @@ public sealed class ExpressionSkillRoutingContext
     public string Input { get; init; } = string.Empty;
     public string Scenario { get; init; } = string.Empty;
     public PromptCategory Category { get; init; } = PromptCategory.General;
+    public IReadOnlyList<string> PreferredSkillIds { get; init; } = [];
+    public IReadOnlyList<string> AvoidSkillIds { get; init; } = [];
 }
 
 public sealed class ExpressionSkillRouteResult
@@ -43,6 +45,9 @@ public sealed class ExpressionSkillRouteResult
     public string Instructions { get; init; } = string.Empty;
     public string Reason { get; init; } = string.Empty;
     public bool UsedFallback { get; init; }
+    public IReadOnlyList<string> SelectedSkills { get; init; } = [];
+    public IReadOnlyDictionary<string, double> SkillWeights { get; init; } = new Dictionary<string, double>();
+    public bool ConflictDetected { get; init; }
 }
 
 public interface IExpressionSkillRouter

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Huaxiazi.Models;
@@ -21,7 +22,7 @@ public sealed class PromptOptimizationWorkflowService
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(plan);
         var mode = App.Settings.CompanionDriverMode;
-        var firstPrompt = AssistantEmotionProtocol.DecorateSystemPrompt(_builder.Build(request, plan), mode);
+        var firstPrompt = AssistantEmotionProtocol.DecorateSystemPrompt(_builder.BuildAgentContext(request, plan).Text, mode);
         var userMessage = _builder.BuildUserMessage(request);
         string firstRaw;
         try
@@ -36,7 +37,7 @@ public sealed class PromptOptimizationWorkflowService
             {
                 var retryRaw = await _client.GenerateAsync(
                     AssistantEmotionProtocol.DecorateSystemPrompt(
-                        _builder.BuildRepairPrompt(request, plan, [new QualityIssue("empty-output", "模型没有返回可用内容", QualityIssueSeverity.Quality)]), mode),
+                        _builder.BuildAgentContext(request, plan).Text + "\n\n上一份结果为空，只需重新输出完整最终提示词。", mode),
                     userMessage,
                     cancellationToken).ConfigureAwait(false);
                 var retry = AssistantEmotionProtocol.ParseContent(retryRaw, mode);
@@ -57,7 +58,7 @@ public sealed class PromptOptimizationWorkflowService
         if (initialReport.IsValid) return Result(first.Content, plan, false, false, initialReport, first.Hint);
 
         var repairedRaw = await _client.GenerateAsync(
-            AssistantEmotionProtocol.DecorateSystemPrompt(_builder.BuildRepairPrompt(request, plan, initialReport.Issues), mode),
+            AssistantEmotionProtocol.DecorateSystemPrompt(_builder.BuildAgentContext(request, plan).Text + "\n\n只修复本地质量门禁指出的问题：" + string.Join("；", initialReport.Issues.Select(issue => issue.Message)), mode),
             _builder.BuildUserMessage(request),
             cancellationToken).ConfigureAwait(false);
         var repaired = AssistantEmotionProtocol.ParseContent(repairedRaw, mode);

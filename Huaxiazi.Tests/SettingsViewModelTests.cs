@@ -1044,4 +1044,15 @@ public class SettingsViewModelTests
             Directory.Delete(root, true);
         }
     }
+    [Fact]
+    public void UserTuningOptions_ExposeOnlyBasicAndAdvancedControls()
+    {
+        var vm = new SettingsViewModel(skillCatalogLoader: () => []);
+
+        Assert.NotEmpty(vm.UserTuningOptions);
+        Assert.All(vm.UserTuningOptions, option => Assert.True(option.UserEditable));
+        Assert.DoesNotContain(vm.UserTuningOptions, option => option.Exposure == AgentTuningExposure.Internal);
+        Assert.Contains(vm.UserTuningOptions, option => option.Id == "response_style");
+        Assert.Contains(vm.UserTuningOptions, option => option.Id == "preferred_skills");
+    }
 }

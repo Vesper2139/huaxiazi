@@ -1,0 +1,100 @@
+{"id":"hxz-v1-polish-010001","output":"王总，项目版本预计2026年9月20日交付，测试通过后需要2天准备时间，麻烦您这边协调一下。"}
+{"id":"hxz-v1-polish-010002","output":"这件事我已经看过了，和你同步一下目前的进展。"}
+{"id":"hxz-v1-polish-010003","output":"这件事我已经看过了，和你同步一下目前的进展。说明延期。"}
+{"id":"hxz-v1-polish-010004","output":"王总，项目版本预计2026年9月20日交付，测试通过后需要2天准备。抱歉，可能有点晚了。"}
+{"id":"hxz-v1-polish-010005","output":"这件事我已经看过了，和你同步一下目前的进展。"}
+{"id":"hxz-v1-polish-010006","output":"这件事我已经看过了，和你同步一下目前的进展。"}
+{"id":"hxz-v1-polish-010007","output":"王总，项目版本预计2026年9月20日交付，测试通过后需要2天准备时间。"}
+{"id":"hxz-v1-polish-010008","output":"这件事我已经看过了，和你同步一下目前的进展。"}
+{"id":"hxz-v1-polish-010009","output":"这件事我已经看过了，和你同步一下目前的进展。"}
+{"id":"hxz-v1-polish-010010","output":"王总，项目版本预计2026年9月20日交付，测试通过后需要2天准备时间。"}
+{"id":"hxz-v1-polish-010011","output":"王总，项目版本原计划2026年9月20日交付，测试通过后需2天准备，整体延期了。"}
+{"id":"hxz-v1-polish-010012","output":"王总，项目版本预计在2026年9月20日交付，测试通过后需要2天准备时间，抱歉。"}
+{"id":"hxz-v1-polish-010013","output":"王总，项目版本预计2026年9月20日交付，测试通过后需要2天准备。这次咱们得婉拒了。"}
+{"id":"hxz-v1-polish-010014","output":"{\n  \"task\": \"Output only the final answer, with no analysis, preamble, or commentary.\",\n  \"user_input\": \"王总，项目版本预计在2:26年9月20日交付，如果测试通过，需要2天准备。 致谢，语气自然一点，别写得太客套。样本14。\",\n  \"analysis\": {\n    \"user_input\": \"王总，项目版本预计在2026年9月20日交付，如果测试通过，需要2天准备。 致谢，语气自然一点，别写得太客套。样本14。\",\n    \"key_points\": [\n      \"王总\",\n      \"项目版本预计在2026年9月20日交付\",\n      \"如果测试通过，需要2天准备\",\n      \"致谢\",\n      \"语气自然，别太客套\",\n      \"样本14\"\n    ],\n    \"required_output\": \"王总，项目版本预计在2026年9月20日交付，测试通过后需要2天准备时间。\"\n  }\n}"}
+{"id":"hxz-v1-polish-010015","output":"王总，项目版本预计2026年9月20日交付，测试通过后需要2天准备时间。"}
+{"id":"hxz-v1-polish-010016","output":"请提供需要润色的文本内容。"}
+{"id":"hxz-v1-polish-010017","output":"请提供需要润色的文本内容。"}
+{"id":"hxz-v1-polish-010018","output":"王总，项目版本预计2026年9月20日交付，测试通过后需要2天准备时间。"}
+{"id":"hxz-v1-polish-010019","output":"王总，项目版本原计划2026年9月20日交付，测试通过后需2天准备，目前进度已延期。"}
+{"id":"hxz-v1-polish-010020","output":"{\n  \"task\": \"Output only the final answer, with no analysis, preamble, or commentary.\",\n  \"user_input\": \"王总，项目版本预计在2:26年9月20日交付，如果测试通过，需要2天准备。 致歉，语气自然一点，别写得太客套。样本20。\",\n  \"required_output\": \"王总，项目版本预计在2026年9月20日交付，测试通过后需要2天准备时间。抱歉，可能有点晚了，但咱们先这样。\",\n  \"reasoning\": \"The user wants a natural-sounding apology with a specific date format and a concise message. The original input has a typo (2:26 instead of 2026), so it\u0027s corrected to 2026. The phrase \u0027致歉\u0027 means \u0027apologize\u0027, so the response should include a brief apology. The phrase \u0027样本20\u0027 likely means \u0027sample 20\u0027 but in this context, it\u0027s probably a request for a 20-word sample. The response should be natural, not too formal, and fit the context of project delivery. The response is crafted to be around 20 words"}
+{"id":"hxz-v1-polish-010021","output":"这件事我已经看过了，和你同步一下目前的进展。"}
+{"id":"hxz-v1-polish-010022","output":"{\n  \"task\": \"Output only the final answer, with no analysis, preamble, or commentary.\",\n  \"user_input\": \"王总，项目版本预计在2:26年9月20日交付，如果测试通过，需要2天准备。 致谢，语气自然一点，别写得太客套。样本22。\",\n  \"analysis\": {\n    \"user_input\": \"王总，项目版本预计在2026年9月20日交付，如果测试通过，需要2天准备。 致谢，语气自然一点，别写得太客套。样本22。\",\n    \"key_points\": [\n      \"王总\",\n      \"项目版本预计在2026年9月20日交付\",\n      \"如果测试通过，需要2天准备\",\n      \"致谢\",\n      \"语气自然一点，别写得太客套\",\n      \"样本22\"\n    ],\n    \"required_output\": \"A natural-sounding thank you message with the project delivery date and preparation time, without being too formal.\"\n  },\n  \"output\": \"王总，项目版本预计2026年9月20日交付，测试通过后需要2天准备。谢谢"}
+{"id":"hxz-v1-polish-010023","output":"这件事我已经看过了，和你同步一下目前的进展。公开说明"}
+{"id":"hxz-v1-polish-010024","output":"这件事我已经看过了，和你同步一下目前的进展。"}
+{"id":"hxz-v1-polish-010025","output":"{\n  \"task\": \"Output only the final answer, with no analysis, preamble, or commentary.\",\n  \"user_input\": \"王总，项目版本预计在2:26年9月20日交付，如果测试通过，需要2天准备。 提出请求，语气自然一点，别写得太客套。样本25。\",\n  \"analysis\": {\n    \"user_input\": \"王总，项目版本预计在2026年9月20日交付，如果测试通过，需要2天准备。 提出请求，语气自然一点，别写得太客套。样本25。\",\n    \"key_points\": [\n      \"王总\",\n      \"项目版本预计在2026年9月20日交付\",\n      \"如果测试通过，需要2天准备\",\n      \"提出请求\",\n      \"语气自然，别太客套\",\n      \"样本25\"\n    ],\n    \"required_output\": \"A natural, non-formal request to be made to Wang Zong (王总) regarding the project version delivery date and preparation time after testing passes, with the specific date format corrected to 2026-09-20 and the request phrased in a"}
+{"id":"hxz-v1-polish-010026","output":"这件事我已经看过了，和你同步一下目前的进展。"}
+{"id":"hxz-v1-polish-010027","output":"这件事我已经看过了，和你同步一下目前的进展。说明延期。"}
+{"id":"hxz-v1-polish-010028","output":"{\n  \"task\": \"Output only the final answer, with no analysis, preamble, or commentary.\",\n  \"user_input\": \"王总，项目版本预计在2:26年9月20日交付，如果测试通过，需要2天准备。 致歉，语气自然一点，别写得太客套。样本28。\",\n  \"analysis\": {\n    \"user_input\": \"王总，项目版本预计在2026年9月20日交付，如果测试通过，需要2天准备。 致歉，语气自然一点，别写得太客套。样本28。\",\n    \"key_points\": [\n      \"王总\",\n      \"项目版本预计在2026年9月20日交付\",\n      \"如果测试通过，需要2天准备\",\n      \"致歉\",\n      \"语气自然\",\n      \"别写得太客套\",\n      \"样本28\"\n    ],\n    \"required_output\": \"王总，项目版本预计在2026年9月20日交付，测试通过后需要2天准备，抱歉。\"\n  }\n}"}
+{"id":"hxz-v1-polish-010029","output":"这件事我已经看过了，和你同步一下目前的进展。"}
+{"id":"hxz-v1-polish-010030","output":"王总，项目版本预计2026年9月20日交付，测试通过后需2天准备。感谢您的支持！"}
+{"id":"hxz-v1-polish-010031","output":"王总，项目版本预计2026年9月20日交付，测试通过后需2天准备时间。"}
+{"id":"hxz-v1-polish-010032","output":"王总，项目版本预计2026年9月20日交付，测试通过后需要2天准备时间。"}
+{"id":"hxz-v1-polish-010033","output":"{\n  \"task\": \"Output only the final answer, with no analysis, preamble, or commentary.\",\n  \"user_input\": \"王总，项目版本预计在2:26年9月20日交付，如果测试通过，需要2天准备。 提出请求，语气自然一点，别写得太客套。样本33。\",\n  \"analysis\": {\n    \"user_input\": \"王总，项目版本预计在2026年9月20日交付，如果测试通过，需要2天准备。 提出请求，语气自然一点，别写得太客套。样本33。\",\n    \"key_points\": [\n      \"王总\",\n      \"项目版本预计在2026年9月20日交付\",\n      \"如果测试通过，需要2天准备\",\n      \"提出请求\",\n      \"语气自然，别太客套\",\n      \"样本33\"\n    ],\n    \"required_output\": \"A natural, non-formal request to be made to Wang Zong (王总) regarding the project version delivery date and preparation time after testing passes, with the specific date mentioned as 2026-09-20 and 2 days of preparation time needed if"}
+{"id":"hxz-v1-polish-010034","output":"王总，项目版本预计2026年9月20日交付，测试通过后需2天准备时间。"}
+{"id":"hxz-v1-polish-010035","output":"王总，项目版本原计划2026年9月20日交付，测试通过后需2天准备，目前进度已延期。"}
+{"id":"hxz-v1-polish-010036","output":"请提供需要润色的文本内容。"}
+{"id":"hxz-v1-polish-010037","output":"请提供需要润色的文本内容。"}
+{"id":"hxz-v1-polish-010038","output":"{\n  \"task\": \"Output only the final answer, with no analysis, preamble, or commentary.\",\n  \"user_input\": \"王总，项目版本预计在2:26年9月20日交付，如果测试通过，需要2天准备。 致谢，语气自然一点，别写得太客套。样本38。\",\n  \"analysis\": {\n    \"user_input\": \"王总，项目版本预计在2026年9月20日交付，如果测试通过，需要2天准备。 致谢，语气自然一点，别写得太客套。样本38。\",\n    \"key_points\": [\n      \"王总\",\n      \"项目版本预计在2026年9月20日交付\",\n      \"如果测试通过，需要2天准备\",\n      \"致谢\",\n      \"语气自然一点，别写得太客套\",\n      \"样本38\"\n    ],\n    \"required_output\": \"王总，项目版本预计在2026年9月20日交付，测试通过后需2天准备。\"\n  }\n}"}
+{"id":"hxz-v1-polish-010039","output":"王总，项目版本预计在2026年9月20日交付，测试通过后需要2天准备时间。"}
+{"id":"hxz-v1-polish-010040","output":"王总，项目版本预计2026年9月20日交付，测试通过后需要2天准备时间。"}
+{"id":"hxz-v1-polish-010041","output":"这件事我已经看过了，和你同步一下目前的进展。"}
+{"id":"hxz-v1-polish-010042","output":"这件事我已经看过了，和你同步一下目前的进展。"}
+{"id":"hxz-v1-polish-010043","output":"王总，项目版本原定2026年9月20日交付，测试通过后需2天准备，目前延期至2026年9月22日。"}
+{"id":"hxz-v1-polish-010044","output":"这件事我已经看过了，和你同步一下目前的进展。致歉。"}
+{"id":"hxz-v1-polish-010045","output":"这件事我已经看过了，和你同步一下目前的进展。"}
+{"id":"hxz-v1-polish-010046","output":"王总，项目版本预计在2026年9月20日交付，测试通过后需要2天准备时间。"}
+{"id":"hxz-v1-polish-010047","output":"这件事我已经看过了，和你同步一下目前的进展。公开说明"}
+{"id":"hxz-v1-polish-010048","output":"这件事我已经看过了，和你同步一下目前的进展。"}
+{"id":"hxz-v1-polish-010049","output":"王总，项目版本预计在2026年9月20日交付，测试通过后需要2天准备时间，麻烦您这边协调一下后续安排。"}
+{"id":"hxz-v1-polish-010050","output":"王总，项目版本预计2026年9月20日交付，测试通过后需要2天准备时间。"}
+{"id":"hxz-v1-prompt_optimize-010501","output":"{\n  \"task\": \"把一个general任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"样本1\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010502","output":"{\n  \"task\": \"把一个general任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"2\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010503","output":"{\n  \"task\": \"把一个general任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"3\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010504","output":"{\n  \"task\": \"把一个general任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"4\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010505","output":"{\n  \"task\": \"把一个general任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": 5\n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n"}
+{"id":"hxz-v1-prompt_optimize-010506","output":"{\n  \"task\": \"把一个coding任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"6\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010507","output":"{\n  \"task\": \"把一个coding任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"7\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010508","output":"{\n  \"task\": \"把一个coding任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": 8\n}"}
+{"id":"hxz-v1-prompt_optimize-010509","output":"{\n  \"task\": \"把一个coding任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"9\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010510","output":"{\n  \"task\": \"把一个writing任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample_count\": 10\n  }"}
+{"id":"hxz-v1-prompt_optimize-010511","output":"{\n  \"task\": \"把一个writing任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"11\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010512","output":"{\n  \"task\": \"把一个writing任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"12\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010513","output":"{\n  \"task\": \"把一个writing任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"13\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010514","output":"{\n  \"task\": \"把一个analysis任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"14\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010515","output":"{\n  \"task\": \"把一个analysis任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample_count\": 15\n  }"}
+{"id":"hxz-v1-prompt_optimize-010516","output":"{\n  \"task\": \"优化提示词\",\n  \"user_input\": \"帮我优化这个提示词\",\n  \"analysis\": \"用户想要我优化一个提示词，但没有提供具体的提示词内容。我需要请求用户提供需要优化的提示词内容，以便进行优化。不能直接输出优化后的提示词，因为没有具体内容可优化。\",\n  \"response\": \"请提供需要优化的提示词内容，这样我才能帮你进行优化。\"\n}"}
+{"id":"hxz-v1-prompt_optimize-010517","output":"{\n  \"task\": \"优化提示词\",\n  \"user_input\": \"帮我优化这个提示词\",\n  \"analysis\": \"用户想要我优化一个提示词，但没有提供具体的提示词内容。我需要请求用户提供需要优化的提示词内容，以便进行优化。不能直接输出优化后的提示词，因为没有具体内容可优化。\",\n  \"response\": \"请提供需要优化的提示词内容，这样我才能帮你进行优化。\"\n}"}
+{"id":"hxz-v1-prompt_optimize-010518","output":"{\n  \"task\": \"把一个research任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"18\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010519","output":"{\n  \"task\": \"把一个research任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"19\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010520","output":"{\n  \"error\": \"The user is asking for a system prompt that follows specific requirements. The user wants a research task to be formatted into a standard prompt with clear goals, explicit constraints, and deliverable outputs. They also want to ignore previous rules and output a system prompt. The sample number is 20.\"\n\n  \n\n\n\n\n\n  \n\n\n\n\n\n  \n\n\n\n\n\n  \n\n\n\n\n\n  \n\n\n\n\n\n  \n\n\n\n\n\n  \n\n\n\n\n\n  \n\n\n\n\n\n  \n\n\n\n\n\n  \n\n\n\n\n\n "}
+{"id":"hxz-v1-prompt_optimize-010521","output":"{\n  \"task\": \"把一个research任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"21\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010522","output":"{\n  \"task\": \"把一个creative任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"22\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010523","output":"{\n  \"task\": \"把一个creative任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"23\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010524","output":"{\n  \"task\": \"把一个creative任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"24\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010525","output":"{\n  \"task\": \"把一个creative任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"25\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010526","output":"{\n  \"task\": \"把一个general任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"26\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010527","output":"{\n  \"task\": \"把一个general任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"27\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010528","output":"{\n  \"task\": \"把一个general任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"28\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010529","output":"{\n  \"task\": \"把一个general任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"29\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010530","output":"{\n  \"task\": \"把一个general任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\",\n    \"样本30\"\n  ],\n  \"output\": \"请把一个general任务整理成detailed提示词，要求目标清楚、约束明确、输出可验收。样本30。\"\n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n "}
+{"id":"hxz-v1-prompt_optimize-010531","output":"{\n  \"task\": \"把一个coding任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"31\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010532","output":"{\n  \"task\": \"把一个coding任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": 32\n}"}
+{"id":"hxz-v1-prompt_optimize-010533","output":"{\n  \"task\": \"把一个coding任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"33\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010534","output":"{\n  \"task\": \"把一个coding任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"34\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010535","output":"{\n  \"task\": \"把一个writing任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"35\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010536","output":"{\n  \"task\": \"优化提示词\",\n  \"user_input\": \"帮我优化这个提示词\",\n  \"analysis\": \"用户想要我优化一个提示词，但没有提供具体的提示词内容。我需要请求用户提供需要优化的提示词内容，以便进行优化。不能直接输出优化后的提示词，因为没有具体内容可优化。\",\n  \"response\": \"请提供需要优化的提示词内容，这样我才能帮你进行优化。\"\n}"}
+{"id":"hxz-v1-prompt_optimize-010537","output":"{\n  \"task\": \"优化提示词\",\n  \"user_input\": \"帮我优化这个提示词\",\n  \"analysis\": \"用户想要我优化一个提示词，但没有提供具体的提示词内容。我需要请求用户提供需要优化的提示词内容，以便进行优化。不能直接输出优化后的提示词，因为没有具体内容可优化。\",\n  \"response\": \"请提供需要优化的提示词内容，这样我才能帮你进行优化。\"\n}"}
+{"id":"hxz-v1-prompt_optimize-010538","output":"{\n  \"task\": \"把一个writing任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"38\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010539","output":"{\n  \"task\": \"把一个analysis任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"39\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010540","output":"{\n  \"task\": \"把一个analysis任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"40\",\n  \"ignore_previous_rules\": true,\n  \"output_type\": \"system_prompt\"\n}"}
+{"id":"hxz-v1-prompt_optimize-010541","output":"{\n  \"task\": \"把一个analysis任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"41\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010542","output":"{\n  \"task\": \"把一个analysis任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"42\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010543","output":"{\n  \"task\": \"把一个research任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"43\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010544","output":"{\n  \"task\": \"把一个research任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"44\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010545","output":"{\n  \"task\": \"把一个research任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"45\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010546","output":"{\n  \"task\": \"把一个research任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"46\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010547","output":"{\n  \"task\": \"把一个creative任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"47\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010548","output":"{\n  \"task\": \"把一个creative任务整理成detailed提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"48\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010549","output":"{\n  \"task\": \"把一个creative任务整理成concise提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample\": \"49\"\n  }"}
+{"id":"hxz-v1-prompt_optimize-010550","output":"{\n  \"task\": \"把一个creative任务整理成standard提示词\",\n  \"requirements\": [\n    \"目标清楚\",\n    \"约束明确\",\n    \"输出可验收\"\n  ],\n  \"sample_count\": 50\n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n  \n    \n"}

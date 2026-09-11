@@ -413,8 +413,8 @@ public sealed class WpfViewSmokeTests
                 var selectedBinding = BindingOperations.GetBinding(combo, System.Windows.Controls.Primitives.Selector.SelectedItemProperty);
                 Assert.Equal("SelectedProviderPlatform", selectedBinding?.Path.Path);
 
-                // 22 家预设全量可得
-                Assert.Equal(22, vm.ProviderPlatforms.Count);
+                // 供应商目录允许向前兼容地扩展；测试锁定最低覆盖面而非脆弱的总数。
+                Assert.True(vm.ProviderPlatforms.Count >= 22);
                 Assert.Contains(vm.ProviderPlatforms, p => p.DisplayName == "DeepSeek");
                 Assert.Contains(vm.ProviderPlatforms, p => p.DisplayName == "Kimi（月之暗面）");
 

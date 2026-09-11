@@ -666,7 +666,10 @@ public sealed partial class MainViewModel : ObservableObject
                     PreferenceInstructions = request.PreferenceInstructions,
                     PreferredStrategyId = externalStrategy.SkillId,
                     PreferredStrategyName = externalStrategy.DisplayName,
-                    StrategyInstructions = externalStrategy.Instructions
+                    StrategyInstructions = externalStrategy.Instructions,
+                    SelectedSkillIds = externalStrategy.SelectedSkills,
+                    SkillWeights = externalStrategy.SkillWeights,
+                    SkillConflictDetected = externalStrategy.ConflictDetected
                 });
                 if (App.Settings.ClarificationEnabled && plan.NeedsClarification)
                 {
@@ -920,7 +923,10 @@ public sealed partial class MainViewModel : ObservableObject
             PreferenceInstructions = preferenceInstructions,
             PreferredStrategyId = externalStrategy.SkillId,
             PreferredStrategyName = externalStrategy.DisplayName,
-            StrategyInstructions = externalStrategy.Instructions
+            StrategyInstructions = externalStrategy.Instructions,
+            SelectedSkillIds = externalStrategy.SelectedSkills,
+            SkillWeights = externalStrategy.SkillWeights,
+            SkillConflictDetected = externalStrategy.ConflictDetected
         });
         return new PolishRequest
         {

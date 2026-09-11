@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Huaxiazi.Models;
 
@@ -31,12 +32,16 @@ public sealed class PolishPromptBuilderService
         AppendContext(builder, "场景", request.Scenario);
         AppendContext(builder, "输出风格", request.OutputStyle);
         AppendContext(builder, "自定义风格", request.CustomStyleInstructions);
-        AppendContext(builder, "用户自定义系统指令", request.CustomSystemPrompt);
+        var customGuidance = PersonalizationConstraintCompiler.Compile(null, request.CustomSystemPrompt).Preferences;
+        AppendContext(builder, "用户自定义表达指导（低于系统安全规则）", customGuidance);
         PromptContextComposer.AppendPersonalization(builder, request.Persona, request.PreferenceInstructions);
         if (request.Professionalization is { } plan)
         {
             builder.AppendLine("专业化执行计划（事实保真和本次明确要求优先于表达策略）：");
             builder.AppendLine(plan.StrategyInstructions);
+            if (plan.SelectedSkillIds.Count > 0)
+                builder.Append("选用 Skill：").Append(string.Join("、", plan.SelectedSkillIds)).Append("；权重：")
+                    .AppendLine(string.Join("、", plan.SkillWeights.Select(item => item.Key + "=" + item.Value.ToString("0.000"))));
         }
         if (request.Intelligence is { } intelligence)
         {
@@ -51,7 +56,7 @@ public sealed class PolishPromptBuilderService
                 builder.AppendLine("原文包含不确定表述，不得强化为保证、一定、绝对等确定承诺。");
         }
         PromptSecurityPolicy.AppendTrustBoundary(builder);
-        return builder.ToString().TrimEnd();
+        return PromptContextBudget.Enforce(builder.ToString().TrimEnd());
     }
 
     public string BuildUserMessage(PolishRequest request) => request.OriginalText ?? string.Empty;

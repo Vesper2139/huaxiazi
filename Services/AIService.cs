@@ -14,7 +14,7 @@ using Huaxiazi.Models;
 
 namespace Huaxiazi.Services;
 
-public sealed class AIService : ITextGenerationClient, IDisposable
+public sealed class AIService : ITextGenerationClient, IStructuredTextGenerationClient, IDisposable
 {
     private const int MaximumResponseBytes = 4 * 1024 * 1024;
     private static readonly HttpClient SharedClient = CreateSharedClient();
@@ -90,6 +90,24 @@ public sealed class AIService : ITextGenerationClient, IDisposable
         string systemPrompt,
         string userInput,
         CancellationToken cancellationToken = default)
+        => await GenerateCoreAsync(systemPrompt, userInput, null, cancellationToken).ConfigureAwait(false);
+
+    public async Task<string> GenerateStructuredAsync(
+        string systemPrompt,
+        string userInput,
+        string jsonSchema,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(jsonSchema)) throw new ArgumentException("jsonSchema 不能为空。", nameof(jsonSchema));
+        using var _ = JsonDocument.Parse(jsonSchema);
+        return await GenerateCoreAsync(systemPrompt, userInput, jsonSchema, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<string> GenerateCoreAsync(
+        string systemPrompt,
+        string userInput,
+        string? jsonSchema,
+        CancellationToken cancellationToken)
     {
         ValidateConfiguration(out var baseUri);
 
@@ -102,7 +120,7 @@ public sealed class AIService : ITextGenerationClient, IDisposable
             {
                 try
                 {
-                    using var request = CreateRequest(baseUri, systemPrompt, userInput, forceDisableDeepSeekThinking: disableDeepSeekThinking);
+                    using var request = CreateRequest(baseUri, systemPrompt, userInput, forceDisableDeepSeekThinking: disableDeepSeekThinking, jsonSchema: jsonSchema);
                     using var response = await _httpClient.SendAsync(request, timeoutSource.Token).ConfigureAwait(false);
                     if (response.IsSuccessStatusCode)
                     {
@@ -347,7 +365,8 @@ public sealed class AIService : ITextGenerationClient, IDisposable
         string systemPrompt,
         string userInput,
         bool isConnectionTest = false,
-        bool forceDisableDeepSeekThinking = false)
+        bool forceDisableDeepSeekThinking = false,
+        string? jsonSchema = null)
     {
         Uri endpoint;
         object requestBody;
@@ -385,7 +404,7 @@ public sealed class AIService : ITextGenerationClient, IDisposable
                     compatibleBase += "/v1";
                 }
                 endpoint = new Uri(compatibleBase + "/chat/completions");
-                requestBody = BuildOpenAiCompatibleBody(systemPrompt, userInput, isConnectionTest, forceDisableDeepSeekThinking);
+                requestBody = BuildOpenAiCompatibleBody(systemPrompt, userInput, isConnectionTest, forceDisableDeepSeekThinking, jsonSchema);
                 break;
         }
 
@@ -410,7 +429,7 @@ public sealed class AIService : ITextGenerationClient, IDisposable
         return request;
     }
 
-    private object BuildOpenAiCompatibleBody(string systemPrompt, string userInput, bool isConnectionTest, bool forceDisableDeepSeekThinking)
+    private object BuildOpenAiCompatibleBody(string systemPrompt, string userInput, bool isConnectionTest, bool forceDisableDeepSeekThinking, string? jsonSchema)
     {
         var body = new Dictionary<string, object?>
         {
@@ -447,6 +466,16 @@ public sealed class AIService : ITextGenerationClient, IDisposable
         {
             body["temperature"] = _temperature;
             body["top_p"] = _topP;
+        }
+
+        if (!string.IsNullOrWhiteSpace(jsonSchema) && !isConnectionTest)
+        {
+            using var schema = JsonDocument.Parse(jsonSchema);
+            body["response_format"] = new
+            {
+                type = "json_schema",
+                json_schema = new { name = "huaxiazi_answer", strict = true, schema = schema.RootElement.Clone() }
+            };
         }
 
         return body;

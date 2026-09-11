@@ -111,6 +111,32 @@ public sealed class SecurityHardeningTests
     }
 
     [Fact]
+    public void LoadedCustomEndpoint_DoesNotReuseLegacyCredentialSlot()
+    {
+        var settings = new AppSettings
+        {
+            ProviderProfiles =
+            [
+                new ProviderProfile
+                {
+                    Id = "default",
+                    Platform = ProviderPlatform.CustomOpenAICompatible,
+                    Protocol = ProviderProtocol.OpenAICompatible,
+                    Type = ProviderType.Cloud,
+                    ApiBase = "https://evil.example/v1",
+                    SecretId = "provider-default"
+                }
+            ],
+            ActiveProviderProfileId = "default"
+        };
+
+        settings.NormalizeProviderProfiles();
+        settings.NormalizeLoadedCredentialBindings();
+
+        Assert.NotEqual("provider-default", settings.ProviderProfiles[0].SecretId);
+    }
+
+    [Fact]
     public void RestoreBackup_DoesNotOverwriteExistingConfig()
     {
         var root = Path.Combine(Path.GetTempPath(), "HuaxiaziSecurity_" + Guid.NewGuid().ToString("N"));
@@ -197,5 +223,26 @@ public sealed class SecurityHardeningTests
             Assert.False(File.Exists(output));
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void CorruptedDatabase_IsReportedWithoutThrowingDuringConstruction()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "HuaxiaziCorruptDb_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "data"));
+        try
+        {
+            File.WriteAllText(Path.Combine(root, "data", "huaxiazi.db"), "not a sqlite database");
+
+            var archive = new ArchiveService(root);
+
+            var integrity = archive.CheckIntegrity();
+            Assert.False(integrity.IsHealthy);
+            Assert.Throws<DatabaseCorruptedException>(() => archive.Search(string.Empty));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
     }
 }

@@ -63,6 +63,8 @@ public sealed class PolishWorkflowServiceTests : IDisposable
         using var context = JsonDocument.Parse(saved.ContextJson);
         Assert.Equal("产品经理", context.RootElement.GetProperty("Persona").GetString());
         Assert.Equal("简洁", context.RootElement.GetProperty("CustomStyleInstructions").GetString());
+        Assert.Equal(JsonValueKind.Array, context.RootElement.GetProperty("selectedSkillIds").ValueKind);
+        Assert.Equal(JsonValueKind.Object, context.RootElement.GetProperty("skillWeights").ValueKind);
     }
 
     [Fact]

@@ -1,0 +1,20 @@
+{"id":"hxa-v1-dev-010001","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"样本10001\"}"}
+{"id":"hxa-v1-dev-010002","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"两个 Skill 分别要求正式和口语表达，请识别冲突并选择一个一致策略。 样本10002。\"}"}
+{"id":"hxa-v1-dev-010003","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"样本10003\"}"}
+{"id":"hxa-v1-dev-010004","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"样本10004\"}"}
+{"id":"hxa-v1-dev-010005","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"样本10005\"}"}
+{"id":"hxa-v1-dev-010006","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"样本10006\"}"}
+{"id":"hxa-v1-dev-010007","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"样本10007\"}"}
+{"id":"hxa-v1-dev-010008","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010009","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"样本10009\"}"}
+{"id":"hxa-v1-dev-010010","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010011","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"样本10011\"}"}
+{"id":"hxa-v1-dev-010012","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"样本10012\"}"}
+{"id":"hxa-v1-dev-010013","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"样本10013\"}"}
+{"id":"hxa-v1-dev-010014","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010015","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"样本10015\"}"}
+{"id":"hxa-v1-dev-010016","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"样本10016\"}"}
+{"id":"hxa-v1-dev-010017","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"样本10017\"}"}
+{"id":"hxa-v1-dev-010018","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010019","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}
+{"id":"hxa-v1-dev-010020","architecture_id":"output-contract-v1","split":"dev","output":"{\"answer\":\"只返回一个合法 JSON 对象，且只能包含 answer 字段。不要 Markdown、前言、解释或分析。\"}"}

@@ -171,6 +171,9 @@
           "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.13, )",
           "System.Security.Cryptography.ProtectedData": "[8.0.0, )"
         }
+      },
+      "huaxiazi.datasetbuilder": {
+        "type": "Project"
       }
     }
   }
