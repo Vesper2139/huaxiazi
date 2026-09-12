@@ -81,7 +81,6 @@ public sealed class AcceptanceDefectTests
         Assert.Contains("Join-Path $PackagesDir \"Huaxiazi.exe\"", publish);
         Assert.Contains("Join-Path $PackagesDir \"Huaxiazi-Portable.zip\"", publish);
         Assert.Contains("Join-Path $PackagesDir \"Huaxiazi-Setup.exe\"", publish);
-        Assert.DoesNotContain(".sha256", publish);
         Assert.DoesNotContain("release/version.json", publish);
     }
 

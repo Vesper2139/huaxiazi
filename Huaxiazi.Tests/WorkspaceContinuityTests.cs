@@ -152,6 +152,24 @@ public sealed class WorkspaceContinuityTests : IDisposable
     }
 
     [Fact]
+    public void IncognitoMode_OnStartupClearsExistingDraftWithoutRestoringIt()
+    {
+        var store = new WorkspaceDraftService(_root);
+        store.Save(new WorkspaceDraft
+        {
+            UserInput = "之前保存的敏感原文",
+            OptimizedResult = "之前保存的敏感结果"
+        });
+        App.ReplaceSettings(new AppSettings { IncognitoMode = true });
+
+        var vm = new MainViewModel(store, new ArchiveService(_root));
+
+        Assert.Empty(vm.UserInput);
+        Assert.Empty(vm.OptimizedResult);
+        Assert.Null(store.Load());
+    }
+
+    [Fact]
     public void ClearThenUndoAndRedo_RestoresBothSidesOfWorkspace()
     {
         App.ReplaceSettings(new AppSettings());

@@ -1,5 +1,7 @@
 # 话匣子 / Huaxiazi v2.0.0 — Production Release Security Review
 
+> **历史审查快照：**本文记录 v2.0.0 当时的审查结论。自 v2.0.1 起，本项目采用适合小型开源桌面工具的发布标准：代码签名为可选增强项；无签名发布必须显式启用、通过 CI、由干净标签构建、提供 SHA-256 校验文件，并公开说明 Windows“未知发布者”/SmartScreen 提示。本文中的强制签名要求仅适用于高保障签名发布配置。
+
 > 审查依据：用户提供的《Agent 项目 Production Release Security Review》框架（85 节）
 > 审查性质：**只读、非破坏性**（未修改 / 未删除 / 未部署 / 未调用真实付费接口）
 > 审查方法：仓库侦察 + 4 路并行代码级取证（Secrets/供应链/更新/CI-CD、Agent/LLM/Tool/注入、传统 AppSec/数据/密码学、隐私/数据流/文档核实），结论均以 `file:line` 证据支撑，并对既有安全文档声明做了代码级核实。

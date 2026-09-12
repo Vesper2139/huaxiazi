@@ -146,7 +146,12 @@ public partial class App : System.Windows.Application
         if (!string.IsNullOrWhiteSpace(_singleInstanceWarning))
             LogUnhandled("SingleInstance", new InvalidOperationException(_singleInstanceWarning));
         StartupService.TrySetEnabled(Settings.StartWithWindows, out _);
-        try { ArchiveService.PurgeDeletedBefore(DateTimeOffset.UtcNow.AddDays(-Settings.HistoryRetentionDays)); }
+        try
+        {
+            var retentionCutoff = DateTimeOffset.UtcNow.AddDays(-Settings.HistoryRetentionDays);
+            ArchiveService.PurgeHistoryBefore(retentionCutoff);
+            ArchiveService.PurgeDeletedBefore(retentionCutoff);
+        }
         catch (Exception exception) { LogUnhandled("DatabaseRetention", exception); }
 
         // 2. 注册用户已配置的全局快捷键；默认只占用一组呼出键。

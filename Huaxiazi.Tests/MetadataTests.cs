@@ -24,7 +24,7 @@ public class MetadataTests
     {
         var version = typeof(AppSettings).Assembly.GetName().Version;
 
-        Assert.Equal(new System.Version(2, 0, 0, 0), version);
+        Assert.Equal(new System.Version(2, 0, 1, 0), version);
     }
 
     [Fact]

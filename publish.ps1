@@ -6,8 +6,9 @@
     One command that produces a directly runnable, self-contained artifact:
         dotnet publish -c Release -r win-x64 --self-contained true -o out/publish/win-x64
 
-    Release publishing is fail-closed: a code-signing certificate must be supplied
-    via -CertPath / -CertPassword (PFX file) or -CertSha1 (certificate store).
+    Open-source releases may be produced without a commercial code-signing
+    certificate by explicitly passing -AllowUnsigned. If a certificate is
+    supplied, Authenticode signing and update trust anchors remain enforced.
 
     This script is standalone and has no external dependencies beyond the
     .NET 8 SDK and (optionally) signtool.exe.
@@ -36,7 +37,14 @@
 
 .PARAMETER UpdateManifestPublicKey
     Base64-encoded RSA SubjectPublicKeyInfo pinned into the release binary.
-    Required for every release publish.
+    Required when producing a signed release with automatic updates enabled.
+
+.PARAMETER AllowUnsigned
+    Explicitly allow an unsigned open-source release. Windows may display an
+    Unknown Publisher or SmartScreen warning for these artifacts.
+
+.PARAMETER ValidateReleasePolicyOnly
+    Validate release signing options and exit without building artifacts.
 
 .PARAMETER Clean
     Clean bin/obj/<OutputDir> before publishing.
@@ -60,6 +68,8 @@ param(
     [string]$CertSha1      = "",
     [string]$SigntoolPath  = "",
     [string]$UpdateManifestPublicKey = "",
+    [switch]$AllowUnsigned,
+    [switch]$ValidateReleasePolicyOnly,
     [switch]$Clean,
     [switch]$SkipTests
 )
@@ -76,6 +86,7 @@ $DistDir   = Join-Path $ScriptDir $OutputDir
 $SingleFileDir = Join-Path $ScriptDir "out/publish/single-file-$Runtime"
 $PackagesDir = Join-Path $ScriptDir "release"
 $ReportsDir = Join-Path $ScriptDir "out/reports"
+$PublishLockFile = Join-Path $ScriptDir "deploy/packages.win-x64.lock.json"
 
 function Write-Step([string]$msg) {
     Write-Host ""
@@ -92,26 +103,39 @@ try {
 catch {
     Write-Error "dotnet not found. Install the .NET 8 SDK (https://dotnet.microsoft.com/download) first."
 }
-if (-not $CertPath -and -not $CertSha1) {
-    throw "Release signing is mandatory. Supply -CertPath or -CertSha1; use build.ps1 for unsigned local development builds."
+$hasSigningCertificate = -not [string]::IsNullOrWhiteSpace($CertPath) -or -not [string]::IsNullOrWhiteSpace($CertSha1)
+if (-not $hasSigningCertificate -and -not $AllowUnsigned) {
+    throw "No code-signing certificate was supplied. Pass -AllowUnsigned explicitly for an unsigned open-source release."
 }
-if (-not $UpdateManifestPublicKey) {
-    throw "-UpdateManifestPublicKey is mandatory so release builds can verify signed update manifests."
+if ($hasSigningCertificate -and -not $UpdateManifestPublicKey) {
+    throw "-UpdateManifestPublicKey is mandatory for signed releases with automatic updates."
 }
-$releaseCertificate = if ($CertPath) {
-    [Security.Cryptography.X509Certificates.X509Certificate2]::new(
-        [IO.Path]::GetFullPath($CertPath), $CertPassword,
-        [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
+
+$signerCertificateSha256 = ""
+if ($hasSigningCertificate) {
+    $releaseCertificate = if ($CertPath) {
+        [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            [IO.Path]::GetFullPath($CertPath), $CertPassword,
+            [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
+    }
+    else {
+        Get-ChildItem Cert:\CurrentUser\My, Cert:\LocalMachine\My |
+            Where-Object Thumbprint -eq ($CertSha1 -replace '\s', '') |
+            Select-Object -First 1
+    }
+    if (-not $releaseCertificate) { throw "Unable to load the release signing certificate." }
+    $signerCertificateSha256 = [Convert]::ToHexString(
+        [Security.Cryptography.SHA256]::HashData($releaseCertificate.RawData))
+    $releaseCertificate.Dispose()
 }
 else {
-    Get-ChildItem Cert:\CurrentUser\My, Cert:\LocalMachine\My |
-        Where-Object Thumbprint -eq ($CertSha1 -replace '\s', '') |
-        Select-Object -First 1
+    Write-Warning "Producing an unsigned open-source release. Windows may show Unknown Publisher or SmartScreen warnings."
 }
-if (-not $releaseCertificate) { throw "Unable to load the release signing certificate." }
-$signerCertificateSha256 = [Convert]::ToHexString(
-    [Security.Cryptography.SHA256]::HashData($releaseCertificate.RawData))
-$releaseCertificate.Dispose()
+
+if ($ValidateReleasePolicyOnly) {
+    Write-Output ("release_mode=" + $(if ($hasSigningCertificate) { "signed" } else { "unsigned" }))
+    return
+}
 
 # ---------- 1. Optional clean ----------
 if ($Clean) {
@@ -120,12 +144,20 @@ if ($Clean) {
         $p = Join-Path $ScriptDir $_
         if (Test-Path $p) { Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue }
     }
+    # Never let a delivery file from an older release survive into this run.
+    # In particular, Inno Setup may be unavailable on a contributor machine.
+    foreach ($deliveryName in @("Huaxiazi.exe", "Huaxiazi-Portable.zip", "Huaxiazi-Setup.exe", "SHA256SUMS.txt")) {
+        $deliveryPath = Join-Path $PackagesDir $deliveryName
+        if (Test-Path $deliveryPath -PathType Leaf) {
+            Remove-Item -LiteralPath $deliveryPath -Force
+        }
+    }
 }
 
 # ---------- 2. Restore + Build + Test ----------
 Write-Step "Restore"
-dotnet restore $MainProj
-dotnet restore $TestProj
+dotnet restore $MainProj --locked-mode
+dotnet restore $TestProj --locked-mode
 
 Write-Step "Build ($Configuration)"
 dotnet build $MainProj -c $Configuration --no-restore
@@ -151,7 +183,13 @@ if (-not $SkipTests) {
         @{ Name = "layout-reverify"; Filter = "FullyQualifiedName~InteractionLayoutReverifyTests" },
         @{ Name = "responsive-layout"; Filter = "FullyQualifiedName~ResponsiveLayoutRegressionTests" },
         @{ Name = "scroll-behavior"; Filter = "FullyQualifiedName~ScrollBehaviorTests" },
-        @{ Name = "integer-input"; Filter = "FullyQualifiedName~IntegerInputBehaviorTests" }
+        @{ Name = "integer-input"; Filter = "FullyQualifiedName~IntegerInputBehaviorTests" },
+        @{ Name = "decimal-input"; Filter = "FullyQualifiedName~DecimalInputBehaviorTests" },
+        @{ Name = "exception-policy"; Filter = "FullyQualifiedName~ExceptionPresentationPolicyTests" },
+        @{ Name = "hotkey-parser"; Filter = "FullyQualifiedName~HotkeyParserTests" },
+        @{ Name = "settings-view-model"; Filter = "FullyQualifiedName~SettingsViewModelTests" },
+        @{ Name = "theme-service"; Filter = "FullyQualifiedName~ThemeServiceTests" },
+        @{ Name = "window-placement"; Filter = "FullyQualifiedName~WindowPlacementServiceTests" }
     )
     foreach ($testGroup in $testGroups) {
         dotnet test $TestProj -c $Configuration --no-build --filter $testGroup.Filter `
@@ -161,8 +199,16 @@ if (-not $SkipTests) {
 }
 
 # ---------- 3. Self-contained publish ----------
+Write-Step "Restore locked publish dependency graph ($Runtime)"
+dotnet restore $MainProj -r $Runtime --locked-mode `
+    -p:PublishSingleFile=true `
+    -p:NuGetLockFilePath=$PublishLockFile
+if (-not $?) { throw "Locked publish restore failed." }
+
 Write-Step "Publish: self-contained $Runtime -> $OutputDir"
-dotnet publish $MainProj -c $Configuration -r $Runtime --self-contained true -o $DistDir `
+dotnet publish $MainProj -c $Configuration -r $Runtime --self-contained true --no-restore -o $DistDir `
+    -p:PublishSingleFile=false `
+    -p:NuGetLockFilePath=$PublishLockFile `
     -p:HuaxiaziUpdateManifestPublicKey=$UpdateManifestPublicKey `
     -p:HuaxiaziUpdateSignerCertificateSha256=$signerCertificateSha256
 if (-not $?) { throw "Self-contained publish failed." }
@@ -173,8 +219,9 @@ Write-Host "Publish succeeded: $DistDir\Huaxiazi.exe" -ForegroundColor Green
 # IncludeAllContentForSelfExtract bundles Prompts/default config together with
 # WPF, SQLite and native runtime files instead of shipping a misleading apphost.
 Write-Step "Publish: standalone single-file $Runtime"
-dotnet publish $MainProj -c $Configuration -r $Runtime --self-contained true -o $SingleFileDir `
+dotnet publish $MainProj -c $Configuration -r $Runtime --self-contained true --no-restore -o $SingleFileDir `
     -p:PublishSingleFile=true `
+    -p:NuGetLockFilePath=$PublishLockFile `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:IncludeAllContentForSelfExtract=true `
     -p:EnableCompressionInSingleFile=true `
@@ -189,9 +236,9 @@ if (-not (Test-Path $singleFileSource -PathType Leaf)) {
 }
 Write-Host "Standalone publish succeeded: $singleFileSource" -ForegroundColor Green
 
-# ---------- 4. Mandatory code signing ----------
+# ---------- 4. Optional code signing ----------
 if ($CertPath -or $CertSha1) {
-    Write-Step "Code signing (mandatory release gate)"
+    Write-Step "Code signing"
     $signScript = Join-Path (Join-Path $ScriptDir "deploy") "sign.ps1"
     if (-not (Test-Path $signScript)) {
         throw "deploy/sign.ps1 not found; cannot sign."
@@ -235,10 +282,10 @@ $isccCandidates = @(
 $iscc = $isccCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($iscc) {
     Write-Step "Build Inno Setup installer"
-    & $iscc (Join-Path $ScriptDir "deploy\installer.iss")
+    & $iscc /Qp (Join-Path $ScriptDir "deploy\installer.iss")
     if (-not $?) { throw "Installer build failed." }
     $installer = Join-Path $PackagesDir "Huaxiazi-Setup.exe"
-    if (Test-Path $installer) {
+    if ((Test-Path $installer) -and $hasSigningCertificate) {
         $installerSignParams = @{ DistDir = $PackagesDir }
         if ($CertPath)     { $installerSignParams['CertPath'] = $CertPath }
         if ($CertPassword) { $installerSignParams['CertPassword'] = $CertPassword }
@@ -248,13 +295,20 @@ if ($iscc) {
         if (-not $?) { throw "Installer signing failed." }
         Write-Host "Installer: $installer" -ForegroundColor Green
     }
+    elseif (Test-Path $installer) {
+        Write-Host "Installer: $installer (unsigned)" -ForegroundColor Yellow
+    }
 }
 else {
     Write-Host "Inno Setup 6 not found; portable ZIP is ready and deploy/installer.iss remains build-ready." -ForegroundColor Yellow
 }
 
 # release/ is a client handoff folder, not an artifact archive.
-$deliveryNames = @("Huaxiazi.exe", "Huaxiazi-Portable.zip", "Huaxiazi-Setup.exe")
+$checksumFile = Join-Path $PackagesDir "SHA256SUMS.txt"
+& (Join-Path $ScriptDir "deploy\write-checksums.ps1") -ReleaseDirectory $PackagesDir -OutputPath $checksumFile
+if (-not $?) { throw "Failed to generate SHA-256 checksums." }
+
+$deliveryNames = @("Huaxiazi.exe", "Huaxiazi-Portable.zip", "Huaxiazi-Setup.exe", "SHA256SUMS.txt")
 Get-ChildItem -LiteralPath $PackagesDir -File |
     Where-Object { $_.Name -notin $deliveryNames } |
     Remove-Item -Force

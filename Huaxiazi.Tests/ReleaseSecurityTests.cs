@@ -93,6 +93,57 @@ public sealed class ReleaseSecurityTests : IDisposable
     }
 
     [Fact]
+    public void PublishScript_ExplicitUnsignedModePassesReleasePolicyValidation()
+    {
+        var script = Path.Combine(RepoRoot(), "publish.ps1");
+
+        var result = RunPowerShell($"& '{script}' -AllowUnsigned -ValidateReleasePolicyOnly");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("release_mode=unsigned", result.Output, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void WriteChecksums_ProducesSortedSha256ManifestForDeliveryFiles()
+    {
+        Directory.CreateDirectory(_root);
+        File.WriteAllText(Path.Combine(_root, "Huaxiazi.exe"), "standalone", new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(_root, "Huaxiazi-Portable.zip"), "portable", new UTF8Encoding(false));
+        var output = Path.Combine(_root, "SHA256SUMS.txt");
+        var script = Path.Combine(RepoRoot(), "deploy", "write-checksums.ps1");
+
+        var result = RunPowerShell($"& '{script}' -ReleaseDirectory '{_root}' -OutputPath '{output}'");
+
+        Assert.Equal(0, result.ExitCode);
+        var lines = File.ReadAllLines(output);
+        Assert.Equal(2, lines.Length);
+        Assert.EndsWith("  Huaxiazi-Portable.zip", lines[0], StringComparison.Ordinal);
+        Assert.EndsWith("  Huaxiazi.exe", lines[1], StringComparison.Ordinal);
+        Assert.All(lines, line => Assert.Matches("^[0-9A-F]{64}  Huaxiazi", line));
+    }
+
+    [Fact]
+    public void Installer_EmbedsCurrentReleaseFileVersion()
+    {
+        var script = File.ReadAllText(Path.Combine(RepoRoot(), "deploy", "installer.iss"));
+
+        Assert.Contains("#define MyAppVersion   \"2.0.1\"", script, StringComparison.Ordinal);
+        Assert.Contains("VersionInfoVersion={#MyAppVersion}.0", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PublishScript_UsesDedicatedLockedRuntimeGraph()
+    {
+        var root = RepoRoot();
+        var script = File.ReadAllText(Path.Combine(root, "publish.ps1"));
+
+        Assert.True(File.Exists(Path.Combine(root, "deploy", "packages.win-x64.lock.json")));
+        Assert.Contains("deploy/packages.win-x64.lock.json", script, StringComparison.Ordinal);
+        Assert.Contains("-r $Runtime --locked-mode", script, StringComparison.Ordinal);
+        Assert.Contains("--no-restore", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WinTrust_ReleasesNestedMarshaledStructures()
     {
         var source = File.ReadAllText(Path.Combine(RepoRoot(), "Services", "WinTrust.cs"));

@@ -393,6 +393,40 @@ public sealed class ArchiveService
         return expired.Count;
     }
 
+    public int PurgeHistoryBefore(DateTimeOffset cutoff)
+    {
+        using var connection = OpenConnection();
+        using var find = connection.CreateCommand();
+        find.CommandText = SelectColumns + " WHERE r.deleted_utc IS NULL AND r.created_utc < $cutoff;";
+        find.Parameters.AddWithValue("$cutoff", cutoff.UtcDateTime.ToString("O", CultureInfo.InvariantCulture));
+        var expired = ReadRevisions(find);
+        if (expired.Count == 0) return 0;
+
+        using (var transaction = connection.BeginTransaction())
+        {
+            foreach (var revision in expired)
+            {
+                using var delete = connection.CreateCommand();
+                delete.Transaction = transaction;
+                delete.CommandText = "DELETE FROM content_revisions WHERE id = $id;";
+                delete.Parameters.AddWithValue("$id", revision.Id.ToString("D"));
+                delete.ExecuteNonQuery();
+            }
+
+            using var removeEmptyItems = connection.CreateCommand();
+            removeEmptyItems.Transaction = transaction;
+            removeEmptyItems.CommandText = "DELETE FROM content_items WHERE NOT EXISTS (SELECT 1 FROM content_revisions r WHERE r.item_id = content_items.id);";
+            removeEmptyItems.ExecuteNonQuery();
+            transaction.Commit();
+        }
+
+        foreach (var revision in expired)
+        {
+            if (File.Exists(revision.FilePath)) File.Delete(revision.FilePath);
+        }
+        return expired.Count;
+    }
+
     private const string SelectColumns = """
         SELECT r.id, r.item_id, r.version, i.mode, r.original_text, r.final_text,
                i.scenario, i.topic, r.context_json, r.style, r.model_profile_id,

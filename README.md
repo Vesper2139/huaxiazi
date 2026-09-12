@@ -1,6 +1,6 @@
 # 话匣子 / Huaxiazi
 
-当前版本：2.0.0
+当前版本：2.0.1
 
 话匣子（技术标识 Huaxiazi）是面向 Windows 10/11 x64 的轻量桌面表达工具。它不替用户虚构事实，而是把口语化、零散或不专业的表达整理成可直接使用的专业成稿或专业提示词。
 
@@ -33,7 +33,7 @@
 所有用户数据位于 `%LocalAppData%\Huaxiazi`：
 
 ```text
-config.json                 非敏感配置（2.0.0 schema v20）
+config.json                 非敏感配置（schema v20）
 secrets\                    DPAPI 加密的 API Key
 data\huaxiazi.db            SQLite 索引、原文、背景与版本关系
 data\drafts\                可直接使用的最终 .txt 成稿
@@ -48,10 +48,10 @@ updates\                    已下载并校验的更新安装包
 需要 Windows 与 .NET 8 SDK：
 
 ```powershell
-dotnet restore .\Huaxiazi.sln
+dotnet restore .\Huaxiazi.sln --locked-mode
 dotnet build .\Huaxiazi.sln -c Release --no-restore
 dotnet test .\Huaxiazi.Tests\Huaxiazi.Tests.csproj -c Release --no-build
-.\publish.ps1 -Clean
+.\publish.ps1 -AllowUnsigned -Clean
 ```
 
 完整验证应使用：
@@ -62,11 +62,11 @@ dotnet test .\Huaxiazi.Tests\Huaxiazi.Tests.csproj -c Release
 
 发布过程只临时使用 `out/`，成功后自动清理。对外交付物保留在 `release/`：直接启动 EXE、便携 ZIP 和 Windows 安装包。源码目录不长期保留展开发布副本、编译缓存或测试运行目录。
 
-也可运行 `publish.ps1` 完成恢复、Release 构建、全量测试、自包含发布和可选签名。无签名证书时产物仅用于测试分发。
+也可运行 `publish.ps1` 完成锁定恢复、Release 构建、分组测试、自包含发布和 SHA-256 清单生成。开源发布使用显式的 `-AllowUnsigned`；如以后取得证书，仍可通过 `-CertPath` 或 `-CertSha1` 启用可选 Authenticode 签名。未签名版本可能触发 Windows“未知发布者”或 SmartScreen 提示，请仅从本仓库下载并核对 `SHA256SUMS.txt`。
 
 ## 隐私默认值
 
-默认无遥测、无内容上传、不开机启动、不读取剪贴板。只有用户发起生成时，请求中的正文及明确填写的背景才会发送给当前选择的模型服务商。本项目不包含自营 AI 后端、账号或云同步。
+默认无遥测、无内容上传、不开机启动、不读取剪贴板。只有用户发起生成时，请求中的正文及明确填写的背景才会发送给当前选择的模型服务商。本项目不包含自营 AI 后端、账号或云同步。启用历史时，原文和成稿默认以明文保存在当前 Windows 用户的本机数据目录；无痕模式不恢复或写入工作区草稿，也不保存历史。卸载程序不会自动删除用户数据。
 
 详见 [隐私与数据](docs/隐私与数据.md) 和 [首次使用、备份与恢复](docs/首次使用与备份.md)。
 智能编排的优先级、保真校验和隐私边界见 [智能编排与质量保障](docs/智能编排与质量保障.md)。

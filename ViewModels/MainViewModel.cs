@@ -369,7 +369,14 @@ public sealed partial class MainViewModel : ObservableObject
         _selectedDepth = App.Settings.GetDefaultDepth();
         _showDiff = App.Settings.ShowDiff;
         _selectedPreset = App.Settings.OptimizationPresets.FirstOrDefault(preset => preset.Id == App.Settings.ActivePresetId);
-        if (_draftStore.Load() is { } draft) RestoreWorkspace(draft);
+        if (App.Settings.IncognitoMode)
+        {
+            _draftStore.Clear();
+        }
+        else if (_draftStore.Load() is { } draft)
+        {
+            RestoreWorkspace(draft);
+        }
         RefreshHistory();
     }
 

@@ -401,6 +401,25 @@ public sealed class ArchiveServiceTests : IDisposable
     }
 
     [Fact]
+    public void PurgeHistoryBefore_RemovesExpiredActiveHistoryButPreservesRecentAndTrash()
+    {
+        var service = new ArchiveService(_root);
+        var now = new DateTimeOffset(2026, 8, 11, 12, 0, 0, TimeSpan.Zero);
+        var expired = service.SaveRevision(new ArchiveDraft { FinalText = "过期历史" }, now.AddDays(-40));
+        var recent = service.SaveRevision(new ArchiveDraft { FinalText = "近期历史" }, now.AddDays(-2));
+        var recoverableTrash = service.SaveRevision(new ArchiveDraft { FinalText = "近期删除" }, now.AddDays(-40));
+        service.SoftDeleteRevision(recoverableTrash.Id, now.AddDays(-1));
+
+        var purged = service.PurgeHistoryBefore(now.AddDays(-30));
+
+        Assert.Equal(1, purged);
+        Assert.False(File.Exists(expired.FilePath));
+        var remaining = service.Search(string.Empty, includeDeleted: true);
+        Assert.Contains(remaining, item => item.Id == recent.Id);
+        Assert.Contains(remaining, item => item.Id == recoverableTrash.Id);
+    }
+
+    [Fact]
     public void FavoriteAndArchiveFlags_PersistAcrossEveryRevisionOfAnItem()
     {
         var service = new ArchiveService(_root);
