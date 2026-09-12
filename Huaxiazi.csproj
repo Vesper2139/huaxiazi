@@ -4,6 +4,9 @@
     <OutputType>WinExe</OutputType>
     <!-- net8.0-windows is required for WPF + Windows-specific APIs (Clipboard, low-level keyboard hook) -->
     <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- Keep self-contained releases on the documented .NET 8 servicing runtime. -->
+    <RuntimeFrameworkVersion>8.0.30</RuntimeFrameworkVersion>
+    <TargetLatestRuntimePatch>false</TargetLatestRuntimePatch>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>

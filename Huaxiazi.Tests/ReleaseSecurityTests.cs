@@ -144,6 +144,18 @@ public sealed class ReleaseSecurityTests : IDisposable
     }
 
     [Fact]
+    public void ReleaseBuild_PinsDotNetMajorAndRuntimePatch()
+    {
+        var root = RepoRoot();
+        var project = File.ReadAllText(Path.Combine(root, "Huaxiazi.csproj"));
+        var sdkPolicy = File.ReadAllText(Path.Combine(root, "global.json"));
+
+        Assert.Contains("<RuntimeFrameworkVersion>8.0.30</RuntimeFrameworkVersion>", project, StringComparison.Ordinal);
+        Assert.Contains("\"version\": \"8.0.100\"", sdkPolicy, StringComparison.Ordinal);
+        Assert.Contains("\"rollForward\": \"latestFeature\"", sdkPolicy, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WinTrust_ReleasesNestedMarshaledStructures()
     {
         var source = File.ReadAllText(Path.Combine(RepoRoot(), "Services", "WinTrust.cs"));
