@@ -281,6 +281,13 @@ $isccCandidates = @(
 )
 $iscc = $isccCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($iscc) {
+    $isccVersion = [Version]((Get-Item $iscc).VersionInfo.FileVersion -replace '[^0-9.].*$', '')
+    if ($isccVersion -lt [Version]'6.7.3') {
+        Write-Warning "Inno Setup $isccVersion is below the required 6.7.3; skipping optional installer build."
+        $iscc = $null
+    }
+}
+if ($iscc) {
     Write-Step "Build Inno Setup installer"
     & $iscc /Qp (Join-Path $ScriptDir "deploy\installer.iss")
     if (-not $?) { throw "Installer build failed." }
