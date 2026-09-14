@@ -1,5 +1,7 @@
 # 训练与调优实验记录
 
+> 历史实验日志，不代表生产运行时能力。生产架构与发布判定见 `docs/AGENT_ARCHITECTURE.md`。
+
 ## 基线
 
 - 模型：Ollama `qwen3:4b`

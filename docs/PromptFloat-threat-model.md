@@ -1,5 +1,7 @@
 # Huaxiazi（话匣子）全项目红队安全审查与威胁模型
 
+> 威胁模型基线与历史审查记录。发布前请结合 [发布检查清单](发布检查清单.md) 和当前 [Agent 架构](AGENT_ARCHITECTURE.md) 复核假设。
+
 审查日期：2026-09-06  
 审查对象：`C:\Users\lenovo\Desktop\话匣子\PromptFloat` 当前工作树、Release 构建流程、GitHub Actions、可导入 Skill、备份/皮肤包和本地数据流。  
 审查性质：授权的仓库级静态安全审查 + 安全回归测试；未进行真实第三方账户攻击、未访问生产密钥或 CI 秘密、未执行破坏性操作。
