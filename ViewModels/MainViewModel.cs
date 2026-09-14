@@ -584,6 +584,7 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task OptimizeAsync()
     {
         if (IsBusy) return;
+        PromoteEditedResultToNewInput();
         if (string.IsNullOrWhiteSpace(UserInput))
         {
             ShowError(CurrentMode == ApplicationMode.Polish ? "请先输入想润色的原文。" : "请先输入你的原始需求。");
@@ -774,6 +775,19 @@ public sealed partial class MainViewModel : ObservableObject
                 IsBusy = false;
             }
         }
+    }
+
+    private void PromoteEditedResultToNewInput()
+    {
+        if (ViewMode != ViewMode.Optimized ||
+            !IsEditingResult ||
+            string.IsNullOrWhiteSpace(OptimizedResult) ||
+            string.Equals(OptimizedResult, _generatedResultBeforeEdit, StringComparison.Ordinal))
+            return;
+
+        var nextInput = OptimizedResult;
+        UserInput = nextInput;
+        ResetResultState();
     }
 
     [RelayCommand]

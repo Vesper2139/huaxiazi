@@ -98,6 +98,27 @@ public sealed class ProductGapRegressionTests : IDisposable
     }
 
     [Fact]
+    public async Task ReplacingDisplayedResult_UsesTheNewSentenceForTheNextPolishRequest()
+    {
+        Configure(ApplicationMode.Polish);
+        var client = new SequenceClient(
+            "{\"kind\":\"final\",\"content\":\"第一版结果\"}",
+            "{\"kind\":\"final\",\"content\":\"第二版结果\"}");
+        var vm = new MainViewModel(new WorkspaceDraftService(_root), new ArchiveService(_root), (_, _) => client)
+        {
+            UserInput = "第一句话"
+        };
+
+        await vm.OptimizeCommand.ExecuteAsync(null);
+        vm.DisplayText = "第二句话";
+        await vm.OptimizeCommand.ExecuteAsync(null);
+
+        Assert.Equal(["第一句话", "第二句话"], client.UserMessages);
+        Assert.Equal("第二句话", vm.UserInput);
+        Assert.Equal("第二版结果", vm.OptimizedResult);
+    }
+
+    [Fact]
     public async Task EditedPromptResult_KeepsPromptModeAndSearchableTopic()
     {
         Configure(ApplicationMode.PromptOptimize);

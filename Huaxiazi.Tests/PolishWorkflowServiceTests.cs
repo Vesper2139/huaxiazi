@@ -193,6 +193,26 @@ public sealed class PolishWorkflowServiceTests : IDisposable
         Assert.Empty(archive.Search(string.Empty));
     }
 
+    [Fact]
+    public async Task ExecuteAsync_AttackingInputCannotBeReversedIntoPraise()
+    {
+        var client = new SequenceClient(
+            "{\"kind\":\"final\",\"content\":\"你真可爱\"}",
+            "{\"kind\":\"final\",\"content\":\"你的说法让我很不舒服，请停止这种不尊重的表达。\"}");
+        var workflow = new PolishWorkflowService(client, new PolishPromptBuilderService(), new ArchiveService(_root));
+
+        var result = await workflow.ExecuteAsync(
+            new PolishRequest { OriginalText = "你属猪" },
+            clarificationEnabled: false,
+            autoArchive: false,
+            existingItemId: null,
+            createdAt: DateTimeOffset.UtcNow);
+
+        Assert.Equal(2, client.Calls);
+        Assert.True(result.WasRepaired);
+        Assert.Equal("你的说法让我很不舒服，请停止这种不尊重的表达。", result.Response.Content);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, true);

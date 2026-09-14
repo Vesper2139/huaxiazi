@@ -12,6 +12,9 @@ public static class ProfessionalQualityValidator
     private static readonly string[] Strong = ["保证", "一定", "肯定", "绝对", "必定", "必然", "确保"];
     private static readonly string[] Canned = ["希望以上内容对您有所帮助", "如果您还有其他问题", "综上所述", "总而言之"];
     private static readonly string[] Conditions = ["如果", "若", "前提", "条件", "除非", "只要"];
+    private static readonly string[] Hostile = ["属猪", "猪", "蠢", "笨", "傻", "滚", "闭嘴", "恶心", "讨厌", "混蛋", "废物", "垃圾", "打死", "杀了", "弄死", "揍", "砍", "捅", "报复"];
+    private static readonly string[] Praise = ["可爱", "优秀", "真棒", "厉害", "喜欢", "欣赏", "温柔", "亲切"];
+    private static readonly string[] CriticalStance = ["不满", "不舒服", "不合适", "不妥", "不能接受", "无法接受", "请停止", "请注意", "不认同", "不同意", "不尊重", "冒犯", "失望", "生气", "反感", "不成熟", "有问题", "不赞同"];
 
     public static QualityReport Validate(ProfessionalizationPlan plan, string? output)
     {
@@ -41,6 +44,11 @@ public static class ProfessionalQualityValidator
 
         if (source.Contains("负责", StringComparison.Ordinal) && !result.Contains("负责", StringComparison.Ordinal))
             issues.Add(new("responsibility-lost", "原文的责任关系被删除", QualityIssueSeverity.Unsafe));
+
+        if (Hostile.Any(term => source.Contains(term, StringComparison.Ordinal)) &&
+            Praise.Any(term => result.Contains(term, StringComparison.Ordinal)) &&
+            !CriticalStance.Any(term => result.Contains(term, StringComparison.Ordinal)))
+            issues.Add(new("hostile-intent-inverted", "原文的不满或边界被反转为正面夸奖", QualityIssueSeverity.Unsafe));
 
         if (Canned.Any(term => result.Contains(term, StringComparison.Ordinal)))
             issues.Add(new("canned-expression", "包含无助于交付的模板套话", QualityIssueSeverity.Quality));
