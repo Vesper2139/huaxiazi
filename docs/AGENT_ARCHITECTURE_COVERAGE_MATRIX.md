@@ -1,5 +1,7 @@
 # Agent 架构覆盖矩阵
 
+> 本矩阵用于实现与测试对照；面向开发者的架构叙事、工作流和使用场景见 [Agent 架构与工程编排](AGENT_ARCHITECTURE.md)。
+
 | 主题 | 当前实现 | 验证证据 | 状态 |
 |---|---|---|---|
 | 多 Skill 选择与权重 | `ExpressionSkillRouter`，最多组合 3 个 Skill；`SkillWeightAllocator` 使用温度 softmax、主 Skill 硬上限、重复 ID 合并、稳定排序和安全残差回填；权重仅分配给最终通过安全投影的 Skill；检测保守语义对立并回退主 Skill=1 | `ExpressionSkillRouterTests`、`SkillWeightAllocatorTests` | 已实现 |

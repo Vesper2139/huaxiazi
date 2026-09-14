@@ -1,5 +1,7 @@
 # 话匣子模型调优数据流水线
 
+> 本目录只服务于离线架构评测与数据生成，不属于桌面应用运行时。生产 Agent 的分层架构与编排边界见 [Agent 架构与工程编排](../docs/AGENT_ARCHITECTURE.md)。
+
 ## 提示架构调优（当前目标）
 
 本项目的“调优”首先针对 agent 架构，而不是本地模型权重。`architecture-dataset` 生成用于提示层消融、权重搜索和 harness 门禁评估的数据：每条记录都显式包含 `system`、`developer`、`skill`、`harness`、`output_contract` 五层的具体措辞、权重向量、场景、风险、失败模式、期望决策和 gold 输出。
