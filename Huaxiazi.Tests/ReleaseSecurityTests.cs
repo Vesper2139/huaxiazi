@@ -127,7 +127,7 @@ public sealed class ReleaseSecurityTests : IDisposable
     {
         var script = File.ReadAllText(Path.Combine(RepoRoot(), "deploy", "installer.iss"));
 
-        Assert.Contains("#define MyAppVersion   \"2.0.2\"", script, StringComparison.Ordinal);
+        Assert.Contains("#define MyAppVersion   \"2.0.3\"", script, StringComparison.Ordinal);
         Assert.Contains("VersionInfoVersion={#MyAppVersion}.0", script, StringComparison.Ordinal);
     }
 
