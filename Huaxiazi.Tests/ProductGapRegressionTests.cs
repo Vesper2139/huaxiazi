@@ -98,6 +98,40 @@ public sealed class ProductGapRegressionTests : IDisposable
     }
 
     [Fact]
+    public async Task NewInputAfterUnsubmittedClarification_DoesNotReusePreviousQuestionState()
+    {
+        Configure(ApplicationMode.Polish);
+        var client = new SequenceClient(
+            "{\"kind\":\"needs_clarification\",\"questions\":[\"第一轮发给谁？\"]}",
+            "{\"kind\":\"needs_clarification\",\"questions\":[\"第二轮发给谁？\"]}",
+            "{\"kind\":\"final\",\"content\":\"第二句话成稿\"}");
+        var vm = new MainViewModel(new WorkspaceDraftService(_root), new ArchiveService(_root), (_, _) => client)
+        {
+            UserInput = "第一句话"
+        };
+
+        await vm.OptimizeCommand.ExecuteAsync(null);
+        Assert.True(vm.HasClarification);
+        vm.ClarificationAnswer = "第一轮回答";
+
+        vm.UserInput = "第二句话";
+        await vm.OptimizeCommand.ExecuteAsync(null);
+
+        Assert.True(vm.HasClarification);
+        Assert.Equal(["第二轮发给谁？"], vm.ClarificationQuestions);
+        Assert.Empty(vm.ClarificationAnswer);
+
+        vm.ClarificationAnswer = "第二轮回答";
+        await vm.SubmitClarificationCommand.ExecuteAsync(null);
+
+        Assert.Equal("第二句话成稿", vm.OptimizedResult);
+        Assert.Contains("第二句话", client.UserMessages[2]);
+        Assert.Contains("第二轮回答", client.UserMessages[2]);
+        Assert.DoesNotContain("第一句话", client.UserMessages[2]);
+        Assert.DoesNotContain("第一轮回答", client.UserMessages[2]);
+    }
+
+    [Fact]
     public async Task ReplacingDisplayedResult_UsesTheNewSentenceForTheNextPolishRequest()
     {
         Configure(ApplicationMode.Polish);

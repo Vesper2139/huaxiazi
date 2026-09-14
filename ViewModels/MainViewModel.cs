@@ -123,6 +123,20 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _userInput, value))
             {
+                // Changing the source text starts a new task. Do not let an abandoned
+                // clarification panel carry its previous answer or original-text anchor
+                // into the next request. An active submission is deliberately preserved
+                // so retry-after-failure can resubmit the same clarification context.
+                if (!_restoringWorkspace && !IsBusy && string.IsNullOrWhiteSpace(_clarificationSubmission))
+                {
+                    var hadClarificationState = HasClarification || ClarificationQuestions.Count > 0 ||
+                        !string.IsNullOrWhiteSpace(ClarificationAnswer) || _clarificationOriginalInput is not null;
+                    ClarificationQuestions = [];
+                    HasClarification = false;
+                    ClarificationAnswer = string.Empty;
+                    _clarificationOriginalInput = null;
+                    if (hadClarificationState) ArchiveStatus = string.Empty;
+                }
                 _clipboardPrefilled = false;
                 MarkDraftDirty();
                 OnPropertyChanged(nameof(DisplayText));
@@ -584,6 +598,16 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task OptimizeAsync()
     {
         if (IsBusy) return;
+
+        // A fresh request must establish its own clarification context. The only time
+        // the previous anchor and answer are valid is while SubmitClarificationAsync
+        // carries the composed submission into this call.
+        if (string.IsNullOrWhiteSpace(_clarificationSubmission))
+        {
+            _clarificationOriginalInput = null;
+            ClarificationAnswer = string.Empty;
+        }
+
         PromoteEditedResultToNewInput();
         if (string.IsNullOrWhiteSpace(UserInput))
         {
