@@ -158,7 +158,7 @@ public sealed class AppSettings
     public double FloatingBallOpacity { get; set; } = 0.92;
 
     [JsonPropertyName("floatingBallSize")]
-    public double FloatingBallSize { get; set; } = 44;
+    public double FloatingBallSize { get; set; } = 64;
 
     [JsonPropertyName("closeBehavior")]
     public string CloseBehavior { get; set; } = "Hide";

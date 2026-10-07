@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -27,6 +28,7 @@ public partial class CompanionFace : UserControl
     private string? _loadedSpriteSkin;
     private string? _loadedVectorSkin;
     private bool _secondaryRasterActive;
+    private readonly Dictionary<string, double> _rasterContentScaleCache = new(StringComparer.Ordinal);
     private readonly CompanionPoseController _poseController = new(new SystemRandomSource(), new StopwatchAnimationClock());
     private IDisposable? _frameSubscription;
 
@@ -614,7 +616,90 @@ public partial class CompanionFace : UserControl
         brush.ImageSource = new System.Windows.Media.Imaging.BitmapImage(new Uri(sourcePath, UriKind.Absolute));
         brush.ViewboxUnits = BrushMappingMode.RelativeToBoundingBox;
         brush.Viewbox = new Rect(0, 0, 1, 1);
+        ApplyRasterContentScale(host, brush.ImageSource, cacheKey, 0, 0, 1, 1);
         if (ReferenceEquals(host, SkinSpriteHost)) _loadedSpriteSkin = cacheKey;
+    }
+
+    private void ApplyRasterContentScale(
+        System.Windows.Shapes.Rectangle host,
+        System.Windows.Media.ImageSource? imageSource,
+        string cacheKey,
+        int column,
+        int row,
+        int columns,
+        int rows)
+    {
+        var transform = ReferenceEquals(host, SkinSpriteHost) ? SkinSpriteScale : SkinSpriteScaleSecondary;
+        var skinScale = Application.Current?.TryFindResource("SkinCompanionOverscan") is double configuredScale &&
+                        double.IsFinite(configuredScale)
+            ? configuredScale
+            : 1d;
+        var contentScale = 1d;
+
+        if (imageSource is System.Windows.Media.Imaging.BitmapSource bitmap && columns > 0 && rows > 0)
+        {
+            var key = $"{cacheKey}:{column}:{row}:{columns}:{rows}";
+            if (!_rasterContentScaleCache.TryGetValue(key, out contentScale))
+            {
+                contentScale = MeasureRasterContentScale(bitmap, column, row, columns, rows);
+                _rasterContentScaleCache[key] = contentScale;
+            }
+        }
+
+        // Normalize visible alpha area while preserving each pose's proportions.
+        // The cap leaves room around the fixed 181-DIP sprite cells.
+        var scale = Math.Clamp(skinScale * contentScale, 0.75, 1.2);
+        transform.ScaleX = scale;
+        transform.ScaleY = scale;
+    }
+
+    private static double MeasureRasterContentScale(
+        System.Windows.Media.Imaging.BitmapSource bitmap,
+        int column,
+        int row,
+        int columns,
+        int rows)
+    {
+        try
+        {
+            if (bitmap.PixelWidth % columns != 0 || bitmap.PixelHeight % rows != 0) return 1d;
+            var frameWidth = bitmap.PixelWidth / columns;
+            var frameHeight = bitmap.PixelHeight / rows;
+            var converted = bitmap.Format == PixelFormats.Bgra32
+                ? bitmap
+                : new System.Windows.Media.Imaging.FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
+            var stride = converted.PixelWidth * 4;
+            var pixels = new byte[stride * converted.PixelHeight];
+            converted.CopyPixels(pixels, stride, 0);
+
+            var left = column * frameWidth;
+            var top = row * frameHeight;
+            var minX = frameWidth;
+            var minY = frameHeight;
+            var maxX = -1;
+            var maxY = -1;
+            for (var y = top; y < top + frameHeight; y++)
+            for (var x = left; x < left + frameWidth; x++)
+            {
+                if (pixels[y * stride + x * 4 + 3] <= 16) continue;
+                var localX = x - left;
+                var localY = y - top;
+                minX = Math.Min(minX, localX);
+                minY = Math.Min(minY, localY);
+                maxX = Math.Max(maxX, localX);
+                maxY = Math.Max(maxY, localY);
+            }
+
+            if (maxX < minX || maxY < minY) return 1d;
+            var visibleArea = (maxX - minX + 1d) * (maxY - minY + 1d);
+            const double targetArea = 128d * 128d;
+            return Math.Clamp(Math.Sqrt(targetArea / visibleArea), 0.8, 1.25);
+        }
+        catch
+        {
+            // An unreadable optional skin still renders at its authored scale.
+            return 1d;
+        }
     }
 
     private void SetRasterLayerDirect(string sourcePath, string cacheKey)
@@ -679,6 +764,7 @@ public partial class CompanionFace : UserControl
             var row = index / columns;
             SkinSpriteBrush.ViewboxUnits = BrushMappingMode.RelativeToBoundingBox;
             SkinSpriteBrush.Viewbox = new Rect((double)col / columns, (double)row / rows, 1d / columns, 1d / rows);
+            ApplyRasterContentScale(SkinSpriteHost, SkinSpriteBrush.ImageSource, $"{sheetCacheKey}:{index}", col, row, columns, rows);
             return;
         }
         CompanionSurface.Visibility = Visibility.Visible;
@@ -732,6 +818,7 @@ public partial class CompanionFace : UserControl
         var col = Math.Clamp(variant, 0, columns - 1);
         SkinSpriteBrush.ViewboxUnits = BrushMappingMode.RelativeToBoundingBox;
         SkinSpriteBrush.Viewbox = new Rect((double)col / columns, 0, 1d / columns, 1);
+        ApplyRasterContentScale(SkinSpriteHost, SkinSpriteBrush.ImageSource, $"{cacheKey}:{col}", col, 0, columns, 1);
     }
 
     private static string? ResolveExternalSkinPath(Huaxiazi.Services.SkinManifest manifest, string relativePath)

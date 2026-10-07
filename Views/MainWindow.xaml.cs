@@ -31,6 +31,7 @@ public partial class MainWindow : Window
     private bool _settingsAutoSaving;
     private bool _companionDragging;
     private Point _companionLastDragPosition;
+    private readonly RectangleGeometry _roundedWindowClip = new();
 
     public MainWindow() : this(null)
     {
@@ -70,12 +71,19 @@ public partial class MainWindow : Window
         };
         WindowPlacementService.Attach(this);
         SizeChanged += MainWindow_OnSizeChanged;
+        RootGrid.SizeChanged += (_, _) => UpdateRoundedWindowClip();
     }
 
     private void SkinService_OnSkinChanged(object? sender, string skinId)
     {
-        if (Dispatcher.CheckAccess()) Icon = AppIconService.LoadWindowIcon(skinId);
-        else Dispatcher.BeginInvoke(new Action(() => Icon = AppIconService.LoadWindowIcon(skinId)));
+        void ApplySkinWindowChrome()
+        {
+            Icon = AppIconService.LoadWindowIcon(skinId);
+            UpdateRoundedWindowClip();
+        }
+
+        if (Dispatcher.CheckAccess()) ApplySkinWindowChrome();
+        else Dispatcher.BeginInvoke(new Action(ApplySkinWindowChrome));
     }
 
     private void App_SettingsChanged(object? sender, EventArgs e)
@@ -95,6 +103,7 @@ public partial class MainWindow : Window
         // The default 520-DIP window cannot carry every secondary action on one rail.
         // Keep the daily editing path stable and reveal result/history tools once there is room.
         ApplyToolbarLayout(e.NewSize.Width);
+        UpdateRoundedWindowClip();
         if (IsLoaded && e.PreviousSize.Width > 0 && e.PreviousSize.Height > 0)
         {
             var direction = DirectionFromDelta(e.NewSize.Width - e.PreviousSize.Width, e.NewSize.Height - e.PreviousSize.Height);
@@ -104,7 +113,11 @@ public partial class MainWindow : Window
 
     private void ApplyToolbarLayout(double windowWidth)
     {
-        var compact = windowWidth < 500;
+        var compact = windowWidth < 560;
+        // The status capsule is useful on wide layouts, but its fixed width forces
+        // the model selector and window controls outside the title band at 520 DIP.
+        // SetCurrentValue keeps the XAML visibility binding alive when width changes.
+        TitleFeedback.SetCurrentValue(VisibilityProperty, compact ? Visibility.Collapsed : Visibility.Visible);
         if (HistoryButton is not null) HistoryButton.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         if (DiffToggleButton is not null) DiffToggleButton.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         if (ResultActionGroup is not null) ResultActionGroup.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
@@ -120,6 +133,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
     {
+        UpdateRoundedWindowClip();
         Topmost = App.Settings.AlwaysOnTop;
         PinButton.IsChecked = App.Settings.AlwaysOnTop;
         // 默认不读取剪贴板；只有用户在设置中明确开启时才预填。
@@ -138,6 +152,20 @@ public partial class MainWindow : Window
         RefreshDiffOverlay();
         UpdateModeCarouselVisual(animate: false);
         if (Application.Current is App app) app.UpdateCompanionState(_vm.CompanionState);
+    }
+
+    private void UpdateRoundedWindowClip()
+    {
+        var width = RootGrid.ActualWidth;
+        var height = RootGrid.ActualHeight;
+        if (width <= 0 || height <= 0) return;
+        var radius = TryFindResource("WindowRadius") is CornerRadius cornerRadius
+            ? cornerRadius.TopLeft
+            : 12;
+        _roundedWindowClip.RadiusX = Math.Min(radius, width / 2);
+        _roundedWindowClip.RadiusY = Math.Min(radius, height / 2);
+        _roundedWindowClip.Rect = new Rect(0, 0, width, height);
+        RootGrid.Clip = _roundedWindowClip;
     }
 
     private void ViewModel_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)

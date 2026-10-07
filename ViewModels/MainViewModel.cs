@@ -95,8 +95,8 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    public string LastUsedProviderLabel { get; private set; } = "尚无生成记录";
-    public string LastUsedOutputStyleLabel { get; private set; } = "尚无成稿风格记录";
+    public string LastUsedProviderLabel { get; private set; } = string.Empty;
+    public string LastUsedOutputStyleLabel { get; private set; } = string.Empty;
     public ProviderProfile ActiveProviderProfile
     {
         get => App.Settings.GetActiveProviderProfile();

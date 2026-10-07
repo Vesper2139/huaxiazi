@@ -13,7 +13,7 @@
         Loaded="MainWindow_OnLoaded">
 
     <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="0" CornerRadius="12" GlassFrameThickness="0" ResizeBorderThickness="6" />
+        <shell:WindowChrome CaptionHeight="0" CornerRadius="{DynamicResource WindowRadius}" GlassFrameThickness="0" ResizeBorderThickness="6" />
     </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
@@ -203,8 +203,8 @@
         <Style x:Key="TitleModelSelector" TargetType="ComboBox" BasedOn="{StaticResource GlassComboBox}">
             <Setter Property="Height" Value="22" />
             <Setter Property="MinHeight" Value="22" />
-            <Setter Property="MinWidth" Value="120" />
-            <Setter Property="MaxWidth" Value="180" />
+            <Setter Property="MinWidth" Value="110" />
+            <Setter Property="MaxWidth" Value="140" />
             <Setter Property="FontSize" Value="10" />
             <Setter Property="Padding" Value="8,0,24,0" />
         </Style>
@@ -243,11 +243,11 @@
 
                 <Grid x:Name="TitleBand" Grid.Row="0" MinHeight="{DynamicResource SkinTitleBarHeight}" MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <StackPanel x:Name="HuaxiaziWordmark" Margin="52,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
+                    <StackPanel x:Name="HuaxiaziWordmark" Margin="60,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center">
                             <Run Text="VES" /><Run Text="PER" Foreground="{DynamicResource BrandBrush}" />
                         </TextBlock>
-                        <Border x:Name="TitleFeedback" Width="150" Height="20" Margin="10,0,0,0" Padding="5,0"
+                        <Border x:Name="TitleFeedback" Width="132" Height="20" Margin="8,0,0,0" Padding="5,0"
                                 VerticalAlignment="Center" CornerRadius="5" Background="{DynamicResource PopupBrush}"
                                 BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="1"
                                 Visibility="{Binding HasOperationalNotice, Converter={StaticResource BoolToVisibility}}"
@@ -266,9 +266,8 @@
                                   SelectedItem="{Binding ActiveProviderProfile, Mode=TwoWay}"
                                   HorizontalAlignment="Right" ToolTip="手动选择的 Provider profile；任务绑定或路由策略可决定本次实际模型" />
                         <TextBlock Text="{Binding LastUsedProviderLabel}" Foreground="{DynamicResource MutedBrush}" FontSize="10"
-                                   HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" MaxWidth="210" />
-                        <TextBlock Text="{Binding LastUsedOutputStyleLabel}" Foreground="{DynamicResource MutedBrush}" FontSize="10"
-                                   HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" MaxWidth="210" />
+                                   HorizontalAlignment="Right" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxWidth="170"
+                                   ToolTip="{Binding LastUsedProviderLabel}" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,2,0">
                         <Button Style="{StaticResource WindowControlButton}" Click="TaskbarMinimizeButton_OnClick" ToolTip="最小化到任务栏" AutomationProperties.Name="最小化">

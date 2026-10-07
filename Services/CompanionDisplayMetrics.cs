@@ -16,7 +16,7 @@ public static class CompanionDisplayMetrics
 {
     public const double MinSize = 28;
     public const double MaxSize = 72;
-    public const double DefaultSize = 44;
+    public const double DefaultSize = 64;
 
     public static double NormalizeSize(double size) =>
         double.IsFinite(size) ? Math.Clamp(size, MinSize, MaxSize) : DefaultSize;
