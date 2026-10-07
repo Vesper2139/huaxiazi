@@ -26,6 +26,13 @@ public sealed class TrayIconService : IDisposable
 
     public void Show() => _notifyIcon.Visible = true;
 
+    public void RefreshIcon(string? skinId = null)
+    {
+        var previous = _notifyIcon.Icon;
+        _notifyIcon.Icon = AppIconService.LoadTrayIcon(skinId);
+        previous?.Dispose();
+    }
+
     public void Dispose()
     {
         _notifyIcon.Visible = false;

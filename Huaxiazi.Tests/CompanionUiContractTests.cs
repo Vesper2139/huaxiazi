@@ -36,11 +36,17 @@ public sealed class CompanionUiContractTests
             var window = new FloatingBallWindow();
 
             Assert.NotNull(window.FindName("CompanionFace"));
+            // Historical delivery keeps a 60x60 transparent hit shell around the
+            // 44x44 visual. The extra shell is part of the run-ready interaction
+            // contract: it keeps double-click/drag reliable at the edge of the orb.
             Assert.Equal(60, window.Width);
             Assert.Equal(60, window.Height);
             var orb = Assert.IsType<Border>(window.FindName("Orb"));
             Assert.Equal(44, orb.Width);
             Assert.Equal(44, orb.Height);
+            var viewport = Assert.IsType<Viewbox>(window.FindName("CompanionViewport"));
+            Assert.Equal(44, viewport.Width);
+            Assert.Equal(44, viewport.Height);
             window.Close();
         });
     }
@@ -141,7 +147,7 @@ public sealed class CompanionUiContractTests
     }
 
     [Fact]
-    public void CompanionFace_SpecialSkinUsesTransparentSpriteSheetProfile()
+    public void CompanionFace_SpecialSkinUsesTransparentIndependentImageProfile()
     {
         RunSta(() =>
         {
@@ -159,7 +165,7 @@ public sealed class CompanionUiContractTests
 
     [Theory]
     [InlineData("MaoDie")]
-    public void CompanionFace_BuiltInImageSkinChangesAssetForEveryInteractionState(string skinId)
+    public void CompanionFace_BuiltInImageSkinLoadsAnIndependentAssetForEveryInteractionState(string skinId)
     {
         RunSta(() =>
         {
@@ -170,15 +176,17 @@ public sealed class CompanionUiContractTests
             var brush = Assert.IsType<ImageBrush>(Assert.IsType<System.Windows.Shapes.Rectangle>(
                 face.FindName("SkinSpriteHost")).Fill);
             var loadedUris = new HashSet<Uri>();
+            var profile = new SkinService().GetSkin(skinId)!.CompanionProfile;
             foreach (var state in Enum.GetValues<CompanionVisualState>())
             {
                 face.State = state;
                 var image = Assert.IsType<System.Windows.Media.Imaging.BitmapImage>(brush.ImageSource);
                 Assert.True(image.PixelWidth > 0);
-                Assert.EndsWith("/sprite-sheet.png", image.UriSource.OriginalString, StringComparison.OrdinalIgnoreCase);
+                var resolvedState = profile.ResolveFrameState(state);
+                Assert.EndsWith($"/States/{resolvedState}.png", image.UriSource.OriginalString, StringComparison.OrdinalIgnoreCase);
                 loadedUris.Add(image.UriSource);
             }
-            Assert.Single(loadedUris);
+            Assert.True(loadedUris.Count >= SkinContract.CompanionStates.Count - 1);
         });
     }
 
@@ -200,6 +208,49 @@ public sealed class CompanionUiContractTests
     }
 
     [Fact]
+    public void CompanionFace_ImageSkinUsesTwoLayersForCrossFade()
+    {
+        RunSta(() =>
+        {
+            EnsureApplicationResources();
+            App.ReplaceSettings(new AppSettings { SkinId = "MaoDie", AnimationsEnabled = true, IncognitoMode = true });
+            App.SkinService.ApplySkin("MaoDie", Application.Current!.Resources);
+            var face = new CompanionFace { State = CompanionVisualState.Idle };
+            var primary = Assert.IsType<Rectangle>(face.FindName("SkinSpriteHost"));
+            var secondary = Assert.IsType<Rectangle>(face.FindName("SkinSpriteHostSecondary"));
+
+            face.State = CompanionVisualState.Dragging;
+
+            Assert.True(primary.HasAnimatedProperties || secondary.HasAnimatedProperties);
+            Assert.Equal(Visibility.Visible, primary.Visibility);
+            Assert.Equal(Visibility.Visible, secondary.Visibility);
+        });
+    }
+
+    [Fact]
+    public void CompanionFace_DragDirectionKeepsTheSameVisualScaleAsOtherStates()
+    {
+        RunSta(() =>
+        {
+            EnsureApplicationResources();
+            App.ReplaceSettings(new AppSettings { SkinId = "MaoDie", AnimationsEnabled = false, IncognitoMode = true });
+            App.SkinService.ApplySkin("MaoDie", Application.Current!.Resources);
+            var face = new CompanionFace { State = CompanionVisualState.Idle };
+            var bodyScale = Assert.IsType<ScaleTransform>(face.FindName("BodyScale"));
+
+            face.PlayDragStartFeedback();
+            face.PlayDragDirection(80, 0);
+
+            Assert.Equal(CompanionVisualState.Dragging, face.State);
+            Assert.Equal(1, bodyScale.ScaleX);
+            Assert.Equal(1, bodyScale.ScaleY);
+            var brush = Assert.IsType<ImageBrush>(Assert.IsType<Rectangle>(face.FindName("SkinSpriteHost")).Fill);
+            var image = Assert.IsType<System.Windows.Media.Imaging.BitmapImage>(brush.ImageSource);
+            Assert.EndsWith("/States/Dragging.png", image.UriSource.OriginalString, StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
+    [Fact]
     public void CompanionFace_RasterSpriteUsesOverscanToFillTheOrb()
     {
         RunSta(() =>
@@ -211,7 +262,7 @@ public sealed class CompanionUiContractTests
             var sprite = Assert.IsType<Rectangle>(face.FindName("SkinSpriteHost"));
             var transform = Assert.IsType<TransformGroup>(sprite.RenderTransform);
             var scale = Assert.IsType<ScaleTransform>(transform.Children[0]);
-            Assert.Equal(1, scale.ScaleX);
+            Assert.Equal(1.18, scale.ScaleX, 2);
             Assert.Equal(Stretch.UniformToFill, Assert.IsType<ImageBrush>(sprite.Fill).Stretch);
         });
     }
@@ -251,7 +302,7 @@ public sealed class CompanionUiContractTests
     }
 
     [Fact]
-    public void CompanionFace_LuoXiaoHeiUsesTransparentSpriteSheetInsteadOfVectorRenderer()
+    public void CompanionFace_LuoXiaoHeiUsesTransparentImageAssetInsteadOfVectorRenderer()
     {
         RunSta(() =>
         {
@@ -268,12 +319,14 @@ public sealed class CompanionUiContractTests
     }
 
     [Fact]
-    public void LuoXiaoHei_UsesTheRegeneratedSpriteSheetAsset()
+    public void LuoXiaoHei_UsesTheIndependentStateAssetSet()
     {
         EnsureApplicationResources();
         var manifest = App.SkinService.GetSkin("LuoXiaoHei");
         Assert.NotNull(manifest);
-        Assert.EndsWith("sprite-sheet-v2.png", manifest!.CompanionSpriteSheetPath!, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("image", manifest!.CompanionKind);
+        Assert.True(manifest.CompanionProfile.HasCompleteStateSet);
+        Assert.Null(manifest.CompanionSpriteSheetPath);
     }
 
     [Fact]
@@ -331,7 +384,7 @@ public sealed class CompanionUiContractTests
     }
 
     [Fact]
-    public void CompanionFace_DragDirectionKeepsSpriteOpaqueAndMapsEightWayMotion()
+    public void CompanionFace_DragDirectionKeepsSpriteOpaqueCanonicalSizeAndMapsEightWayMotion()
     {
         RunSta(() =>
         {
@@ -344,7 +397,8 @@ public sealed class CompanionUiContractTests
             var sprite = Assert.IsType<Rectangle>(face.FindName("SkinSpriteHost"));
             Assert.Equal(1, sprite.Opacity);
             var scale = Assert.IsType<ScaleTransform>(face.FindName("BodyScale"));
-            Assert.True(scale.ScaleX > 1 && scale.ScaleY > 1);
+            Assert.Equal(1, scale.ScaleX);
+            Assert.Equal(1, scale.ScaleY);
             var body = Assert.IsType<TranslateTransform>(face.FindName("BodyOffset"));
             Assert.True(body.X > 0 && body.Y < 0);
         });
@@ -387,7 +441,7 @@ public sealed class CompanionUiContractTests
     }
 
     [Fact]
-    public void CompanionFace_MaoDieHoverRendersTheHissingFrame()
+    public void CompanionFace_MaoDieHoverLoadsTheIndependentCuriousAsset()
     {
         RunSta(() =>
         {
@@ -401,7 +455,9 @@ public sealed class CompanionUiContractTests
             Assert.Equal(CompanionVisualState.Curious, face.State);
             var sprite = Assert.IsType<Rectangle>(face.FindName("SkinSpriteHost"));
             var brush = Assert.IsType<ImageBrush>(sprite.Fill);
-            Assert.Equal(new Rect(0, 2d / 3d, 0.25, 1d / 3d), brush.Viewbox);
+            var image = Assert.IsType<System.Windows.Media.Imaging.BitmapImage>(brush.ImageSource);
+            Assert.EndsWith("/States/Curious.png", image.UriSource.OriginalString, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(new Rect(0, 0, 1, 1), brush.Viewbox);
         });
     }
 
@@ -434,7 +490,9 @@ public sealed class CompanionUiContractTests
 
             Assert.Equal(CompanionVisualState.Idle, face.State);
             var brush = Assert.IsType<ImageBrush>(Assert.IsType<Rectangle>(face.FindName("SkinSpriteHost")).Fill);
-            Assert.Equal(new Rect(0.5, 0, 0.25, 1d / 3d), brush.Viewbox);
+            var image = Assert.IsType<System.Windows.Media.Imaging.BitmapImage>(brush.ImageSource);
+            Assert.EndsWith("/States/Happy.png", image.UriSource.OriginalString, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(new Rect(0, 0, 1, 1), brush.Viewbox);
         });
     }
 
@@ -453,7 +511,9 @@ public sealed class CompanionUiContractTests
 
             Assert.Equal(CompanionVisualState.Idle, face.State);
             var brush = Assert.IsType<ImageBrush>(Assert.IsType<Rectangle>(face.FindName("SkinSpriteHost")).Fill);
-            Assert.Equal(new Rect(0.5, 0, 0.25, 1d / 3d), brush.Viewbox);
+            var image = Assert.IsType<System.Windows.Media.Imaging.BitmapImage>(brush.ImageSource);
+            Assert.EndsWith("/States/Happy.png", image.UriSource.OriginalString, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(new Rect(0, 0, 1, 1), brush.Viewbox);
         });
     }
 

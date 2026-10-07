@@ -14,6 +14,25 @@ namespace Huaxiazi.Services;
 /// </summary>
 public static class SkinContract
 {
+    /// <summary>每个角色状态素材的固定透明画布尺寸。</summary>
+    public const int CompanionStateImageSize = 181;
+
+    /// <summary>角色主体与画布边缘之间至少保留的安全区。</summary>
+    public const int CompanionStateSafetyMargin = 18;
+
+    /// <summary>规范化状态图的目标主体包围盒边长。</summary>
+    public const int CompanionStateTargetContentSize = CompanionStateImageSize - CompanionStateSafetyMargin * 2;
+
+    public const int CompanionSpriteSheetColumns = 4;
+    public const int CompanionSpriteSheetRows = 3;
+    public const int CompanionIdleVariantsColumns = 4;
+    public const int CompanionFrameSize = CompanionStateImageSize;
+
+    public static int CompanionSpriteSheetWidth => CompanionSpriteSheetColumns * CompanionFrameSize;
+    public static int CompanionSpriteSheetHeight => CompanionSpriteSheetRows * CompanionFrameSize;
+    public static int CompanionIdleVariantsWidth => CompanionIdleVariantsColumns * CompanionFrameSize;
+    public static int CompanionIdleVariantsHeight => CompanionFrameSize;
+
     public static IReadOnlyList<string> CompanionStates { get; } =
         Enum.GetNames<CompanionVisualState>();
 
@@ -37,7 +56,7 @@ public static class SkinContract
             ["SkinIconStrokeWidth"] = (1.2, 1.8),
             ["SkinControlHeight"] = (28, 38),
             ["SkinContentSpacing"] = (6, 16)
-            , ["SkinCompanionOverscan"] = (1.05, 1.25)
+            , ["SkinCompanionOverscan"] = (1.0, 1.25)
             , ["SkinCompanionOffsetY"] = (-20, 8)
         };
 

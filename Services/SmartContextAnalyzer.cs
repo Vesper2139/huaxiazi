@@ -54,6 +54,7 @@ public sealed class SmartContextAnalyzer
         else if (ContainsAny(source, "拒绝", "不方便", "无法参加")) purpose = "婉拒";
         else if (ContainsAny(source, "申请", "麻烦", "能否", "希望你", "请你")) purpose = "提出请求";
         else if (ContainsAny(source, "感谢", "谢谢")) purpose = "致谢";
+        else if (ContainsAny(source, "问题分析", "分析问题", "分析一下问题")) purpose = "问题分析";
         else if (ContainsAny(source, "汇报", "进展", "同步")) purpose = "进度汇报";
 
         var anchors = AnchorPattern.Matches(source).Select(match => match.Value).Distinct().ToArray();

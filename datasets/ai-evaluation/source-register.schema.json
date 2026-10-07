@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:huaxiazi:ai-evaluation-source-register-v1",
+  "title": "话匣子 AI 评测授权来源登记",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["register_version", "sources"],
+  "properties": {
+    "register_version": { "const": "1.0" },
+    "sources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source" }
+    }
+  },
+  "$defs": {
+    "opaque_ref": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "description": "不透明受控引用；不得填写姓名、邮箱、公开 URL 或文件系统路径。"
+    },
+    "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_ref", "source_kind", "rights_basis", "permitted_uses", "valid_from", "evidence", "deidentification_review", "retention", "review_status"],
+      "properties": {
+        "source_ref": { "$ref": "#/$defs/opaque_ref" },
+        "source_kind": { "enum": ["project_owned", "licensed", "user_authorized_deidentified"] },
+        "rights_basis": { "enum": ["project_owned", "license", "explicit_consent"] },
+        "source_record_sha256": { "$ref": "#/$defs/sha256", "description": "可选的受控来源记录摘要；与授权材料 evidence.sha256 分开。" },
+        "permitted_uses": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["candidate_inference", "human_review", "aggregate_reporting", "training"] }
+        },
+        "valid_from": { "type": "string", "format": "date" },
+        "valid_until": { "type": ["string", "null"], "format": "date" },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["vault_ref", "sha256"],
+          "properties": {
+            "vault_ref": { "$ref": "#/$defs/opaque_ref" },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "deidentification_review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "outcome", "reviewer_role_ref", "reviewed_at", "method_summary"],
+          "properties": {
+            "status": { "enum": ["not_reviewed", "reviewed"] },
+            "outcome": { "enum": ["pending", "approved", "rejected"] },
+            "reviewer_role_ref": { "$ref": "#/$defs/opaque_ref" },
+            "reviewed_at": { "type": ["string", "null"], "format": "date-time" },
+            "method_summary": { "type": "string", "maxLength": 500 }
+          }
+        },
+        "retention": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["expires_at", "withdrawal_contact_role_ref", "withdrawal_route_ref"],
+          "properties": {
+            "expires_at": { "type": ["string", "null"], "format": "date" },
+            "withdrawal_contact_role_ref": { "$ref": "#/$defs/opaque_ref" },
+            "withdrawal_route_ref": { "$ref": "#/$defs/opaque_ref" }
+          }
+        },
+        "review_status": { "enum": ["not_verified", "verified", "rejected"] },
+        "rights_review": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["reviewer_role_ref", "reviewed_at", "evidence_ref", "scope_matches"],
+          "properties": {
+            "reviewer_role_ref": { "$ref": "#/$defs/opaque_ref" },
+            "reviewed_at": { "type": "string", "format": "date-time" },
+            "evidence_ref": { "$ref": "#/$defs/opaque_ref" },
+            "scope_matches": { "type": "boolean" },
+            "exception_ref": { "$ref": "#/$defs/opaque_ref" }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "source_kind": { "const": "project_owned" } }, "required": ["source_kind"] },
+          "then": { "properties": { "rights_basis": { "const": "project_owned" } } }
+        },
+        {
+          "if": { "properties": { "source_kind": { "const": "licensed" } }, "required": ["source_kind"] },
+          "then": { "properties": { "rights_basis": { "const": "license" } } }
+        },
+        {
+          "if": { "properties": { "source_kind": { "const": "user_authorized_deidentified" } }, "required": ["source_kind"] },
+          "then": { "properties": { "rights_basis": { "const": "explicit_consent" } } }
+        },
+        {
+          "if": { "properties": { "review_status": { "const": "verified" } }, "required": ["review_status"] },
+          "then": {
+            "required": ["rights_review"],
+            "properties": {
+              "rights_review": {
+                "type": "object",
+                "properties": { "scope_matches": { "const": true } }
+              },
+              "deidentification_review": {
+                "properties": {
+                  "status": { "const": "reviewed" },
+                  "outcome": { "const": "approved" },
+                  "reviewed_at": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "deidentification_review": { "properties": { "outcome": { "const": "approved" } }, "required": ["outcome"] } }, "required": ["deidentification_review"] },
+          "then": { "properties": { "deidentification_review": { "properties": { "status": { "const": "reviewed" }, "reviewed_at": { "type": "string" } } } } }
+        }
+      ]
+    }
+  }
+}

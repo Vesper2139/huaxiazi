@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0",
+  "report_version": "hxz-polish-reg-supplement-near-duplicate-candidates-v1",
+  "status": "internal_diagnostic_pending_human_adjudication",
+  "purpose": "internal_near_duplicate_triage",
+  "phase_0_gate_contribution": 0,
+  "not_admissible_as_blind_eval": true,
+  "auto_merge_performed": false,
+  "threshold_is_calibrated": false,
+  "threshold_use": "human_review_queue_only",
+  "ruleset_id": "hxz-polish-near-duplicate-char-trigram-v1",
+  "candidate_threshold": 0.8,
+  "normalization": "unicode-formkc-lowercase-alphanumeric-codepoint-trigrams-v1",
+  "shingle_size": 3,
+  "source_dataset_count": 2,
+  "base_family_count": 16,
+  "supplement_family_count": 20,
+  "family_count": 36,
+  "pair_count": 510,
+  "candidate_pair_count": 0,
+  "cross_split_candidate_pair_count": 0,
+  "sensitivity": [
+    {
+      "threshold": 0.7,
+      "candidate_pair_count": 0,
+      "cross_split_pair_count": 0
+    },
+    {
+      "threshold": 0.8,
+      "candidate_pair_count": 0,
+      "cross_split_pair_count": 0
+    },
+    {
+      "threshold": 0.9,
+      "candidate_pair_count": 0,
+      "cross_split_pair_count": 0
+    }
+  ],
+  "base_cases_sha256": "27ddceb1f9706f0851dae720d79ae5361638d7bcef8bd0788f4bfd3260da3195",
+  "base_manifest_sha256": "8da2557b6a9b2f0a6c2d80ffd746bb79d6b494da5b50ad1db4fe45f23d11a2cb",
+  "supplement_cases_sha256": "0042e9c86699a7c3a51c576ebae85bd44c5787e1a6b34c8ab23b883eba35e4a8",
+  "supplement_manifest_sha256": "f60ca15967638d48cbfee3eb2bfec03bbb716a98ab1c7fde179c8582dcfd9c1f",
+  "rules_sha256": "971ce6cf23397d16d101b3c8c5b5c2a73614a95b34c2439886843357ddb1f399",
+  "limitations": "Character-trigram Jaccard only queues pairs for human review; the threshold is uncalibrated, candidates are not duplicates by definition, and no family, split, or label is changed."
+}

@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "status": "proposal_only",
+  "parent_dataset": "hxz-polish-regression-v1",
+  "selected_decisions": {
+    "same_semantic_family": 19
+  },
+  "decision_count": 19,
+  "placeholder_rationales": 19,
+  "source_case_count": 16,
+  "source_variant_count": 3000,
+  "proposed_group_count": 8,
+  "mixed_split_group_count": 2,
+  "groups_with_regression_count": 2,
+  "moved_development_variant_count": 1612,
+  "split_totals": {
+    "development": {
+      "source_case_count": 13,
+      "source_variant_count": 2414,
+      "proposal_group_count": 6,
+      "proposal_variant_count": 802
+    },
+    "regression": {
+      "source_case_count": 3,
+      "source_variant_count": 586,
+      "proposal_group_count": 2,
+      "proposal_variant_count": 2198
+    }
+  },
+  "all_source_hashes": {
+    "workbook_sha256": "7473ed7aa2fea7ff820a77f4498d1f0a8261488a88888762b30522bce0cfec08",
+    "cases_sha256": "27ddceb1f9706f0851dae720d79ae5361638d7bcef8bd0788f4bfd3260da3195",
+    "variants_sha256": "b4d0d228f65b7d3aa4f4b5c88b2f6f6f88e0517139a9c521155c236ce50056fd",
+    "candidate_pairs_sha256": "912e6cc80cd2a3124c5365cde66633f602d9db1848a511ca21d4d143d03dbf93"
+  },
+  "split_policy": "Keep merged components containing any regression member in regression; retain original split for singleton/development-only components.",
+  "limitations": [
+    "A derived grouping proposal only; it is not a validated W2.3 human adjudication.",
+    "Rationale cells in the source workbook contain placeholder text; rationale quality is zero.",
+    "Family grouping changes are not applied to frozen v1 or any downstream labels.",
+    "Regression partition would have only two merged families and is not a statistically adequate blind benchmark.",
+    "phase_0_gate_contribution=0; not admissible as blind evaluation data."
+  ]
+}

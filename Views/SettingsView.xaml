@@ -8,6 +8,8 @@
         <local:BoolToVisibilityConverter x:Key="BoolToVisibility" />
         <local:EnumDisplayNameConverter x:Key="EnumDisplayName" />
         <local:ProviderPlatformDisplayNameConverter x:Key="ProviderPlatformDisplayName" />
+        <local:ByteSizeConverter x:Key="ByteSizeFormatter" />
+        <local:SkinPreviewSourceConverter x:Key="SkinPreviewSource" />
         <!-- 设置页采用一套克制的焦点环；键盘用户可定位，鼠标态不额外制造噪声。 -->
         <Style x:Key="SettingsFocusVisual">
             <Setter Property="Control.Template">
@@ -57,6 +59,12 @@
             <Setter Property="MinHeight" Value="32" />
             <Setter Property="Padding" Value="14,5" />
             <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style x:Key="LocalModelCardItem" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource SettingsFocusVisual}" />
         </Style>
         <Style x:Key="SettingsSlider" TargetType="Slider">
             <Setter Property="Height" Value="28" />
@@ -332,6 +340,7 @@
                             <DataTemplate.Triggers>
                                 <DataTrigger Binding="{Binding}" Value="表达与生成"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconPrompt}" /></DataTrigger>
                                 <DataTrigger Binding="{Binding}" Value="模型连接"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconModel}" /></DataTrigger>
+                                <DataTrigger Binding="{Binding}" Value="本地模型"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconModel}" /></DataTrigger>
                                 <DataTrigger Binding="{Binding}" Value="外观与窗口"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconPalette}" /></DataTrigger>
                                 <DataTrigger Binding="{Binding}" Value="快捷键"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconKeyboard}" /></DataTrigger>
                                 <DataTrigger Binding="{Binding}" Value="历史与留存"><Setter TargetName="NavIcon" Property="Data" Value="{StaticResource IconHistory}" /></DataTrigger>
@@ -358,6 +367,61 @@
                         <StackPanel Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=模型连接}">
                             <TextBlock Text="模型连接" Style="{StaticResource SectionTitle}" />
                             <TextBlock Text="管理 AI 模型连接。首次使用时，请先添加服务并填写 API 密钥。" Style="{StaticResource SettingsSupportingText}" Margin="0,4,0,14" />
+
+                            <Border Style="{StaticResource GlassPanel}" Padding="14" Margin="0,0,0,14">
+                                <StackPanel>
+                                    <TextBlock Text="模型路由" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" />
+                                    <TextBlock Text="默认仍由主窗口手动选择。任务绑定优先于主窗口选择；路由只记录模型标识与状态，不记录请求正文。"
+                                               Style="{StaticResource SettingsSupportingText}" Margin="0,4,0,10" TextWrapping="Wrap" />
+                                    <TextBlock Text="使用策略" Style="{StaticResource LabelText}" />
+                                    <ComboBox ItemsSource="{Binding ProviderRoutingModes}" DisplayMemberPath="DisplayName" SelectedValuePath="Value"
+                                              SelectedValue="{Binding ProviderRoutingMode, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" Margin="0,5,0,0" />
+                                    <TextBlock Text="{Binding ProviderRoutingDescription}" Style="{StaticResource SettingsSupportingText}" Margin="0,0,0,8" TextWrapping="Wrap" />
+                                    <Border Visibility="{Binding IsAutomaticRoutingEnabled, Converter={StaticResource BoolToVisibility}}"
+                                            Background="{DynamicResource SelectedSurfaceBrush}" BorderBrush="{DynamicResource InputBorderBrush}"
+                                            BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="自动路由模型绑定" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" />
+                                            <TextBlock Text="每个档位都需明确选择模型。自动路由不会为缺失档位借用其他模型；希望限制到本机时请选择“仅本地”。"
+                                                       Style="{StaticResource SettingsSupportingText}" Margin="0,3,0,8" TextWrapping="Wrap" />
+                                            <TextBlock Text="表达润色" Style="{StaticResource LabelText}" />
+                                            <TextBlock Text="Fast" Style="{StaticResource SettingsSupportingText}" Margin="0,4,0,0" />
+                                            <ComboBox ItemsSource="{Binding ProviderProfiles}" DisplayMemberPath="Name" SelectedValuePath="Id"
+                                                      SelectedValue="{Binding PolishFastProviderProfileId, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" Margin="0,3,0,6" />
+                                            <TextBlock Text="Balanced" Style="{StaticResource SettingsSupportingText}" />
+                                            <ComboBox ItemsSource="{Binding ProviderProfiles}" DisplayMemberPath="Name" SelectedValuePath="Id"
+                                                      SelectedValue="{Binding PolishBalancedProviderProfileId, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" Margin="0,3,0,6" />
+                                            <TextBlock Text="Reasoning" Style="{StaticResource SettingsSupportingText}" />
+                                            <ComboBox ItemsSource="{Binding ProviderProfiles}" DisplayMemberPath="Name" SelectedValuePath="Id"
+                                                      SelectedValue="{Binding PolishReasoningProviderProfileId, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" Margin="0,3,0,8" />
+                                            <TextBlock Text="提示词优化" Style="{StaticResource LabelText}" />
+                                            <TextBlock Text="Fast" Style="{StaticResource SettingsSupportingText}" Margin="0,4,0,0" />
+                                            <ComboBox ItemsSource="{Binding ProviderProfiles}" DisplayMemberPath="Name" SelectedValuePath="Id"
+                                                      SelectedValue="{Binding PromptOptimizeFastProviderProfileId, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" Margin="0,3,0,6" />
+                                            <TextBlock Text="Balanced" Style="{StaticResource SettingsSupportingText}" />
+                                            <ComboBox ItemsSource="{Binding ProviderProfiles}" DisplayMemberPath="Name" SelectedValuePath="Id"
+                                                      SelectedValue="{Binding PromptOptimizeBalancedProviderProfileId, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" Margin="0,3,0,6" />
+                                            <TextBlock Text="Reasoning" Style="{StaticResource SettingsSupportingText}" />
+                                            <ComboBox ItemsSource="{Binding ProviderProfiles}" DisplayMemberPath="Name" SelectedValuePath="Id"
+                                                      SelectedValue="{Binding PromptOptimizeReasoningProviderProfileId, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" Margin="0,3,0,0" />
+                                            <Button Content="清空六个档位绑定" Command="{Binding ClearAutomaticTierBindingsCommand}"
+                                                    Style="{StaticResource SettingsActionButton}" HorizontalAlignment="Right" Padding="9,4" Margin="0,8,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock Text="润色模型（留空时跟随主窗口或路由策略）" Style="{StaticResource LabelText}" />
+                                    <ComboBox ItemsSource="{Binding ProviderProfiles}" DisplayMemberPath="Name" SelectedValuePath="Id"
+                                              SelectedValue="{Binding PolishProviderProfileId, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" Margin="0,5,0,8" />
+                                    <Button Content="清除润色绑定，跟随路由策略" Command="{Binding ClearPolishProviderBindingCommand}" Style="{StaticResource SettingsActionButton}" HorizontalAlignment="Right" Padding="9,4" Margin="0,0,0,8" />
+                                    <TextBlock Text="提示词优化模型（留空时跟随主窗口或路由策略）" Style="{StaticResource LabelText}" />
+                                    <ComboBox ItemsSource="{Binding ProviderProfiles}" DisplayMemberPath="Name" SelectedValuePath="Id"
+                                              SelectedValue="{Binding PromptOptimizeProviderProfileId, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" Margin="0,5,0,8" />
+                                    <Button Content="清除提示词优化绑定" Command="{Binding ClearPromptOptimizeProviderBindingCommand}" Style="{StaticResource SettingsActionButton}" HorizontalAlignment="Right" Padding="9,4" Margin="0,0,0,8" />
+                                    <TextBlock Text="明确配置的备用模型（留空时禁止跨云/本地切换）" Style="{StaticResource LabelText}" />
+                                    <ComboBox ItemsSource="{Binding ProviderProfiles}" DisplayMemberPath="Name" SelectedValuePath="Id"
+                                              SelectedValue="{Binding FallbackProviderProfileId, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" Margin="0,5,0,0" />
+                                    <Button Content="清除备用模型" Command="{Binding ClearFallbackProviderBindingCommand}" Style="{StaticResource SettingsActionButton}" HorizontalAlignment="Right" Padding="9,4" Margin="0,5,0,0" />
+                                </StackPanel>
+                            </Border>
 
                             <!-- 配置资产与单项编辑严格分层：设置页初次进入只呈现配置管理。 -->
                             <Grid>
@@ -388,6 +452,116 @@
                             </Grid>
                         </StackPanel>
 
+                        <StackPanel Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=本地模型}">
+                            <Border Visibility="{Binding IsLocalRuntimeAvailable, Converter={StaticResource BoolToVisibility}, ConverterParameter=Inverse}" Background="{DynamicResource SelectedSurfaceBrush}" BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,12">
+                                <TextBlock Text="当前开发包未提供本地推理运行时。模型配置、导入和目录仍可管理；安装 llama-server 运行时后即可启用本地生成。" Foreground="{DynamicResource BodyTextBrush}" TextWrapping="Wrap" />
+                            </Border>
+                            <Border Style="{StaticResource GlassPanel}" Padding="12" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="独立推理运行时（预览）" Style="{StaticResource SettingsGroupHeading}" />
+                                    <TextBlock Text="运行时单独下载到用户目录，不进入主安装包。当前候选是 llama.cpp b11424 prerelease；发布流程证明了包的来源，但编译源码身份尚未核实。CPU 与 Vulkan 可并存；自动模式优先 Vulkan，失败后回退 CPU。" Style="{StaticResource SettingsSupportingText}" TextWrapping="Wrap" Margin="0,4,0,8" />
+                                    <TextBlock Text="{Binding LocalRuntimeInstallationSummary}" Foreground="{DynamicResource BodyTextBrush}" FontSize="12" Margin="0,0,0,3" />
+                                    <TextBlock Text="模型服务检查会实际加载 GGUF 并占用本机内存；只在你点击模型卡片上的检查按钮时启动。检查不会调用云端，可随时停止。" Style="{StaticResource SettingsSupportingText}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                                    <ListBox ItemsSource="{Binding AvailableLocalRuntimePackages}" Background="Transparent" BorderThickness="0" Padding="0" ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,5,0,0">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding DisplayName}" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding SizeBytes, Converter={StaticResource ByteSizeFormatter}, StringFormat=下载大小：{0}}" Foreground="{DynamicResource MutedBrush}" FontSize="11" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                        <Button Content="下载并安装" Command="{Binding DataContext.InstallLocalRuntimePackageCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" Style="{StaticResource SettingsPrimaryButton}" Margin="0,0,6,0" />
+                                                        <Button Content="停止并卸载" Command="{Binding DataContext.UninstallLocalRuntimePackageCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" Style="{StaticResource SettingsActionButton}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <Button Content="取消运行时下载" Command="{Binding CancelLocalRuntimePackageDownloadCommand}" Visibility="{Binding IsLocalRuntimePackageDownloading, Converter={StaticResource BoolToVisibility}}" Style="{StaticResource SettingsActionButton}" Margin="0,0,6,0" />
+                                        <Button Content="取消模型启动检查" Command="{Binding CancelLocalRuntimeHealthCheckCommand}" Visibility="{Binding IsLocalRuntimeHealthCheckRunning, Converter={StaticResource BoolToVisibility}}" Style="{StaticResource SettingsActionButton}" Margin="0,0,6,0" />
+                                        <Button Content="停止当前本地服务" Command="{Binding StopLocalRuntimeCommand}" Style="{StaticResource SettingsActionButton}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="本地模型" Style="{StaticResource SectionTitle}" />
+                                    <TextBlock Text="模型文件只保存在本机；不会自动下载，也不会在本地失败时静默切换到云端。" Style="{StaticResource SettingsSupportingText}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Content="刷新" Command="{Binding RefreshLocalModelsCommand}" Style="{StaticResource GlassButton}" Padding="11,5" Margin="0,0,8,0" />
+                                    <Button Content="导入 GGUF" Command="{Binding ImportLocalModelCommand}" Style="{StaticResource PrimaryButton}" Padding="12,5" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="精选目录" Style="{StaticResource SettingsGroupHeading}" />
+                                    <TextBlock Text="仅在你主动刷新时联网；目录信封和模型文件均需校验通过。" Style="{StaticResource SettingsSupportingText}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="刷新目录" Command="{Binding RefreshLocalModelCatalogCommand}" Style="{StaticResource GlassButton}" Padding="11,5" VerticalAlignment="Center" />
+                            </Grid>
+                            <Expander Header="高级：自定义签名目录" Margin="0,0,0,12" Foreground="{DynamicResource MutedBrush}">
+                                <TextBox Text="{Binding LocalModelCatalogUrl, UpdateSourceTrigger=LostFocus}" Style="{StaticResource GlassPlainTextBox}" Margin="0,8,0,0" ToolTip="留空使用内置开源模型目录" />
+                            </Expander>
+                            <ListBox ItemsSource="{Binding AvailableLocalModels}" Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,0,12"
+                                     ItemContainerStyle="{StaticResource LocalModelCardItem}" ScrollViewer.VerticalScrollBarVisibility="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource GlassPanel}" Padding="12">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="190" /></Grid.ColumnDefinitions>
+                                                <StackPanel Margin="0,0,16,0">
+                                                    <DockPanel LastChildFill="False">
+                                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="{DynamicResource BodyTextBrush}" />
+                                                        <Border Background="{DynamicResource SelectedSurfaceBrush}" CornerRadius="4" Padding="6,2" Margin="10,0,0,0">
+                                                            <TextBlock Text="{Binding Tier}" Foreground="{DynamicResource BrandBrush}" FontSize="11" />
+                                                        </Border>
+                                                    </DockPanel>
+                                                    <TextBlock Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,6,0,0"><Run Text="大小 " /><Run Text="{Binding SizeBytes, Converter={StaticResource ByteSizeFormatter}}" /><Run Text="  ·  上下文 " /><Run Text="{Binding ContextTokens, StringFormat={}{0:N0}}" /></TextBlock>
+                                                    <TextBlock Text="点击下载后会自动校验、安装并创建本地模型配置。" Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                                                    <Button Content="下载并安装" Command="{Binding DataContext.DownloadLocalModelCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" Style="{StaticResource SettingsPrimaryButton}" HorizontalContentAlignment="Center" />
+                                                    <Button Content="取消下载" Command="{Binding DataContext.CancelLocalModelDownloadCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" Visibility="{Binding DataContext.IsLocalModelDownloading, RelativeSource={RelativeSource AncestorType=ListBox}, Converter={StaticResource BoolToVisibility}}" Style="{StaticResource SettingsActionButton}" Margin="0,6,0,0" HorizontalContentAlignment="Center" />
+                                                    <Button Content="打开下载链接" Command="{Binding DataContext.OpenLocalModelDownloadLinkCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" Style="{StaticResource SettingsActionButton}" Margin="0,6,0,0" HorizontalContentAlignment="Center" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock Text="模型目录" Style="{StaticResource LabelText}" />
+                            <TextBox Text="{Binding LocalModelRoot, Mode=OneWay}" IsReadOnly="True" Style="{StaticResource GlassPlainTextBox}" Margin="0,6,0,12" />
+                            <TextBlock Text="{Binding LocalModelStatus}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                            <ListBox ItemsSource="{Binding InstalledLocalModels}" Background="Transparent" BorderThickness="0" Padding="0"
+                                     ItemContainerStyle="{StaticResource LocalModelCardItem}" ScrollViewer.VerticalScrollBarVisibility="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource GlassPanel}" Padding="12">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="190" /></Grid.ColumnDefinitions>
+                                                <StackPanel Margin="0,0,16,0">
+                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="{DynamicResource BodyTextBrush}" />
+                                                    <TextBlock Text="{Binding Sha256}" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding FilePath}" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                    <Button Content="启动并检查服务" Command="{Binding DataContext.CheckInstalledLocalModelCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" Style="{StaticResource SettingsPrimaryButton}" Margin="0,0,0,5" />
+                                                    <Button Content="设为当前" Command="{Binding DataContext.UseInstalledLocalModelCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" Style="{StaticResource SettingsActionButton}" Margin="0,0,0,5" />
+                                                    <Button Content="删除" Command="{Binding DataContext.RemoveInstalledLocalModelCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" Style="{StaticResource SettingsActionButton}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </StackPanel>
+
                         <local:ExpressionAbilitySettingsView x:Name="ExpressionAbilitySettingsPage" Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=表达与生成}" />
 
                         <StackPanel Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisibility}, ConverterParameter=历史与留存}">
@@ -397,6 +571,12 @@
                             <CheckBox x:Name="HistoryEnabledCheckBox" Content="启用历史记录" IsChecked="{Binding HistoryEnabled}" Margin="0,14,0,4" />
                             <CheckBox Content="生成后自动归档版本" IsChecked="{Binding AutoArchive}" IsEnabled="{Binding CanConfigureHistoryStorage}" Margin="0,0,0,4" />
                             <CheckBox x:Name="IncognitoModeCheckBox" Content="无痕模式（不写草稿、不保存历史）" IsChecked="{Binding IncognitoMode}" Margin="0,0,0,8" />
+                            <TextBlock Text="生成诊断（仅本机）" Style="{StaticResource SettingsGroupHeading}" Margin="0,10,0,4" />
+                            <CheckBox Content="记录模型请求及工作流质量门禁摘要（耗时、Token、结果状态）" IsChecked="{Binding LocalGenerationDiagnosticsEnabled}" Margin="0,0,0,3" />
+                            <TextBlock Text="默认关闭。开启后仅保存在数据目录的 diagnostics 文件夹，不上传；无痕模式下仍不记录。不会记录原文、成稿、背景、密钥或服务地址。可用下方操作清除记录。" Style="{StaticResource SettingsSupportingText}" TextWrapping="Wrap" Margin="0,0,0,10" />
+                            <Button Content="生成本机诊断摘要" Command="{Binding GenerateLocalGenerationDiagnosticsSummaryCommand}" Style="{StaticResource SettingsActionButton}" HorizontalAlignment="Left" Margin="0,0,0,5" />
+                              <TextBlock Text="摘要按任务、Provider 和实际本地运行后端汇总时延、Token、质量门禁、启动耗时、启动后首个/后续请求及进程峰值工作集；本地输出速率为含接口开销的估算，不等于纯解码速度。缺少用量或费率时会标为未知，不估算费用。" Style="{StaticResource SettingsSupportingText}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                            <Button Content="清除本机生成诊断" Command="{Binding ClearLocalGenerationDiagnosticsCommand}" Style="{StaticResource SettingsActionButton}" HorizontalAlignment="Left" Margin="0,0,0,12" />
                             <WrapPanel Margin="0,0,0,8">
                                 <CheckBox x:Name="SaveOriginalTextCheckBox" Content="保存原文" IsChecked="{Binding SaveOriginalText}" IsEnabled="{Binding CanConfigureHistoryStorage}" Margin="0,0,20,0" />
                                 <CheckBox x:Name="SaveOptimizedTextCheckBox" Content="保存优化稿" IsChecked="{Binding SaveOptimizedText}" IsEnabled="{Binding CanConfigureHistoryStorage}" />
@@ -418,7 +598,6 @@
                             <TextBlock Text="外观" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" Margin="0,0,0,8" />
                             <ListBox x:Name="ThemeChoiceList" ItemsSource="{Binding ThemeModes}" SelectedValuePath="Value"
                                      SelectedValue="{Binding ThemeMode}" ItemContainerStyle="{StaticResource ThemeChoiceItem}"
-                                     IsEnabled="{Binding IsDefaultSkinSelected}"
                                      Background="Transparent" BorderThickness="0" Padding="0">
                                 <ListBox.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate></ListBox.ItemsPanel>
                                 <ListBox.ItemTemplate>
@@ -454,9 +633,9 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
-                            <TextBlock Text="当前完整皮肤已接管明暗配色；切回“默认外观”后可选择主题。"
+                            <TextBlock Text="明暗模式与角色皮肤独立生效；切换主题不会替换当前角色。"
                                        Foreground="{DynamicResource MutedBrush}" FontSize="12.5" Margin="4,5,0,0"
-                                       Visibility="{Binding IsDefaultSkinSelected, Converter={StaticResource InverseBool}}" />
+                                       />
                             <Grid Margin="0,12,0,8">
                                 <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <StackPanel><TextBlock Text="完整皮肤" Foreground="{DynamicResource BrandBrush}" FontWeight="SemiBold" /><TextBlock Text="同时替换窗口材质、组件尺度与悬浮球角色" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" Margin="0,3,0,0" /></StackPanel>
@@ -473,15 +652,16 @@
                                     <DataTemplate>
                                         <Grid Margin="4">
                                             <Grid.RowDefinitions><RowDefinition Height="54" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                                            <Border x:Name="SkinPreview" Background="#F3F1EC" BorderBrush="#D2D0C9" BorderThickness="1" CornerRadius="9" Padding="7">
-                                                <Grid><Border x:Name="PreviewPanel" Background="#FFFEFB" CornerRadius="5" Margin="18,2,0,2" /><Ellipse x:Name="PreviewCompanion" Width="24" Height="24" Fill="#111211" HorizontalAlignment="Left"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom"><Rectangle Width="18" Height="4" RadiusX="2" Fill="#777B75" Margin="0,0,4,3"/><Rectangle x:Name="PreviewAction" Width="17" Height="13" RadiusX="4" Fill="#111211"/></StackPanel></Grid>
+                                            <Border x:Name="SkinPreview" Background="{Binding Palette.SurfaceBrush}" BorderBrush="{Binding Palette.BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="7">
+                                                <Grid>
+                                                    <Border x:Name="PreviewPanel" Background="{Binding Palette.PanelBrush}" CornerRadius="5" Margin="18,2,0,2" />
+                                                    <Ellipse x:Name="PreviewCompanion" Width="24" Height="24" Fill="{Binding Palette.FaceBrush}" HorizontalAlignment="Left" />
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom"><Rectangle Width="18" Height="4" RadiusX="2" Fill="{Binding Palette.MutedBrush}" Margin="0,0,4,3"/><Rectangle x:Name="PreviewAction" Width="17" Height="13" RadiusX="4" Fill="{Binding Palette.AccentBrush}"/></StackPanel>
+                                                    <Image Source="{Binding PreviewSource, Converter={StaticResource SkinPreviewSource}}" Stretch="Uniform" Margin="2" SnapsToDevicePixels="True" />
+                                                </Grid>
                                             </Border>
                                             <TextBlock Grid.Row="1" Text="{Binding Name}" Foreground="{DynamicResource BodyTextBrush}" HorizontalAlignment="Center" Margin="0,7,0,1" FontSize="12" />
                                         </Grid>
-                                        <DataTemplate.Triggers>
-                                            <DataTrigger Binding="{Binding Value}" Value="LuoXiaoHei"><Setter TargetName="SkinPreview" Property="Background" Value="#D8D3B9"/><Setter TargetName="PreviewPanel" Property="Background" Value="#E9E5D1"/><Setter TargetName="PreviewCompanion" Property="Fill" Value="#211A15"/><Setter TargetName="PreviewAction" Property="Fill" Value="#626B3E"/></DataTrigger>
-                                            <DataTrigger Binding="{Binding Value}" Value="MaoDie"><Setter TargetName="SkinPreview" Property="Background" Value="#E7DCC4"/><Setter TargetName="PreviewPanel" Property="Background" Value="#F5EBD7"/><Setter TargetName="PreviewCompanion" Property="Fill" Value="#D58F4B"/><Setter TargetName="PreviewAction" Property="Fill" Value="#687044"/></DataTrigger>
-                                        </DataTemplate.Triggers>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
@@ -528,7 +708,7 @@
                                 <TextBlock Text="透明度" Style="{StaticResource LabelText}" VerticalAlignment="Center" /><Slider Style="{StaticResource SettingsSlider}" x:Name="FloatingBallOpacitySlider" Grid.Column="1" Minimum="0.35" Maximum="1" TickFrequency="0.05" Value="{Binding FloatingBallOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0" /><TextBlock Grid.Column="2" Text="{Binding Value, ElementName=FloatingBallOpacitySlider, StringFormat={}{0:P0}}" Foreground="{DynamicResource BodyTextBrush}" VerticalAlignment="Center" />
                             </Grid>
                             <Grid IsEnabled="{Binding IsFloatingBallSettingsEnabled}" Margin="0,8,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="128" /><ColumnDefinition /><ColumnDefinition Width="72" /></Grid.ColumnDefinitions>
-                                <TextBlock Text="尺寸" Style="{StaticResource LabelText}" VerticalAlignment="Center" /><Slider Style="{StaticResource SettingsSlider}" x:Name="FloatingBallSizeSlider" Grid.Column="1" Minimum="28" Maximum="72" TickFrequency="2" IsSnapToTickEnabled="True" Value="{Binding FloatingBallSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0" /><TextBlock Grid.Column="2" Text="{Binding Value, ElementName=FloatingBallSizeSlider, StringFormat={}{0:0} px}" Foreground="{DynamicResource BodyTextBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="尺寸（展开/收缩）" Style="{StaticResource LabelText}" VerticalAlignment="Center" /><Slider Style="{StaticResource SettingsSlider}" x:Name="FloatingBallSizeSlider" Grid.Column="1" Minimum="28" Maximum="72" TickFrequency="2" IsSnapToTickEnabled="True" Value="{Binding FloatingBallSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0" ToolTip="展开态和收缩态使用同一个悬浮球尺寸" AutomationProperties.HelpText="展开态和收缩态使用同一个悬浮球尺寸" /><TextBlock Grid.Column="2" Text="{Binding Value, ElementName=FloatingBallSizeSlider, StringFormat={}{0:0} px}" Foreground="{DynamicResource BodyTextBrush}" VerticalAlignment="Center" />
                             </Grid>
                             <Grid IsEnabled="{Binding IsFloatingBallSettingsEnabled}" Margin="0,7,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="靠近屏幕边缘时自动吸附" Foreground="{DynamicResource BodyTextBrush}" /><ToggleButton Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding SnapFloatingBallToEdge}" /></Grid>
                             <Grid IsEnabled="{Binding IsFloatingBallSettingsEnabled}" Margin="0,9,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="记忆悬浮球位置" Foreground="{DynamicResource BodyTextBrush}" /><ToggleButton Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding RememberFloatingBallPosition}" /></Grid>

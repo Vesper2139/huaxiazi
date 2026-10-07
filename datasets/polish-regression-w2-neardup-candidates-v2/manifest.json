@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "artifact_version": "hxz-polish-reg-near-duplicate-candidates-v1",
+  "status": "internal_diagnostic_pending_human_adjudication",
+  "purpose": "internal_near_duplicate_triage",
+  "parent_manifest_sha256": "8da2557b6a9b2f0a6c2d80ffd746bb79d6b494da5b50ad1db4fe45f23d11a2cb",
+  "source_cases_sha256": "27ddceb1f9706f0851dae720d79ae5361638d7bcef8bd0788f4bfd3260da3195",
+  "rules_sha256": "971ce6cf23397d16d101b3c8c5b5c2a73614a95b34c2439886843357ddb1f399",
+  "phase_0_gate_contribution": 0,
+  "not_admissible_as_blind_eval": true,
+  "auto_merge_performed": false,
+  "files": {
+    "candidate-pairs.jsonl": "912e6cc80cd2a3124c5365cde66633f602d9db1848a511ca21d4d143d03dbf93",
+    "report.json": "565db4924ccf0a2ca4973300cceb4e0cc9b6b5916e071c876a8dabf23c8c2a42"
+  }
+}

@@ -75,6 +75,27 @@ public sealed class DataManagementServiceTests : IDisposable
     }
 
     [Fact]
+    public void RestoreBackup_DoesNotRestoreTheConfigSnapshotThatContainsPreferences()
+    {
+        var sourceRoot = Path.Combine(_root, "source-data");
+        Directory.CreateDirectory(sourceRoot);
+        var configPath = Path.Combine(_root, "config.json");
+        File.WriteAllText(configPath, "{\"expressionPreferenceProfile\":{\"marker\":\"private-preference-snapshot\"}}");
+        var backup = Path.Combine(_root, "preferences-backup.zip");
+        var restoredRoot = Path.Combine(_root, "restored-without-config");
+
+        var service = new DataManagementService();
+        service.CreateBackup(sourceRoot, backup, configPath);
+        using (var archive = ZipFile.OpenRead(backup))
+        using (var snapshot = new StreamReader(archive.GetEntry("config.json")!.Open()))
+            Assert.Contains("private-preference-snapshot", snapshot.ReadToEnd(), StringComparison.Ordinal);
+
+        service.RestoreBackup(backup, restoredRoot);
+
+        Assert.False(File.Exists(Path.Combine(restoredRoot, "config.json")));
+    }
+
+    [Fact]
     public void ImportJson_RestoresExportedHistoryIntoAnotherLibrary()
     {
         var sourceArchive = new ArchiveService(_root);

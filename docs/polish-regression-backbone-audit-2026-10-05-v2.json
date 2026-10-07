@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "purpose": "internal_regression_only",
+  "phase0_gate_contribution": 0,
+  "row_count": 3000,
+  "matched_legacy_intent_suffix_row_count": 3000,
+  "distinct_backbone_count": 2,
+  "backbones": [
+    {
+      "backbone_id": "hxz-polish-backbone-faac77ba14075d0e",
+      "row_count": 1974,
+      "intent_count": 8,
+      "distinct_reference_output_count": 1,
+      "split_row_counts": {
+        "dev": 219,
+        "test": 262,
+        "train": 1493
+      }
+    },
+    {
+      "backbone_id": "hxz-polish-backbone-a53558999c050961",
+      "row_count": 1026,
+      "intent_count": 8,
+      "distinct_reference_output_count": 1,
+      "split_row_counts": {
+        "dev": 156,
+        "test": 113,
+        "train": 757
+      }
+    }
+  ],
+  "split_backbone_overlap": [
+    {
+      "left_split": "dev",
+      "right_split": "test",
+      "shared_backbone_count": 2,
+      "left_backbone_count": 2,
+      "right_backbone_count": 2
+    },
+    {
+      "left_split": "dev",
+      "right_split": "train",
+      "shared_backbone_count": 2,
+      "left_backbone_count": 2,
+      "right_backbone_count": 2
+    },
+    {
+      "left_split": "test",
+      "right_split": "train",
+      "shared_backbone_count": 2,
+      "left_backbone_count": 2,
+      "right_backbone_count": 2
+    }
+  ],
+  "source_canonical_sha256": "e4406fffefccb7394f7bc13525fc2ea78f7b97d7c3ef14c446253a2040b230d7",
+  "limitations": [
+    "Backbones are diagnostic groupings formed by stripping only the known legacy purpose/style suffix; they are not reviewed semantic gold labels.",
+    "The legacy corpus contains repeated factual backbones across its development and test splits; its test split cannot measure unseen-scenario generalization.",
+    "This diagnostic contributes zero samples to formal phase 0 blind evaluation."
+  ]
+}

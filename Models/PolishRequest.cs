@@ -1,4 +1,8 @@
+using System.Collections.Generic;
+
 namespace Huaxiazi.Models;
+
+public sealed record PolishConversationMessage(string Role, string Content);
 
 public sealed class PolishRequest
 {
@@ -13,6 +17,7 @@ public sealed class PolishRequest
     public string Persona { get; init; } = string.Empty;
     public string CustomSystemPrompt { get; init; } = string.Empty;
     public string PreferenceInstructions { get; init; } = string.Empty;
+    public IReadOnlyList<PolishConversationMessage> ConversationHistory { get; init; } = [];
     public ProfessionalizationPlan? Professionalization { get; init; }
     public TextIntelligence? Intelligence { get; init; }
     public string ModelProfileId { get; init; } = string.Empty;

@@ -35,6 +35,10 @@ public static class ThemeService
         // 委托 SkinService 执行整套 ResourceDictionary 替换
         skinService?.ApplySkin(skinId, resources);
 
+        // SkinId 只决定角色、皮肤令牌和品牌色；ThemeMode 独立决定界面的明暗层。
+        // 必须在皮肤字典加载后覆盖共享界面令牌，否则选择角色皮肤会再次短路明暗设置。
+        ApplyModePaletteToResources(resources, settings, systemIsLight, highContrast);
+
         // 动态资源在皮肤字典中已定义；此处只更新运行时参数。
         resources["EditorFontSize"] = settings.EditorFontSize;
         resources["EditorDefaultHeight"] = settings.EditorDefaultHeight;
@@ -101,6 +105,64 @@ public static class ThemeService
         return isLight
             ? new ThemePalette(brand, Color.FromRgb(0xF5, 0xF4, 0xF1), Color.FromRgb(0xFF, 0xFE, 0xFB), Color.FromRgb(0x20, 0x22, 0x1F), Color.FromRgb(0x35, 0x38, 0x34), Color.FromRgb(0x77, 0x7B, 0x75))
             : new ThemePalette(brand, Color.FromRgb(0x10, 0x10, 0x14), Color.FromRgb(0x16, 0x15, 0x1B), Color.FromRgb(0xF4, 0xF1, 0xF7), Color.FromRgb(0xDF, 0xDB, 0xE4), Color.FromRgb(0x99, 0x93, 0xA0));
+    }
+
+    private readonly record struct ModePalette(
+        Color Background,
+        Color Panel,
+        Color Text,
+        Color BodyText,
+        Color Muted,
+        Color Border,
+        Color Glass,
+        Color Input,
+        Color Popup,
+        Color Dock,
+        Color SwitchTrack);
+
+    private static void ApplyModePaletteToResources(
+        ResourceDictionary resources,
+        AppSettings settings,
+        bool systemIsLight,
+        bool highContrast)
+    {
+        if (highContrast) return;
+        var isLight = string.Equals(settings.ThemeMode, "Light", StringComparison.OrdinalIgnoreCase)
+            || (string.Equals(settings.ThemeMode, "System", StringComparison.OrdinalIgnoreCase) && systemIsLight);
+        var palette = isLight
+            ? new ModePalette(
+                Color.FromRgb(0xF5, 0xF4, 0xF1), Color.FromRgb(0xFF, 0xFE, 0xFB),
+                Color.FromRgb(0x20, 0x22, 0x1F), Color.FromRgb(0x35, 0x38, 0x34),
+                Color.FromRgb(0x77, 0x7B, 0x75), Color.FromRgb(0xD2, 0xD0, 0xC9),
+                Color.FromRgb(0xF8, 0xF7, 0xF2), Color.FromRgb(0xFF, 0xFE, 0xFB),
+                Color.FromRgb(0xFF, 0xFE, 0xFB), Color.FromRgb(0xEC, 0xEA, 0xDF),
+                Color.FromRgb(0xAA, 0xA5, 0x96))
+            : new ModePalette(
+                Color.FromRgb(0x10, 0x10, 0x14), Color.FromRgb(0x16, 0x15, 0x1B),
+                Color.FromRgb(0xF4, 0xF1, 0xF7), Color.FromRgb(0xDF, 0xDB, 0xE4),
+                Color.FromRgb(0x99, 0x93, 0xA0), Color.FromRgb(0x36, 0x32, 0x3C),
+                Color.FromRgb(0x1C, 0x1A, 0x20), Color.FromRgb(0x1D, 0x1B, 0x22),
+                Color.FromRgb(0x1B, 0x19, 0x20), Color.FromRgb(0x1B, 0x19, 0x20),
+                Color.FromRgb(0x3A, 0x35, 0x41));
+
+        SetColorAndBrush(resources, "Bg", palette.Background);
+        SetColorAndBrush(resources, "Panel", palette.Panel);
+        SetColorAndBrush(resources, "Text", palette.Text);
+        SetColorAndBrush(resources, "BodyText", palette.BodyText);
+        SetColorAndBrush(resources, "Muted", palette.Muted);
+        SetColorAndBrush(resources, "Border", palette.Border);
+        SetColorAndBrush(resources, "Glass", palette.Glass);
+        SetColorAndBrush(resources, "Input", palette.Input);
+        SetColorAndBrush(resources, "Popup", palette.Popup);
+        SetColorAndBrush(resources, "Dock", palette.Dock);
+        SetColorAndBrush(resources, "SwitchTrack", palette.SwitchTrack);
+        resources["ThemeMode"] = isLight ? "Light" : "Dark";
+    }
+
+    private static void SetColorAndBrush(ResourceDictionary resources, string name, Color color)
+    {
+        resources[$"{name}Color"] = color;
+        resources[$"{name}Brush"] = new SolidColorBrush(color);
     }
 
     private static bool IsSystemLight()

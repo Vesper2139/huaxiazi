@@ -5,6 +5,7 @@
   "startWithWindows": false,
   "autoArchive": true,
   "historyEnabled": true,
+  "localGenerationDiagnosticsEnabled": false,
   "historyRetentionDays": 30,
   "saveOriginalText": true,
   "saveOptimizedText": true,
@@ -87,6 +88,7 @@
   "mainWindowWidth": 520,
   "mainWindowHeight": 176,
   "dataDirectory": "",
+  "localModelCatalogUrl": "",
   "history": [],
-  "configVersion": 20
+  "configVersion": 21
 }

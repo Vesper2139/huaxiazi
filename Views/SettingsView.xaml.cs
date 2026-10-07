@@ -14,7 +14,7 @@ namespace Huaxiazi.Views;
 
 public partial class SettingsView : UserControl
 {
-    private readonly SettingsViewModel _vm = new();
+    private readonly SettingsViewModel _vm;
     private readonly UpdateChecker _updateChecker = new();
     private readonly UpdateDownloadService _updateDownloader = new();
     private CancellationTokenSource? _downloadCancellation;
@@ -23,7 +23,13 @@ public partial class SettingsView : UserControl
     public event RoutedEventHandler? CloseRequested;
 
     public SettingsView()
+        : this(new SettingsViewModel())
     {
+    }
+
+    public SettingsView(SettingsViewModel viewModel)
+    {
+        _vm = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         InitializeComponent();
         DataContext = _vm;
         _vm.MarkClean();

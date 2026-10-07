@@ -1,0 +1,31 @@
+{
+  "register_version": "1.0",
+  "sources": [
+    {
+      "source_ref": "REPLACE-WITH-OPAQUE-SOURCE-REF",
+      "source_kind": "project_owned",
+      "rights_basis": "project_owned",
+      "permitted_uses": [],
+      "valid_from": "2000-01-01",
+      "valid_until": null,
+      "evidence": {
+        "vault_ref": "REPLACE-WITH-CONTROLLED-VAULT-REF",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "deidentification_review": {
+        "status": "not_reviewed",
+        "outcome": "pending",
+        "reviewer_role_ref": "REPLACE-WITH-OPAQUE-ROLE-REF",
+        "reviewed_at": null,
+        "method_summary": ""
+      },
+      "retention": {
+        "expires_at": null,
+        "withdrawal_contact_role_ref": "REPLACE-WITH-OPAQUE-ROLE-REF",
+        "withdrawal_route_ref": "REPLACE-WITH-CONTROLLED-ROUTE-REF"
+      },
+      "review_status": "not_verified",
+      "rights_review": null
+    }
+  ]
+}

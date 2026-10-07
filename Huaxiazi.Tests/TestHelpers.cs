@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Threading;
 using System.Windows;
 using Huaxiazi.Services;
 
@@ -30,7 +31,8 @@ internal static class TestHelpers
     public static void ResetWpfApplication()
     {
         var application = Application.Current;
-        if (application is not null && ReferenceEquals(application.Dispatcher, System.Windows.Threading.Dispatcher.CurrentDispatcher))
+        var dispatcher = System.Windows.Threading.Dispatcher.FromThread(Thread.CurrentThread);
+        if (application is not null && ReferenceEquals(application.Dispatcher, dispatcher))
         {
             foreach (Window window in application.Windows)
             {
@@ -38,10 +40,29 @@ internal static class TestHelpers
             }
         }
 
+        ShutdownCurrentWpfDispatcher();
+
         var applicationType = typeof(Application);
         applicationType.GetField("_appInstance", BindingFlags.NonPublic | BindingFlags.Static)?.SetValue(null, null);
         applicationType.GetField("_appCreatedInThisAppDomain", BindingFlags.NonPublic | BindingFlags.Static)?.SetValue(null, false);
         applicationType.GetField("_isShuttingDown", BindingFlags.NonPublic | BindingFlags.Static)?.SetValue(null, false);
+    }
+
+    public static void ShutdownCurrentWpfDispatcher()
+    {
+        var dispatcher = System.Windows.Threading.Dispatcher.FromThread(Thread.CurrentThread);
+        if (dispatcher is null || dispatcher.HasShutdownStarted)
+            return;
+
+        if (Application.Current is { } application && ReferenceEquals(application.Dispatcher, dispatcher))
+        {
+            try { application.Shutdown(); } catch { /* best effort during teardown */ }
+        }
+
+        if (!dispatcher.HasShutdownStarted)
+        {
+            try { dispatcher.InvokeShutdown(); } catch { /* best effort during teardown */ }
+        }
     }
 
     public static Application EnsureWpfApplication()
@@ -76,6 +97,35 @@ internal static class TestHelpers
             "Huaxiazi",
             "config.json");
         RedirectConfigTo(appData, legacyPath);
+    }
+
+    public static IDisposable UseIsolatedConfigDirectory(string? baseDirectory = null)
+    {
+        var previousDirectory = ConfigService.ConfigDirectory;
+        var rootDirectory = string.IsNullOrWhiteSpace(baseDirectory)
+            ? Path.Combine(Environment.CurrentDirectory, "out", "test-artifacts", "isolated-config")
+            : Path.GetFullPath(baseDirectory);
+        Directory.CreateDirectory(rootDirectory);
+        var isolatedDirectory = Path.Combine(rootDirectory, "HuaxiaziConfigTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(isolatedDirectory);
+        RedirectConfigTo(isolatedDirectory);
+        return new IsolatedConfigDirectoryScope(previousDirectory, isolatedDirectory);
+    }
+
+    private sealed class IsolatedConfigDirectoryScope(string previousDirectory, string isolatedDirectory) : IDisposable
+    {
+        public void Dispose()
+        {
+            RedirectConfigTo(previousDirectory);
+            try
+            {
+                if (Directory.Exists(isolatedDirectory)) Directory.Delete(isolatedDirectory, recursive: true);
+            }
+            catch
+            {
+                // Best-effort cleanup; never mask a test failure during teardown.
+            }
+        }
     }
 
     #endregion

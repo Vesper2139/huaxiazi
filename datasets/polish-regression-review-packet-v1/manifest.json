@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0",
+  "packet_version": "hxz-polish-human-review-v1",
+  "status": "awaiting_human_review",
+  "purpose": "internal_synthetic_label_review_only",
+  "source_parent_version": "hxz-polish-regression-v1",
+  "source_draft_version": "hxz-polish-regression-v2-draft",
+  "parent_manifest_sha256": "8da2557b6a9b2f0a6c2d80ffd746bb79d6b494da5b50ad1db4fe45f23d11a2cb",
+  "draft_manifest_sha256": "3828738057f29ec12fc1caa3bb745116bb309ee772a656deeafd34bfe71de1ff",
+  "cases_sha256": "27ddceb1f9706f0851dae720d79ae5361638d7bcef8bd0788f4bfd3260da3195",
+  "source_sha256": "e4406fffefccb7394f7bc13525fc2ea78f7b97d7c3ef14c446253a2040b230d7",
+  "hierarchy_report_sha256": "caa18f116668aa6a8139a4fa79242e163b00ec5895fa7c963f11a6defcead2ff",
+  "phase_0_gate_contribution": 0,
+  "not_admissible_as_blind_eval": true,
+  "workflow": "Complete source-first-pass independently before opening draft-comparison; record decisions in the template. AI cannot approve its own draft.",
+  "counts": {
+    "review_items": 16,
+    "completed": 0,
+    "human_verified": 0
+  },
+  "files": {
+    "README.md": "9bc9fbe419003f9fad2860dd3cc8244839c775443162a5753c60d8289d88937c",
+    "decision.schema.json": "d0f7dfdc41d513adf4e0030424b5c868dc5caf9591ed233d39fbdd3ed883ab0e",
+    "source-first-pass.jsonl": "eef417ef092329a853f27601c2b4bfb902f12a5965b11482d2eb0f7fb927c67b",
+    "draft-comparison.jsonl": "90dd1b9e068947448afe921e6812a7537cc958d4644075a286e6567dc718d7ac",
+    "human-decisions.template.jsonl": "0087416d3c3aff2d868572452bf26456c9a969560c08dbc1e5a3f8bfc4325443"
+  },
+  "limitations": [
+    "All cases and references are inherited synthetic project data and are not external or user-representative evidence.",
+    "Backbone and reference reuse decisions require human adjudication.",
+    "This packet contributes zero samples to phase 0 and cannot be used for model promotion."
+  ]
+}

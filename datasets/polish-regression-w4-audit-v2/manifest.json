@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "report_version": "hxz-polish-regression-w4-audit-v1",
+  "status": "internal_diagnostic",
+  "purpose": "internal_regression_only",
+  "parent_manifest_sha256": "8da2557b6a9b2f0a6c2d80ffd746bb79d6b494da5b50ad1db4fe45f23d11a2cb",
+  "draft_manifest_sha256": "3828738057f29ec12fc1caa3bb745116bb309ee772a656deeafd34bfe71de1ff",
+  "source_sha256": "e4406fffefccb7394f7bc13525fc2ea78f7b97d7c3ef14c446253a2040b230d7",
+  "hierarchy_report_sha256": "caa18f116668aa6a8139a4fa79242e163b00ec5895fa7c963f11a6defcead2ff",
+  "phase_0_gate_contribution": 0,
+  "not_admissible_as_blind_eval": true,
+  "source_row_count": 3000,
+  "semantic_family_count": 16,
+  "human_verified_family_count": 0,
+  "gaps_need_human_triage": true,
+  "supplementation_authorized": false,
+  "files": {
+    "coverage-gap-report.json": "7ce21a6b3f0e37700890f7b81f8abb61675064d8a288fec324ca093a3d4248a8"
+  }
+}

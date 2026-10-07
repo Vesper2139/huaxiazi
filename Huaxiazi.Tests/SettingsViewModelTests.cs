@@ -23,13 +23,771 @@ namespace Huaxiazi.Tests;
 public class SettingsViewModelTests
 {
     [Fact]
+    public void ProviderRoutingSettings_ExposeModesAndTaskOverridesAsEditableSettings()
+    {
+        var original = App.Settings.Clone();
+        var archiveRoot = Path.Combine(AppContext.BaseDirectory, "test-data", "routing-settings-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(archiveRoot);
+        try
+        {
+            App.ReplaceSettings(new AppSettings
+            {
+                ProviderProfiles =
+                [
+                    new ProviderProfile { Id = "cloud", Name = "云端", Type = ProviderType.Cloud },
+                    new ProviderProfile { Id = "local", Name = "本地", Type = ProviderType.Local, Platform = ProviderPlatform.Ollama, ApiBase = "http://localhost:11434/v1" }
+                ],
+                ActiveProviderProfileId = "cloud",
+                ProviderRoutingMode = ProviderRoutingMode.Automatic,
+                PolishFastProviderProfileId = "local",
+                PromptOptimizeReasoningProviderProfileId = "cloud"
+            });
+            var vm = new SettingsViewModel(archiveService: new ArchiveService(archiveRoot), skillCatalogLoader: () => []);
+
+            Assert.False(vm.HasChanges);
+            Assert.Equal(5, vm.ProviderRoutingModes.Count);
+            Assert.Contains(vm.ProviderRoutingModes, option => option.Value == ProviderRoutingMode.Automatic);
+            Assert.Equal(ProviderRoutingMode.Automatic, vm.ProviderRoutingMode);
+            Assert.True(vm.IsAutomaticRoutingEnabled);
+            Assert.Equal("local", vm.PolishFastProviderProfileId);
+            Assert.Equal("cloud", vm.PromptOptimizeReasoningProviderProfileId);
+            Assert.Contains("启发式建议", vm.ProviderRoutingDescription);
+            Assert.Contains("职场沟通", vm.ExpressionPreferenceScenarios.Select(option => option.Value));
+            Assert.DoesNotContain("其他", vm.ExpressionPreferenceScenarios.Select(option => option.Value));
+            vm.ClearAutomaticTierBindingsCommand.Execute(null);
+            Assert.Equal(string.Empty, vm.PolishFastProviderProfileId);
+            Assert.Equal(string.Empty, vm.PromptOptimizeReasoningProviderProfileId);
+            vm.PolishFastProviderProfileId = "cloud";
+            Assert.True(vm.HasChanges);
+            vm.ProviderRoutingMode = ProviderRoutingMode.LocalOnly;
+            vm.PolishProviderProfileId = "local";
+
+            Assert.True(vm.HasChanges);
+            Assert.Contains("不会请求云端", vm.ProviderRoutingDescription);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            try { Directory.Delete(archiveRoot, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void AutomaticTierBindings_SaveAndReloadWithTheSettingsViewModel()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var original = App.Settings.Clone();
+            var dataRoot = Path.Combine(Environment.CurrentDirectory, "out", "test-artifacts", "AutoRoutingSettings_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dataRoot);
+            try
+            {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
+                App.ReplaceSettings(new AppSettings
+                {
+                    DataDirectory = dataRoot,
+                    ProviderProfiles =
+                    [
+                        new ProviderProfile { Id = "fast", Name = "Fast" },
+                        new ProviderProfile { Id = "balanced", Name = "Balanced" },
+                        new ProviderProfile { Id = "reasoning", Name = "Reasoning" }
+                    ],
+                    ActiveProviderProfileId = "fast"
+                });
+                var vm = new SettingsViewModel(archiveService: new ArchiveService(dataRoot), skillCatalogLoader: () => []);
+                vm.ProviderRoutingMode = ProviderRoutingMode.Automatic;
+                vm.PolishFastProviderProfileId = "fast";
+                vm.PolishBalancedProviderProfileId = "balanced";
+                vm.PolishReasoningProviderProfileId = "reasoning";
+                vm.PromptOptimizeFastProviderProfileId = "balanced";
+                vm.PromptOptimizeBalancedProviderProfileId = "reasoning";
+                vm.PromptOptimizeReasoningProviderProfileId = "fast";
+
+                Assert.True(vm.TrySave(), vm.ValidationMessage);
+                Assert.Equal("fast", App.Settings.PolishFastProviderProfileId);
+                Assert.Equal("balanced", App.Settings.PromptOptimizeFastProviderProfileId);
+
+                var reloaded = new SettingsViewModel(archiveService: new ArchiveService(dataRoot), skillCatalogLoader: () => []);
+                Assert.Equal(ProviderRoutingMode.Automatic, reloaded.ProviderRoutingMode);
+                Assert.Equal("reasoning", reloaded.PolishReasoningProviderProfileId);
+                Assert.Equal("fast", reloaded.PromptOptimizeReasoningProviderProfileId);
+            }
+            catch (Exception exception) { failure = exception; }
+            finally
+            {
+                App.ReplaceSettings(original);
+                Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                try { if (Directory.Exists(dataRoot)) Directory.Delete(dataRoot, recursive: true); } catch { }
+                TestHelpers.ShutdownCurrentWpfDispatcher();
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
+    }
+
+    [Fact]
+    public void OpenAiProtocolSetting_OffersResponsesWhileKeepingChatCompletionsAsDefault()
+    {
+        var original = App.Settings.Clone();
+        var dataRoot = Path.Combine(AppContext.BaseDirectory, "test-data", "openai-protocol-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dataRoot);
+        try
+        {
+            App.ReplaceSettings(new AppSettings
+            {
+                ProviderProfiles = [new ProviderProfile { Id = "openai", Platform = ProviderPlatform.OpenAI }],
+                ActiveProviderProfileId = "openai"
+            });
+            var vm = new SettingsViewModel(archiveService: new ArchiveService(dataRoot), skillCatalogLoader: () => []);
+
+            Assert.True(vm.IsOpenAiProtocolSelectorVisible);
+            Assert.Equal(ProviderProtocol.OpenAICompatible, vm.SelectedOpenAiProtocol);
+            Assert.Contains(vm.OpenAiProtocolOptions, option => option.Value == ProviderProtocol.OpenAIResponses);
+
+            vm.SelectedOpenAiProtocol = ProviderProtocol.OpenAIResponses;
+
+            Assert.Equal(ProviderProtocol.OpenAIResponses, vm.SelectedProviderProfile!.Protocol);
+            Assert.True(vm.HasChanges);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+            try { Directory.Delete(dataRoot, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void SavingEditedExpressionPreference_ConfirmsOnlyTheSelectedTaskAndScenario()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var original = App.Settings.Clone();
+            var dataRoot = Path.Combine(Path.GetTempPath(), "ExpressionPreferenceSave_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dataRoot);
+            try
+            {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
+                App.ReplaceSettings(new AppSettings { DataDirectory = dataRoot });
+                var vm = new SettingsViewModel(skillCatalogLoader: () => []);
+                Assert.False(vm.ShareConfirmedPreferencesWithCloud);
+                vm.ShareConfirmedPreferencesWithCloud = true;
+                vm.ExpressionPreferenceTask = ApplicationMode.Polish;
+                vm.PreferredExpressionLength = "concise";
+                vm.PreferredExpressionTone = "professional";
+                vm.ForbiddenExpressionText = "太客套\n万能套话";
+
+                Assert.True(vm.TrySave(), vm.ValidationMessage);
+
+                var profile = App.Settings.ExpressionPreferenceProfile;
+                Assert.True(App.Settings.ShareConfirmedPreferencesWithCloud);
+                var polish = profile.TaskPreferences["polish"];
+                Assert.True(polish.UserConfirmed);
+                Assert.Equal("user-confirmed", polish.Source);
+                Assert.Equal(1, polish.Confidence);
+                Assert.NotNull(polish.UpdatedAtUtc);
+                Assert.Equal(new[] { "太客套", "万能套话" }, polish.ForbiddenExpressions);
+                Assert.False(profile.TaskPreferences.ContainsKey("prompt-optimize"));
+                Assert.Contains("简洁", new StructuredPreferenceService().BuildInstructions(profile, ApplicationMode.Polish));
+                Assert.Equal(string.Empty, new StructuredPreferenceService().BuildInstructions(profile, ApplicationMode.PromptOptimize));
+
+                vm.ExpressionPreferenceScenario = "职场沟通";
+                vm.PreferredExpressionLength = "detailed";
+                vm.ForbiddenExpressionText = "不合场景表达";
+                Assert.True(vm.TrySave(), vm.ValidationMessage);
+
+                profile = App.Settings.ExpressionPreferenceProfile;
+                Assert.True(profile.TaskPreferences["polish|职场沟通"].UserConfirmed);
+                Assert.Equal(new[] { "不合场景表达" }, profile.TaskPreferences["polish|职场沟通"].ForbiddenExpressions);
+                Assert.Contains("简洁", new StructuredPreferenceService().BuildInstructions(profile, ApplicationMode.Polish, "公开发布"));
+                var workplaceInstructions = new StructuredPreferenceService().BuildInstructions(profile, ApplicationMode.Polish, "职场沟通");
+                Assert.Contains("完整", workplaceInstructions);
+                Assert.Contains("不合场景表达", workplaceInstructions);
+                Assert.DoesNotContain("太客套", workplaceInstructions);
+            }
+            catch (Exception exception) { failure = exception; }
+            finally
+            {
+                App.ReplaceSettings(original);
+                Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                try { if (Directory.Exists(dataRoot)) Directory.Delete(dataRoot, true); } catch { }
+                TestHelpers.ShutdownCurrentWpfDispatcher();
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
+    }
+
+    [Fact]
+    public void PreferencePrivacySettings_RoundTripAndReloadInTheSettingsViewModel()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var original = App.Settings.Clone();
+            var dataRoot = Path.Combine(Environment.CurrentDirectory, "out", "test-artifacts", "PreferencePrivacySettings_" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
+                Directory.CreateDirectory(dataRoot);
+                App.ReplaceSettings(new AppSettings { DataDirectory = dataRoot });
+                var vm = new SettingsViewModel(skillCatalogLoader: () => []);
+                Assert.True(vm.PreferenceLearningEnabled);
+                Assert.False(vm.ShareConfirmedPreferencesWithCloud);
+                Assert.False(vm.IncognitoMode);
+
+                vm.PreferenceLearningEnabled = false;
+                vm.ShareConfirmedPreferencesWithCloud = true;
+                vm.IncognitoMode = true;
+
+                Assert.True(vm.TrySave(), vm.ValidationMessage);
+                var reloaded = new ConfigService().Load();
+                Assert.False(reloaded.PreferenceLearningEnabled);
+                Assert.True(reloaded.ShareConfirmedPreferencesWithCloud);
+                Assert.True(reloaded.IncognitoMode);
+
+                App.ReplaceSettings(reloaded);
+                var reloadedViewModel = new SettingsViewModel(skillCatalogLoader: () => []);
+                Assert.False(reloadedViewModel.PreferenceLearningEnabled);
+                Assert.True(reloadedViewModel.ShareConfirmedPreferencesWithCloud);
+                Assert.True(reloadedViewModel.IncognitoMode);
+                Assert.False(reloadedViewModel.CanConfigureHistoryStorage);
+            }
+            catch (Exception exception) { failure = exception; }
+            finally
+            {
+                App.ReplaceSettings(original);
+                try { if (Directory.Exists(dataRoot)) Directory.Delete(dataRoot, true); } catch { }
+                TestHelpers.ShutdownCurrentWpfDispatcher();
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
+    }
+
+    [Theory]
+    [InlineData(true, false, false, false, false)]
+    [InlineData(true, false, true, true, false)]
+    [InlineData(false, true, true, false, true)]
+    [InlineData(false, false, true, false, true)]
+    public void ChoosingOutputStyle_UsesCurrentDraftLearningAndIncognitoSettings(
+        bool savedLearningEnabled,
+        bool savedIncognitoMode,
+        bool draftLearningEnabled,
+        bool draftIncognitoMode,
+        bool expectedToRecord)
+    {
+        var original = App.Settings.Clone();
+        try
+        {
+            App.ReplaceSettings(new AppSettings
+            {
+                PreferenceLearningEnabled = savedLearningEnabled,
+                IncognitoMode = savedIncognitoMode
+            });
+            var vm = new SettingsViewModel(skillCatalogLoader: () => []);
+            vm.PreferenceLearningEnabled = draftLearningEnabled;
+            vm.IncognitoMode = draftIncognitoMode;
+
+            vm.OutputStyle = "正式";
+
+            Assert.Equal(expectedToRecord ? 1 : 0, App.Settings.ExpressionPreferenceProfile.StyleChoiceCount);
+            Assert.Equal(expectedToRecord, App.Settings.ExpressionPreferenceProfile.StyleChoiceUsage.ContainsKey("正式"));
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+        }
+    }
+
+    [Fact]
+    public void ScopedOutputStyle_IsDraftedPerTaskAndScenarioAndSavedWithoutChangingGlobalFallback()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var original = App.Settings.Clone();
+            var dataRoot = Path.Combine(Path.GetTempPath(), "ScopedOutputStyleSave_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dataRoot);
+            try
+            {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
+                App.ReplaceSettings(new AppSettings { DataDirectory = dataRoot, OutputStyle = "正式" });
+                var vm = new SettingsViewModel(skillCatalogLoader: () => []);
+                Assert.Equal(string.Empty, vm.ScopedOutputStyle);
+
+                vm.ExpressionPreferenceScenario = "职场沟通";
+                vm.ScopedOutputStyle = "克制";
+                vm.ExpressionPreferenceScenario = "公开发布";
+                Assert.Equal(string.Empty, vm.ScopedOutputStyle);
+                vm.ScopedOutputStyle = "简洁";
+                vm.ExpressionPreferenceScenario = "职场沟通";
+                Assert.Equal("克制", vm.ScopedOutputStyle);
+
+                vm.ExpressionPreferenceTask = ApplicationMode.PromptOptimize;
+                Assert.Equal(string.Empty, vm.ScopedOutputStyle);
+                vm.ScopedOutputStyle = "专业";
+                vm.ExpressionPreferenceScenario = "编程开发";
+                vm.ScopedOutputStyle = "亲切";
+                Assert.True(vm.TrySave(), vm.ValidationMessage);
+
+                Assert.Equal("正式", App.Settings.OutputStyle);
+                Assert.Equal("克制", App.Settings.OutputStyleOverrides["Polish|职场沟通"]);
+                Assert.Equal("简洁", App.Settings.OutputStyleOverrides["Polish|公开发布"]);
+                Assert.Equal("专业", App.Settings.OutputStyleOverrides["PromptOptimize|"]);
+                Assert.Equal("亲切", App.Settings.OutputStyleOverrides["PromptOptimize|编程开发"]);
+                var reloaded = App.ConfigService.Load();
+                Assert.Equal("正式", reloaded.OutputStyle);
+                Assert.Equal("克制", reloaded.OutputStyleOverrides["Polish|职场沟通"]);
+                Assert.Equal("亲切", reloaded.OutputStyleOverrides["PromptOptimize|编程开发"]);
+            }
+            catch (Exception exception) { failure = exception; }
+            finally
+            {
+                App.ReplaceSettings(original);
+                Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                try { if (Directory.Exists(dataRoot)) Directory.Delete(dataRoot, true); } catch { }
+                TestHelpers.ShutdownCurrentWpfDispatcher();
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
+    }
+
+    [Fact]
+    public void ExportExpressionPreferences_IncludesGlobalAndScopedOutputStyles()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var original = App.Settings.Clone();
+            var dataRoot = Path.Combine(Path.GetTempPath(), "ScopedOutputStyleExport_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dataRoot);
+            var destination = Path.Combine(dataRoot, "preferences.json");
+            try
+            {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
+                App.ReplaceSettings(new AppSettings
+                {
+                    DataDirectory = dataRoot,
+                    OutputStyle = "正式",
+                    OutputStyleOverrides = new Dictionary<string, string>
+                    {
+                        ["Polish|职场沟通"] = "克制"
+                    }
+                });
+                var vm = new SettingsViewModel(skillCatalogLoader: () => []);
+                vm.ExportExpressionPreferences(destination);
+
+                Assert.Contains("已导出", vm.ValidationMessage);
+                using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(destination));
+                var styles = json.RootElement.GetProperty("outputStyles");
+                Assert.Equal("正式", styles.GetProperty("global").GetString());
+                Assert.Equal("克制", styles.GetProperty("overrides").GetProperty("Polish|职场沟通").GetString());
+                Assert.DoesNotContain("apiKey", File.ReadAllText(destination), StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception exception) { failure = exception; }
+            finally
+            {
+                App.ReplaceSettings(original);
+                Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                try { if (Directory.Exists(dataRoot)) Directory.Delete(dataRoot, true); } catch { }
+                TestHelpers.ShutdownCurrentWpfDispatcher();
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
+    }
+
+    [Fact]
+    public void ResetExpressionPreferences_PersistsFullClearBeforeReportingSuccess()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var original = App.Settings.Clone();
+            var dataRoot = Path.Combine(Environment.CurrentDirectory, "out", "test-artifacts", "PreferenceResetData_" + Guid.NewGuid().ToString("N"));
+            var backupPath = Path.Combine(Environment.CurrentDirectory, "out", "test-artifacts", "PreferenceResetBackup_" + Guid.NewGuid().ToString("N") + ".zip");
+            try
+            {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
+                Directory.CreateDirectory(dataRoot);
+                App.ReplaceSettings(new AppSettings
+                {
+                    DataDirectory = dataRoot,
+                    ExpressionPreferenceProfile = new ExpressionPreferenceProfile
+                    {
+                        AcceptedCount = 3,
+                        ForbiddenExpressions = ["旧规则"],
+                        TaskPreferences = new Dictionary<string, ExpressionPreferenceSet>
+                        {
+                            ["polish"] = new() { UserConfirmed = true, ForbiddenExpressions = ["旧偏好"] }
+                        },
+                        InteractionSignals = new Dictionary<string, ExpressionInteractionSignalSet>
+                        {
+                            ["polish|work"] = new()
+                            {
+                                AcceptedCount = 3,
+                                AcceptedRemovedCannedExpressions = new Dictionary<string, int> { ["首先"] = 3 }
+                            }
+                        }
+                    }
+                });
+                App.ConfigService.Save(App.Settings);
+                new DataManagementService().CreateBackup(dataRoot, backupPath, ConfigService.ConfigPath);
+                var vm = new SettingsViewModel(archiveService: new ArchiveService(dataRoot), skillCatalogLoader: () => []);
+
+                vm.ResetExpressionPreferencesCommand.Execute(null);
+
+                Assert.Contains("已重置", vm.ValidationMessage);
+                Assert.Contains("备份", vm.ValidationMessage);
+                var persisted = new ConfigService().Load().ExpressionPreferenceProfile;
+                Assert.Empty(persisted.TaskPreferences);
+                Assert.Empty(persisted.InteractionSignals);
+                Assert.Empty(persisted.ForbiddenExpressions);
+                Assert.Equal(0, persisted.AcceptedCount);
+                using var backup = System.IO.Compression.ZipFile.OpenRead(backupPath);
+                using var backupConfig = new StreamReader(backup.GetEntry("config.json")!.Open());
+                Assert.Contains("旧偏好", backupConfig.ReadToEnd(), StringComparison.Ordinal);
+            }
+            catch (Exception exception) { failure = exception; }
+            finally
+            {
+                App.ReplaceSettings(original);
+                try { if (Directory.Exists(dataRoot)) Directory.Delete(dataRoot, true); } catch { }
+                try { if (File.Exists(backupPath)) File.Delete(backupPath); } catch { }
+                TestHelpers.ShutdownCurrentWpfDispatcher();
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
+    }
+
+    [Fact]
+    public void ResetExpressionPreferences_RestoresInMemoryProfileWhenPersistenceFails()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var original = App.Settings.Clone();
+            var configDirectory = Path.Combine(Environment.CurrentDirectory, "out", "test-artifacts", "PreferenceResetFailure_" + Guid.NewGuid().ToString("N"));
+            var dataRoot = Path.Combine(configDirectory, "archive");
+            Directory.CreateDirectory(configDirectory);
+            Directory.CreateDirectory(dataRoot);
+            try
+            {
+                TestHelpers.RedirectConfigTo(configDirectory);
+                Directory.CreateDirectory(Path.Combine(configDirectory, "config.json"));
+                var existingProfile = new ExpressionPreferenceProfile
+                {
+                    AcceptedCount = 7,
+                    TaskPreferences = new Dictionary<string, ExpressionPreferenceSet>
+                    {
+                        ["polish"] = new() { UserConfirmed = true, PreferredTone = "professional" }
+                    }
+                };
+                App.ReplaceSettings(new AppSettings { DataDirectory = dataRoot, ExpressionPreferenceProfile = existingProfile });
+                var vm = new SettingsViewModel(archiveService: new ArchiveService(dataRoot), skillCatalogLoader: () => []);
+
+                vm.ResetExpressionPreferencesCommand.Execute(null);
+
+                Assert.Same(existingProfile, App.Settings.ExpressionPreferenceProfile);
+                Assert.Equal(7, App.Settings.ExpressionPreferenceProfile.AcceptedCount);
+                Assert.Contains("无法", vm.ValidationMessage);
+                Assert.DoesNotContain("已重置", vm.ValidationMessage);
+            }
+            catch (Exception exception) { failure = exception; }
+            finally
+            {
+                App.ReplaceSettings(original);
+                TestHelpers.ResetConfigToDefault();
+                TestHelpers.ShutdownCurrentWpfDispatcher();
+                try { Directory.Delete(configDirectory, true); } catch { }
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
+    }
+
+    [Fact]
+    public void PreferenceCandidate_LoadsAsDraftAndBecomesActiveOnlyAfterUserSave()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var original = App.Settings.Clone();
+            var dataRoot = Path.Combine(Environment.CurrentDirectory, "out", "test-artifacts", "PreferenceCandidateData_" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
+                Directory.CreateDirectory(dataRoot);
+                App.ReplaceSettings(new AppSettings
+                {
+                    DataDirectory = dataRoot,
+                    ExpressionPreferenceProfile = new ExpressionPreferenceProfile
+                    {
+                        InteractionSignals = new Dictionary<string, ExpressionInteractionSignalSet>
+                        {
+                            ["polish"] = new()
+                            {
+                                EditCount = 5,
+                                AcceptedCount = 2,
+                                AcceptedShortenedOutputs = 3,
+                                AcceptedOutputStyles = new Dictionary<string, int> { ["自然"] = 3 },
+                                AcceptedRemovedCannedExpressions = new Dictionary<string, int> { ["首先"] = 3 }
+                            }
+                        }
+                    }
+                });
+                App.ConfigService.Save(App.Settings);
+                var vm = new SettingsViewModel(archiveService: new ArchiveService(dataRoot), skillCatalogLoader: () => []);
+
+                Assert.True(vm.HasExpressionPreferenceCandidate);
+                Assert.Contains("3 个生成结果经改短后被接受", vm.ExpressionPreferenceCandidateSummary);
+                vm.ApplyExpressionPreferenceCandidateCommand.Execute(null);
+
+                Assert.Equal("concise", vm.PreferredExpressionLength);
+                var phraseCandidate = Assert.Single(vm.ForbiddenExpressionCandidates);
+                Assert.Equal("首先", phraseCandidate.Value);
+                vm.ApplyForbiddenExpressionCandidateCommand.Execute(phraseCandidate);
+                Assert.Contains("首先", vm.ForbiddenExpressionText, StringComparison.Ordinal);
+                vm.ForbiddenExpressionText += Environment.NewLine + "可编辑表达";
+                Assert.Empty(App.Settings.ExpressionPreferenceProfile.TaskPreferences);
+                Assert.Contains("保存设置后才会确认", vm.ValidationMessage);
+                Assert.True(vm.TrySave(), vm.ValidationMessage);
+
+                var confirmed = App.Settings.ExpressionPreferenceProfile.TaskPreferences["polish"];
+                Assert.True(confirmed.UserConfirmed);
+                Assert.Equal("user-confirmed", confirmed.Source);
+                Assert.Equal(1, confirmed.Confidence);
+                Assert.Equal(new[] { "首先", "可编辑表达" }, confirmed.ForbiddenExpressions);
+                Assert.Null(vm.CurrentExpressionPreferenceCandidate);
+            }
+            catch (Exception exception) { failure = exception; }
+            finally
+            {
+                App.ReplaceSettings(original);
+                TestHelpers.ShutdownCurrentWpfDispatcher();
+                try { if (Directory.Exists(dataRoot)) Directory.Delete(dataRoot, true); } catch { }
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
+    }
+
+    [Fact]
+    public void TonePreferenceCandidate_LoadsAsDraftAndIsIgnoredPerScope()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var original = App.Settings.Clone();
+            var dataRoot = Path.Combine(Environment.CurrentDirectory, "out", "test-artifacts", "TonePreferenceCandidateData_" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
+                Directory.CreateDirectory(dataRoot);
+                App.ReplaceSettings(new AppSettings
+                {
+                    DataDirectory = dataRoot,
+                    ExpressionPreferenceProfile = new ExpressionPreferenceProfile
+                    {
+                        InteractionSignals = new Dictionary<string, ExpressionInteractionSignalSet>
+                        {
+                            ["polish|职场沟通"] = new()
+                            {
+                                AcceptedOutputStyles = new Dictionary<string, int> { ["正式"] = 3 }
+                            },
+                            ["polish|私人沟通"] = new()
+                            {
+                                AcceptedOutputStyles = new Dictionary<string, int> { ["亲切"] = 3 }
+                            }
+                        }
+                    }
+                });
+                App.ConfigService.Save(App.Settings);
+                var vm = new SettingsViewModel(archiveService: new ArchiveService(dataRoot), skillCatalogLoader: () => []);
+                vm.ExpressionPreferenceScenario = "职场沟通";
+
+                Assert.True(vm.HasExpressionToneCandidate);
+                Assert.Contains("专业", vm.ExpressionToneCandidateSummary);
+                vm.ApplyExpressionToneCandidateCommand.Execute(null);
+                Assert.Equal("professional", vm.PreferredExpressionTone);
+                Assert.Empty(App.Settings.ExpressionPreferenceProfile.TaskPreferences);
+                Assert.True(vm.TrySave(), vm.ValidationMessage);
+                Assert.Equal("professional", App.Settings.ExpressionPreferenceProfile.TaskPreferences["polish|职场沟通"].PreferredTone);
+                Assert.True(App.Settings.ExpressionPreferenceProfile.TaskPreferences["polish|职场沟通"].UserConfirmed);
+
+                vm.ExpressionPreferenceScenario = "私人沟通";
+                Assert.True(vm.HasExpressionToneCandidate);
+                vm.IgnoreExpressionToneCandidateCommand.Execute(null);
+                Assert.False(vm.HasExpressionToneCandidate);
+                Assert.Contains("preferredTone|polish|私人沟通|warm", App.Settings.ExpressionPreferenceProfile.IgnoredSuggestionKeys.Single(), StringComparison.Ordinal);
+            }
+            catch (Exception exception) { failure = exception; }
+            finally
+            {
+                App.ReplaceSettings(original);
+                TestHelpers.ShutdownCurrentWpfDispatcher();
+                try { if (Directory.Exists(dataRoot)) Directory.Delete(dataRoot, true); } catch { }
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(20)));
+        Assert.Null(failure);
+    }
+
+    [Fact]
+    public void ClearCurrentExpressionPreference_RemovesOnlySelectedTaskScenarioAfterSave()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var original = App.Settings.Clone();
+            var dataRoot = Path.Combine(Directory.GetCurrentDirectory(), "out", "test-artifacts", "PreferenceScopeClearData_" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory(
+                    Path.Combine(Directory.GetCurrentDirectory(), "out", "test-artifacts", "verification-temp"));
+                Directory.CreateDirectory(dataRoot);
+                App.ReplaceSettings(new AppSettings
+                {
+                    DataDirectory = dataRoot,
+                    ExpressionPreferenceProfile = new ExpressionPreferenceProfile
+                    {
+                        TaskPreferences = new Dictionary<string, ExpressionPreferenceSet>
+                        {
+                            ["polish"] = new() { PreferredLength = "concise", UserConfirmed = true, Source = "user-confirmed", Confidence = 1 },
+                            ["polish|职场沟通"] = new() { PreferredLength = "detailed", PreferredTone = "warm", UserConfirmed = true, Source = "user-confirmed", Confidence = 1 }
+                        },
+                        InteractionSignals = new Dictionary<string, ExpressionInteractionSignalSet>
+                        {
+                            ["polish|职场沟通"] = new()
+                            {
+                                AcceptedCount = 2,
+                                AcceptedRemovedCannedExpressions = new Dictionary<string, int> { ["首先"] = 3 }
+                            }
+                        }
+                    }
+                });
+                App.ConfigService.Save(App.Settings);
+                var vm = new SettingsViewModel(archiveService: new ArchiveService(dataRoot), skillCatalogLoader: () => []);
+                vm.ExpressionPreferenceScenario = "职场沟通";
+
+                vm.ClearCurrentExpressionPreferenceCommand.Execute(null);
+
+                Assert.Equal("balanced", vm.PreferredExpressionLength);
+                Assert.Equal("natural", vm.PreferredExpressionTone);
+                Assert.Contains("尚未确认", vm.PreferenceMetadataSummary);
+                Assert.Contains("polish|职场沟通", App.Settings.ExpressionPreferenceProfile.TaskPreferences.Keys);
+                Assert.True(vm.TrySave(), vm.ValidationMessage);
+
+                var saved = new ConfigService().Load();
+                Assert.False(saved.ExpressionPreferenceProfile.TaskPreferences.ContainsKey("polish|职场沟通"));
+                Assert.Equal("concise", saved.ExpressionPreferenceProfile.TaskPreferences["polish"].PreferredLength);
+                Assert.Equal(2, saved.ExpressionPreferenceProfile.InteractionSignals["polish|职场沟通"].AcceptedCount);
+                Assert.Equal(3, saved.ExpressionPreferenceProfile.InteractionSignals["polish|职场沟通"].AcceptedRemovedCannedExpressions["首先"]);
+            }
+            catch (Exception exception) { failure = exception; }
+            finally
+            {
+                App.ReplaceSettings(original);
+                TestHelpers.ShutdownCurrentWpfDispatcher();
+                try { if (Directory.Exists(dataRoot)) Directory.Delete(dataRoot, true); } catch { }
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
+    }
+
+    [Fact]
+    public void IgnoringPreferenceCandidate_PersistsLocallyAndSurvivesViewModelReload()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var original = App.Settings.Clone();
+            var dataRoot = Path.Combine(Environment.CurrentDirectory, "out", "test-artifacts", "PreferenceIgnoreData_" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
+                Directory.CreateDirectory(dataRoot);
+                App.ReplaceSettings(new AppSettings
+                {
+                    DataDirectory = dataRoot,
+                    ExpressionPreferenceProfile = new ExpressionPreferenceProfile
+                    {
+                        InteractionSignals = new Dictionary<string, ExpressionInteractionSignalSet>
+                        {
+                            ["polish"] = new()
+                            {
+                                AcceptedShortenedOutputs = 2,
+                                AcceptedOutputStyles = new Dictionary<string, int> { ["自然"] = 2 },
+                                AcceptedRemovedCannedExpressions = new Dictionary<string, int> { ["首先"] = 3 }
+                            }
+                        }
+                    }
+                });
+                App.ConfigService.Save(App.Settings);
+                var archiveService = new ArchiveService(dataRoot);
+                var vm = new SettingsViewModel(archiveService: archiveService, skillCatalogLoader: () => []);
+                var candidateKey = Assert.IsType<ExpressionPreferenceCandidate>(vm.CurrentExpressionPreferenceCandidate).Key;
+                var phraseCandidate = Assert.Single(vm.ForbiddenExpressionCandidates);
+
+                vm.IgnoreExpressionPreferenceCandidateCommand.Execute(null);
+                vm.IgnoreForbiddenExpressionCandidateCommand.Execute(phraseCandidate);
+
+                Assert.False(vm.HasExpressionPreferenceCandidate);
+                Assert.False(vm.HasForbiddenExpressionCandidates);
+                Assert.Contains(candidateKey, new ConfigService().Load().ExpressionPreferenceProfile.IgnoredSuggestionKeys);
+                Assert.Contains(phraseCandidate.Key, new ConfigService().Load().ExpressionPreferenceProfile.IgnoredSuggestionKeys);
+                var reloadedVm = new SettingsViewModel(archiveService: archiveService, skillCatalogLoader: () => []);
+                Assert.False(reloadedVm.HasExpressionPreferenceCandidate);
+                Assert.False(reloadedVm.HasForbiddenExpressionCandidates);
+                Assert.Contains("忽略", reloadedVm.PreferenceSummary + reloadedVm.ExpressionPreferenceCandidateSummary);
+            }
+            catch (Exception exception) { failure = exception; }
+            finally
+            {
+                App.ReplaceSettings(original);
+                TestHelpers.ShutdownCurrentWpfDispatcher();
+                try { if (Directory.Exists(dataRoot)) Directory.Delete(dataRoot, true); } catch { }
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
+    }
+
+    [Fact]
     public void SettingsNavigation_UsesTaskBasedInformationArchitectureAndStartsWithExpression()
     {
         var vm = new SettingsViewModel(skillCatalogLoader: () => []);
 
-        Assert.Equal(
-            ["表达与生成", "模型连接", "外观与窗口", "快捷键", "历史与留存", "数据维护", "关于与更新"],
-            vm.Sections);
+        var expected = new List<string> { "表达与生成", "模型连接", "本地模型", "外观与窗口", "快捷键", "历史与留存", "数据维护", "关于与更新" };
+        Assert.Equal(expected, vm.Sections);
         Assert.Equal("表达与生成", vm.SelectedSection);
     }
 
@@ -348,6 +1106,37 @@ public class SettingsViewModelTests
         finally { App.ReplaceSettings(original); }
     }
 
+    [Fact]
+    public void SkinChoices_AreDerivedFromSkinRegistryInsteadOfDuplicatedIds()
+    {
+        var vm = new SettingsViewModel(skillCatalogLoader: () => []);
+
+        Assert.Contains(vm.SpecialSkins, option => option.Value == "default");
+        Assert.Contains(vm.SpecialSkins, option => option.Value == "LuoXiaoHei");
+        Assert.Contains(vm.SpecialSkins, option => option.Value == "MaoDie");
+    }
+
+    [Fact]
+    public void SkinChoices_ExposeBuiltInPreviewResources()
+    {
+        var vm = new SettingsViewModel(skillCatalogLoader: () => []);
+
+        var luo = Assert.Single(vm.SpecialSkins, option => option.Value == "LuoXiaoHei");
+        Assert.Equal("pack://application:,,,/Huaxiazi;component/Resources/Skins/LuoXiaoHei/preview.png", luo.PreviewSource);
+    }
+
+    [Fact]
+    public void SkinChoices_UseEachSkinOwnPreviewPalette()
+    {
+        var vm = new SettingsViewModel(skillCatalogLoader: () => []);
+
+        var luo = Assert.Single(vm.SpecialSkins, option => option.Value == "LuoXiaoHei");
+        var mao = Assert.Single(vm.SpecialSkins, option => option.Value == "MaoDie");
+
+        Assert.NotEqual(luo.Palette.Surface, mao.Palette.Surface);
+        Assert.NotEqual(luo.Palette.Accent, mao.Palette.Accent);
+    }
+
     private sealed class MemorySecretStore : ISecretStore
     {
         private readonly Dictionary<string, string> _values = new();
@@ -419,6 +1208,537 @@ public class SettingsViewModelTests
         vm.SelectedInferenceLevel = InferenceLevel.Custom;
         Assert.True(vm.IsCustomInference);
         Assert.Equal(4096, vm.SelectedProviderProfile.MaxTokens);
+    }
+
+    [Fact]
+    public void SelectedInferenceDescriptionSeparatesPresetValuesFromModelReasoningCapabilities()
+    {
+        var original = App.Settings.Clone();
+        var dataRoot = Path.Combine(AppContext.BaseDirectory, "test-data", "inference-description-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dataRoot);
+        try
+        {
+            App.ReplaceSettings(new AppSettings
+            {
+                ProviderProfiles =
+                [
+                    new ProviderProfile
+                    {
+                        Id = "mimo-inference",
+                        Platform = ProviderPlatform.MiMo,
+                        Protocol = ProviderProtocol.OpenAICompatible,
+                        Model = "mimo-v2.6-pro",
+                        InferenceLevel = InferenceLevel.Low
+                    }
+                ],
+                ActiveProviderProfileId = "mimo-inference"
+            });
+            var vm = new SettingsViewModel(archiveService: new ArchiveService(dataRoot), secretStore: new MemorySecretStore());
+
+            Assert.Contains("temperature=0.2", vm.SelectedInferenceDescription);
+            Assert.Contains("top_p=0.8", vm.SelectedInferenceDescription);
+            Assert.Contains("max_tokens=1024", vm.SelectedInferenceDescription);
+            Assert.Contains("具体传参与推理行为以当前模型能力说明为准", vm.SelectedInferenceDescription);
+            Assert.Contains("Low 档关闭 thinking", vm.SelectedProviderCapabilitySummary);
+
+            vm.SelectedInferenceLevel = InferenceLevel.High;
+
+            Assert.Contains("temperature=0.3", vm.SelectedInferenceDescription);
+            Assert.Contains("top_p=0.95", vm.SelectedInferenceDescription);
+            Assert.Contains("max_tokens=4096", vm.SelectedInferenceDescription);
+            Assert.Contains("thinking 模式下 temperature/top_p 不生效", vm.SelectedProviderCapabilitySummary);
+
+            vm.SelectedProviderProfile!.Platform = ProviderPlatform.OpenAI;
+            vm.SelectedProviderProfile.Protocol = ProviderProtocol.OpenAICompatible;
+            vm.ModelId = "gpt-6-astra";
+
+            Assert.Contains("temperature / top_p 使用模型默认值", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("reasoning_effort=high", vm.SelectedProviderCapabilitySummary);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+            try { Directory.Delete(dataRoot, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void ExperimentalOllamaProfileDoesNotExposeMachineSpecificBudgetPreset()
+    {
+        var original = App.Settings.Clone();
+        var dataRoot = Path.Combine(AppContext.BaseDirectory, "test-data", "qwen3-medium-preset-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dataRoot);
+        try
+        {
+            App.ReplaceSettings(new AppSettings
+            {
+                ProviderProfiles =
+                [
+                    new ProviderProfile
+                    {
+                        Id = "ollama-qwen3-4b",
+                        Type = ProviderType.Local,
+                        Platform = ProviderPlatform.Ollama,
+                        Protocol = ProviderProtocol.OpenAICompatible,
+                        ApiBase = "http://127.0.0.1:11434/v1",
+                        Model = "qwen3:4b",
+                        InferenceLevel = InferenceLevel.Medium,
+                        MaxTokens = 2048
+                    }
+                ],
+                ActiveProviderProfileId = "ollama-qwen3-4b"
+            });
+            var vm = new SettingsViewModel(archiveService: new ArchiveService(dataRoot), secretStore: new MemorySecretStore());
+
+            Assert.Equal(2048, vm.SelectedProviderProfile!.MaxTokens);
+            Assert.Contains("max_tokens=2048", vm.SelectedInferenceDescription);
+            Assert.DoesNotContain("内部合成短文本诊断", vm.SelectedInferenceDescription);
+
+            vm.ModelId = "qwen3:8b";
+            Assert.DoesNotContain("内部合成短文本诊断", vm.SelectedInferenceDescription);
+            Assert.Equal(2048, vm.SelectedProviderProfile.MaxTokens);
+
+            vm.ModelId = "qwen3:4b";
+            vm.ApiBaseInput = "http://127.0.0.1:11435/v1";
+            Assert.DoesNotContain("内部合成短文本诊断", vm.SelectedInferenceDescription);
+            vm.ApiBaseInput = "http://127.0.0.1:11434/v1";
+            Assert.Equal(2048, vm.SelectedProviderProfile.MaxTokens);
+            Assert.DoesNotContain("内部合成短文本诊断", vm.SelectedInferenceDescription);
+            Assert.Equal(2048, vm.SelectedProviderProfile.MaxTokens);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+            try { Directory.Delete(dataRoot, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void ExperimentalOllamaSavedBudgetSurvivesSettingsSaveAndReloadWithoutPreset()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var original = App.Settings.Clone();
+            var dataRoot = Path.Combine(Path.GetTempPath(), "Qwen3PresetPersistence_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dataRoot);
+            try
+            {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
+                App.ReplaceSettings(new AppSettings
+                {
+                    DataDirectory = dataRoot,
+                    ProviderProfiles =
+                    [
+                        new ProviderProfile
+                        {
+                            Id = "ollama-qwen3-4b",
+                            Type = ProviderType.Local,
+                            Platform = ProviderPlatform.Ollama,
+                            Protocol = ProviderProtocol.OpenAICompatible,
+                            ApiBase = "http://127.0.0.1:11434/v1",
+                            Model = "qwen3:4b",
+                            InferenceLevel = InferenceLevel.Medium,
+                            MaxTokens = 4096
+                        }
+                    ],
+                    ActiveProviderProfileId = "ollama-qwen3-4b"
+                });
+                var vm = new SettingsViewModel(
+                    archiveService: new ArchiveService(dataRoot),
+                    secretStore: new MemorySecretStore());
+
+                Assert.True(vm.TrySave(), vm.ValidationMessage);
+                var untouched = new ConfigService().Load();
+                Assert.Equal(4096, Assert.Single(untouched.ProviderProfiles).MaxTokens);
+
+                var reloaded = new ConfigService().Load();
+                var profile = Assert.Single(reloaded.ProviderProfiles);
+                Assert.Equal("qwen3:4b", profile.Model);
+                Assert.Equal(InferenceLevel.Medium, profile.InferenceLevel);
+                Assert.Equal(4096, profile.MaxTokens);
+            }
+            catch (Exception exception) { failure = exception; }
+            finally
+            {
+                App.ReplaceSettings(original);
+                Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                try { if (Directory.Exists(dataRoot)) Directory.Delete(dataRoot, true); } catch { }
+                TestHelpers.ShutdownCurrentWpfDispatcher();
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
+    }
+
+    [Fact]
+    public void ProviderCapabilitySummary_ExplainsExactModelParameterBehavior()
+    {
+        App.ReplaceSettings(new AppSettings());
+        var vm = new SettingsViewModel(secretStore: new MemorySecretStore());
+        var profile = vm.SelectedProviderProfile!;
+        profile.Platform = ProviderPlatform.OpenAI;
+        profile.Protocol = ProviderProtocol.OpenAICompatible;
+        vm.ModelId = "gpt-6-astra";
+
+        Assert.Contains("temperature / top_p", vm.SelectedProviderCapabilitySummary);
+        Assert.Contains("reasoning_effort", vm.SelectedProviderCapabilitySummary);
+        Assert.Contains("max_completion_tokens", vm.SelectedProviderCapabilitySummary);
+        Assert.Contains("原生 JSON Schema", vm.SelectedProviderCapabilitySummary);
+
+        vm.SelectedInferenceLevel = InferenceLevel.Custom;
+        Assert.Contains("自定义档使用模型默认推理强度", vm.SelectedProviderCapabilitySummary);
+
+        vm.ModelId = "gpt-6-astra-preview";
+        Assert.Contains("尚未核验", vm.SelectedProviderCapabilitySummary);
+        Assert.Contains("不发送原生约束", vm.SelectedProviderCapabilitySummary);
+        Assert.Contains("本地校验", vm.SelectedProviderCapabilitySummary);
+    }
+
+    [Fact]
+    public void ProviderCapabilitySummary_ExplainsAnthropicPostOpus46ParameterBehavior()
+    {
+        var original = App.Settings.Clone();
+        try
+        {
+            App.ReplaceSettings(new AppSettings
+            {
+                ProviderProfiles =
+                [
+                    new ProviderProfile
+                    {
+                        Id = "anthropic-capability",
+                        Platform = ProviderPlatform.Anthropic,
+                        Protocol = ProviderProtocol.AnthropicMessages,
+                        ApiBase = "https://api.anthropic.com",
+                        Model = "claude-opus-5-5"
+                    }
+                ],
+                ActiveProviderProfileId = "anthropic-capability"
+            });
+            var vm = new SettingsViewModel(secretStore: new MemorySecretStore());
+
+            Assert.Contains("已核验 claude-opus-5-5", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("temperature / top_p 使用模型默认值", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("output_config.effort", vm.SelectedProviderCapabilitySummary);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+        }
+    }
+
+    [Fact]
+    public void ProviderCapabilitySummary_ExplainsKimiK3EffortAndFixedSampling()
+    {
+        var original = App.Settings.Clone();
+        try
+        {
+            App.ReplaceSettings(new AppSettings
+            {
+                ProviderProfiles =
+                [
+                    new ProviderProfile
+                    {
+                        Id = "kimi-capability",
+                        Platform = ProviderPlatform.Kimi,
+                        Protocol = ProviderProtocol.OpenAICompatible,
+                        ApiBase = "https://api.moonshot.cn/v1",
+                        Model = "kimi-k3",
+                        InferenceLevel = InferenceLevel.High
+                    }
+                ],
+                ActiveProviderProfileId = "kimi-capability"
+            });
+            var vm = new SettingsViewModel(secretStore: new MemorySecretStore());
+
+            Assert.Contains("kimi-k3", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("temperature=1.0 / top_p=0.95 固定", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("reasoning_effort=max", vm.SelectedProviderCapabilitySummary);
+
+            vm.SelectedInferenceLevel = InferenceLevel.Custom;
+            Assert.Contains("服务默认推理级别（max）", vm.SelectedProviderCapabilitySummary);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+        }
+    }
+
+    [Fact]
+    public void ProviderCapabilitySummary_ExplainsZhipuGlm53EffortAndJsonMode()
+    {
+        var original = App.Settings.Clone();
+        try
+        {
+            App.ReplaceSettings(new AppSettings
+            {
+                ProviderProfiles =
+                [
+                    new ProviderProfile
+                    {
+                        Id = "zhipu-capability",
+                        Platform = ProviderPlatform.Zhipu,
+                        Protocol = ProviderProtocol.OpenAICompatible,
+                        ApiBase = "https://open.bigmodel.cn/api/paas/v4",
+                        Model = "glm-5.3",
+                        InferenceLevel = InferenceLevel.High
+                    }
+                ],
+                ActiveProviderProfileId = "zhipu-capability"
+            });
+            var vm = new SettingsViewModel(secretStore: new MemorySecretStore());
+
+            Assert.Contains("reasoning_effort=max", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("json_object", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("Schema 由应用侧校验", vm.SelectedProviderCapabilitySummary);
+
+            vm.ModelId = "glm-5.2";
+            vm.SelectedInferenceLevel = InferenceLevel.Low;
+            Assert.Contains("reasoning_effort=none（关闭思考）", vm.SelectedProviderCapabilitySummary);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+        }
+    }
+
+    [Fact]
+    public void ProviderCapabilitySummary_ExplainsSparkJsonModeAndSampling()
+    {
+        var original = App.Settings.Clone();
+        var dataRoot = Path.Combine(AppContext.BaseDirectory, "test-data", "spark-capability-summary-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dataRoot);
+        try
+        {
+            App.ReplaceSettings(new AppSettings
+            {
+                ProviderProfiles =
+                [
+                    new ProviderProfile
+                    {
+                        Id = "spark-capability",
+                        Platform = ProviderPlatform.Spark,
+                        Protocol = ProviderProtocol.OpenAICompatible,
+                        ApiBase = "https://spark-api-open.xf-yun.com/v1",
+                        Model = "generalv3.5"
+                    }
+                ],
+                ActiveProviderProfileId = "spark-capability"
+            });
+            var vm = new SettingsViewModel(new ArchiveService(dataRoot), new MemorySecretStore());
+
+            Assert.Contains("temperature 限制在 0–2", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("top_p 限制在 (0,1]", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("max_tokens 上限为 8192", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("json_object", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("Schema 由应用侧校验", vm.SelectedProviderCapabilitySummary);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+            try { if (Directory.Exists(dataRoot)) Directory.Delete(dataRoot, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void ProviderCapabilitySummary_ExplainsGroqStrictStructuredOutputAndEffort()
+    {
+        var original = App.Settings.Clone();
+        try
+        {
+            App.ReplaceSettings(new AppSettings
+            {
+                ProviderProfiles =
+                [
+                    new ProviderProfile
+                    {
+                        Id = "groq-capability",
+                        Platform = ProviderPlatform.Groq,
+                        Protocol = ProviderProtocol.OpenAICompatible,
+                        ApiBase = "https://api.groq.com/openai/v1",
+                        Model = "openai/gpt-oss-120b",
+                        InferenceLevel = InferenceLevel.High
+                    }
+                ],
+                ActiveProviderProfileId = "groq-capability"
+            });
+            var vm = new SettingsViewModel(secretStore: new MemorySecretStore());
+
+            Assert.Contains("reasoning_effort=high", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("严格 JSON Schema", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("temperature/top_p 按设置发送", vm.SelectedProviderCapabilitySummary);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+        }
+    }
+
+    [Fact]
+    public void ProviderCapabilitySummary_ExplainsGemini3SamplingAndThinkingMapping()
+    {
+        var original = App.Settings.Clone();
+        try
+        {
+            App.ReplaceSettings(new AppSettings
+            {
+                ProviderProfiles =
+                [
+                    new ProviderProfile
+                    {
+                        Id = "gemini-capability",
+                        Platform = ProviderPlatform.Gemini,
+                        Protocol = ProviderProtocol.GeminiGenerateContent,
+                        ApiBase = "https://generativelanguage.googleapis.com/v1beta",
+                        Model = "gemini-3.8-flash",
+                        InferenceLevel = InferenceLevel.High
+                    }
+                ],
+                ActiveProviderProfileId = "gemini-capability"
+            });
+            var vm = new SettingsViewModel(secretStore: new MemorySecretStore());
+
+            Assert.Contains("已核验 gemini-3.8-flash", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("temperature / top_p 使用模型默认值", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("generationConfig.thinkingConfig.thinkingLevel", vm.SelectedProviderCapabilitySummary);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+        }
+    }
+
+    [Fact]
+    public void ProviderCapabilitySummary_ExplainsCurrentDeepSeekThinkingControls()
+    {
+        var original = App.Settings.Clone();
+        try
+        {
+            App.ReplaceSettings(new AppSettings
+            {
+                ProviderProfiles =
+                [
+                    new ProviderProfile
+                    {
+                        Id = "deepseek-capability",
+                        Platform = ProviderPlatform.DeepSeek,
+                        Protocol = ProviderProtocol.OpenAICompatible,
+                        ApiBase = "https://api.deepseek.com/v1",
+                        Model = "deepseek-flash",
+                        InferenceLevel = InferenceLevel.Medium
+                    }
+                ],
+                ActiveProviderProfileId = "deepseek-capability"
+            });
+            var vm = new SettingsViewModel(secretStore: new MemorySecretStore());
+
+            Assert.Contains("思考模式已启用", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("medium 映射为 high", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("temperature 不生效", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("top_p 按 0.95–1.0 范围发送", vm.SelectedProviderCapabilitySummary);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+        }
+    }
+
+    [Fact]
+    public void ProviderCapabilitySummary_ExplainsQwen38ReasoningMapping()
+    {
+        var original = App.Settings.Clone();
+        try
+        {
+            App.ReplaceSettings(new AppSettings
+            {
+                ProviderProfiles =
+                [
+                    new ProviderProfile
+                    {
+                        Id = "qwen-capability",
+                        Platform = ProviderPlatform.Qwen,
+                        Protocol = ProviderProtocol.OpenAICompatible,
+                        ApiBase = "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                        Model = "qwen3.8-flash",
+                        InferenceLevel = InferenceLevel.High
+                    }
+                ],
+                ActiveProviderProfileId = "qwen-capability"
+            });
+            var vm = new SettingsViewModel(secretStore: new MemorySecretStore());
+
+            Assert.Contains("阿里云百炼 qwen3.8-flash", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("reasoning_effort=xhigh", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("不发送 thinking_budget", vm.SelectedProviderCapabilitySummary);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+        }
+    }
+
+    [Fact]
+    public void ProviderCapabilitySummary_ExplainsDoubaoSeed20SamplingAndReasoning()
+    {
+        var original = App.Settings.Clone();
+        try
+        {
+            App.ReplaceSettings(new AppSettings
+            {
+                ProviderProfiles =
+                [
+                    new ProviderProfile
+                    {
+                        Id = "doubao-capability",
+                        Platform = ProviderPlatform.Doubao,
+                        Protocol = ProviderProtocol.OpenAICompatible,
+                        ApiBase = "https://ark.cn-beijing.volces.com/api/v3",
+                        Model = "doubao-seed-2-0-lite-260428",
+                        InferenceLevel = InferenceLevel.High
+                    }
+                ],
+                ActiveProviderProfileId = "doubao-capability"
+            });
+            var vm = new SettingsViewModel(secretStore: new MemorySecretStore());
+
+            Assert.Contains("reasoning_effort=high", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("temperature/top_p 按设置发送", vm.SelectedProviderCapabilitySummary);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+        }
+    }
+
+    [Fact]
+    public void ProviderCapabilitySummary_UsesResolvedModelFromMapping()
+    {
+        var original = App.Settings.Clone();
+        var dataRoot = Path.Combine(AppContext.BaseDirectory, "test-data", "openai-capability-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dataRoot);
+        try
+        {
+            App.ReplaceSettings(new AppSettings());
+            var vm = new SettingsViewModel(new ArchiveService(dataRoot), new MemorySecretStore());
+            var profile = vm.SelectedProviderProfile!;
+            profile.Platform = ProviderPlatform.OpenAI;
+            profile.Protocol = ProviderProtocol.OpenAICompatible;
+            profile.Model = "preferred";
+            profile.EnableModelMapping = true;
+            vm.ModelMappingEntries.Add(new ModelMappingEntry { Key = "preferred", Value = "o3-2025-04-16" });
+
+            Assert.Contains("reasoning_effort", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("当前官方资料没有明确列出", vm.SelectedProviderCapabilitySummary);
+            Assert.Contains("已保存的采样值不生效", vm.SelectedProviderCapabilitySummary);
+        }
+        finally
+        {
+            App.ReplaceSettings(original);
+            try { Directory.Delete(dataRoot, recursive: true); } catch { }
+        }
     }
 
     [Fact]
@@ -508,6 +1828,7 @@ public class SettingsViewModelTests
         {
             try
             {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
                 App.ReplaceSettings(new AppSettings());
                 var store = new MemorySecretStore();
                 var vm = new SettingsViewModel(secretStore: store);
@@ -522,6 +1843,7 @@ public class SettingsViewModelTests
                 Assert.Equal("second-key", store.Read(second.SecretId));
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ShutdownCurrentWpfDispatcher(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -537,6 +1859,7 @@ public class SettingsViewModelTests
         {
             try
             {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
                 App.ReplaceSettings(new AppSettings());
                 var store = new MemorySecretStore();
                 store.Seed("provider-default", "old-key");
@@ -547,6 +1870,7 @@ public class SettingsViewModelTests
                 Assert.Null(store.Read("provider-default"));
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ShutdownCurrentWpfDispatcher(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -562,6 +1886,7 @@ public class SettingsViewModelTests
         {
             try
             {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
                 App.ReplaceSettings(new AppSettings
                 {
                     ProviderProfiles =
@@ -580,6 +1905,7 @@ public class SettingsViewModelTests
                 Assert.Null(store.Read("secret-one"));
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ShutdownCurrentWpfDispatcher(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -611,6 +1937,7 @@ public class SettingsViewModelTests
                 Assert.Equal("wrong-key", vm.ApiKey);
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ShutdownCurrentWpfDispatcher(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -626,6 +1953,7 @@ public class SettingsViewModelTests
         {
             try
             {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
                 App.ReplaceSettings(new AppSettings());
                 var store = new MemorySecretStore();
                 var vm = new SettingsViewModel(secretStore: store, connectionTester: (_, key, _) =>
@@ -643,6 +1971,7 @@ public class SettingsViewModelTests
                 Assert.Equal("valid-key", store.Read("provider-default"));
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ShutdownCurrentWpfDispatcher(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -681,6 +2010,7 @@ public class SettingsViewModelTests
         {
             try
             {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
                 App.ReplaceSettings(new AppSettings());
                 var store = new MemorySecretStore();
                 var testerCalled = false;
@@ -698,6 +2028,7 @@ public class SettingsViewModelTests
                 Assert.Equal("offline-key", store.Read("provider-default"));
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ShutdownCurrentWpfDispatcher(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -708,7 +2039,7 @@ public class SettingsViewModelTests
     [Fact]
     public void Constructor_LoadsHistoryImmediatelyInsteadOfShowingAnEmptyPlaceholder()
     {
-        var root = Path.Combine(Path.GetTempPath(), "HuaxiaziSettingsVm_" + Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(Environment.CurrentDirectory, "out", "test-data", "SettingsVm_" + Guid.NewGuid().ToString("N"));
         try
         {
             var archive = new ArchiveService(root);
@@ -728,22 +2059,31 @@ public class SettingsViewModelTests
     [Fact]
     public void AvailableModels_And_SelectedModel_FollowSelectedProvider()
     {
-        App.ReplaceSettings(new AppSettings());
-        var vm = new SettingsViewModel();
-        Assert.NotEmpty(vm.ProviderProfiles);
-        var profile = vm.ProviderProfiles[0];
-        vm.SelectedProviderProfile = profile;
+        var root = Path.Combine(Environment.CurrentDirectory, "out", "test-data", "SettingsVm_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            App.ReplaceSettings(new AppSettings());
+            var vm = new SettingsViewModel(archiveService: new ArchiveService(root));
+            Assert.NotEmpty(vm.ProviderProfiles);
+            var profile = vm.ProviderProfiles[0];
+            vm.SelectedProviderProfile = profile;
 
-        // 切到 DeepSeek → 自动填充默认模型，可用模型列表联动
-        vm.SelectedProviderPlatform = ProviderPlatformCatalog.Get(ProviderPlatform.DeepSeek);
-        Assert.Equal("deepseek-v4-flash", profile.Model);
-        Assert.Contains(vm.AvailableModels, m => m.ModelId == "deepseek-v4-flash");
-        Assert.Contains(vm.AvailableModels, m => m.ModelId == "deepseek-v4-pro");
-        Assert.Equal("DeepSeek V4 Flash", vm.SelectedModel?.DisplayName);
+            // 切到 DeepSeek → 自动填充默认模型，可用模型列表联动
+            vm.SelectedProviderPlatform = ProviderPlatformCatalog.Get(ProviderPlatform.DeepSeek);
+            Assert.Equal("deepseek-flash", profile.Model);
+            Assert.Contains(vm.AvailableModels, m => m.ModelId == "deepseek-flash");
+            Assert.Contains(vm.AvailableModels, m => m.ModelId == "deepseek-v4-pro");
+            Assert.Equal("DeepSeek V4.1 Flash（当前）", vm.SelectedModel?.DisplayName);
 
-        // 切换模型 → 写回 profile.Model（显示名 → 实际 Model ID）
-        vm.SelectedModel = vm.AvailableModels.First(m => m.ModelId == "deepseek-v4-pro");
-        Assert.Equal("deepseek-v4-pro", profile.Model);
+            // 切换模型 → 写回 profile.Model（显示名 → 实际 Model ID）
+            vm.SelectedModel = vm.AvailableModels.First(m => m.ModelId == "deepseek-v4-pro");
+            Assert.Equal("deepseek-v4-pro", profile.Model);
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
     }
 
     [Fact]
@@ -755,6 +2095,7 @@ public class SettingsViewModelTests
         {
             try
             {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
                 App.ReplaceSettings(new AppSettings());
                 var vm = new SettingsViewModel();
                 var profile = vm.ProviderProfiles[0];
@@ -773,6 +2114,7 @@ public class SettingsViewModelTests
                 Assert.Equal("deepseek-chat", profile.ModelMapping["claude-sonnet"]);
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ShutdownCurrentWpfDispatcher(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -991,6 +2333,36 @@ public class SettingsViewModelTests
         vm.IncognitoMode = false;
         vm.HistoryEnabled = false;
         Assert.False(vm.CanConfigureHistoryStorage);
+    }
+
+    [Fact]
+    public void TrySave_LocalGenerationDiagnosticsOptInPersistsWithoutChangingIncognitoSetting()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var original = App.Settings.Clone();
+            try
+            {
+                using var configScope = TestHelpers.UseIsolatedConfigDirectory();
+                App.ReplaceSettings(new AppSettings { IncognitoMode = false });
+                var vm = new SettingsViewModel { LocalGenerationDiagnosticsEnabled = true };
+
+                Assert.True(vm.TrySave(), vm.ValidationMessage);
+                Assert.True(new ConfigService().Load().LocalGenerationDiagnosticsEnabled);
+                Assert.False(App.Settings.IncognitoMode);
+            }
+            catch (Exception exception) { failure = exception; }
+            finally
+            {
+                App.ReplaceSettings(original);
+                TestHelpers.ShutdownCurrentWpfDispatcher();
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
     }
 
     [Fact]

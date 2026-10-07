@@ -7,6 +7,81 @@ namespace Huaxiazi.Tests;
 public sealed class ProviderProfileTests
 {
     [Fact]
+    public void ManagedLocalPlatform_IsAvailableForApplicationManagedModels()
+    {
+        Assert.True(Enum.TryParse<ProviderPlatform>("ManagedLocal", out var platform));
+        Assert.Equal("ManagedLocal", platform.ToString());
+    }
+
+    [Fact]
+    public void Clone_ManagedLocalProfile_PreservesInstallationAndRuntimeReferences()
+    {
+        var profile = new ProviderProfile
+        {
+            Platform = ProviderPlatform.ManagedLocal,
+            Type = ProviderType.Local,
+            LocalModelInstallationId = "qwen3-4b@2507",
+            LocalAdapterInstallationId = "huaxiazi-polish@1",
+            LocalRuntimeProfileId = "balanced"
+        };
+
+        var clone = profile.Clone();
+
+        Assert.Equal("qwen3-4b@2507", clone.LocalModelInstallationId);
+        Assert.Equal("huaxiazi-polish@1", clone.LocalAdapterInstallationId);
+        Assert.Equal("balanced", clone.LocalRuntimeProfileId);
+    }
+
+    [Fact]
+    public void Clone_OpenRouterCapabilitySnapshot_PreservesValuesWithoutSharingMutableList()
+    {
+        var profile = new ProviderProfile
+        {
+            Platform = ProviderPlatform.OpenRouter,
+            Model = "vendor/model",
+            OpenRouterCapabilitiesModelId = "vendor/model",
+            OpenRouterSupportedParameters = ["response_format", "max_tokens"]
+        };
+
+        var clone = profile.Clone();
+        Assert.Equal("vendor/model", clone.OpenRouterCapabilitiesModelId);
+        Assert.NotNull(clone.OpenRouterSupportedParameters);
+        Assert.NotSame(profile.OpenRouterSupportedParameters, clone.OpenRouterSupportedParameters);
+        clone.OpenRouterSupportedParameters!.Add("temperature");
+
+        Assert.Equal(new[] { "response_format", "max_tokens", "temperature" }, clone.OpenRouterSupportedParameters);
+        Assert.Equal(new[] { "response_format", "max_tokens" }, profile.OpenRouterSupportedParameters);
+    }
+
+    [Fact]
+    public void Clone_OpenAiResponsesProfile_PreservesProtocolAndLegacyProfileDefaultRemainsChatCompletions()
+    {
+        var responses = new ProviderProfile
+        {
+            Platform = ProviderPlatform.OpenAI,
+            Protocol = ProviderProtocol.OpenAIResponses,
+            ApiBase = "https://api.openai.com/v1",
+            Model = "gpt-4.1-mini"
+        };
+
+        var clone = responses.Clone();
+        var oldProfile = new ProviderProfile { Platform = ProviderPlatform.OpenAI };
+
+        Assert.Equal(ProviderProtocol.OpenAIResponses, clone.Protocol);
+        Assert.Equal(ProviderProtocol.OpenAICompatible, oldProfile.Protocol);
+    }
+
+    [Fact]
+    public void GeminiPreset_OffersCurrentFlashAndProModelIds()
+    {
+        var models = ProviderPlatformCatalog.Get(ProviderPlatform.Gemini).Models!;
+
+        Assert.Contains(models, model => model.ModelId == "gemini-3.8-flash");
+        Assert.Contains(models, model => model.ModelId == "gemini-3.1-pro-preview");
+        Assert.DoesNotContain(models, model => model.ModelId == "gemini-3.5-pro");
+    }
+
+    [Fact]
     public void NormalizeProviderProfiles_EmptyCollection_CreatesUsableDefaultProfile()
     {
         var settings = new AppSettings

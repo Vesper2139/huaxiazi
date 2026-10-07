@@ -18,7 +18,8 @@ public sealed class ConfigService
     /// <summary>
     /// 当前配置结构版本号。2.0.0 是全新数据边界；版本不匹配的文件不会被读取或迁移。
     /// </summary>
-    public const int CurrentConfigVersion = 20;
+    public const int CurrentConfigVersion = 21;
+    private const int ManagedLocalMigrationSourceVersion = 20;
 
     // 注意：此处未用 readonly，以便单元测试通过反射把路径重定向到临时目录做隔离（见 Huaxiazi.Tests/TestHelpers.cs）。
     private static string AppDataFolder =
@@ -74,7 +75,12 @@ public sealed class ConfigService
         // A 2.0.0 installation is intentionally a clean break. Do not reinterpret
         // an older config or move secrets from it; leave the file untouched and
         // start with a fresh profile instead.
-        if (settings is not null && settings.ConfigVersion != CurrentConfigVersion)
+        var migratedFromVersion20 = settings?.ConfigVersion == ManagedLocalMigrationSourceVersion;
+        if (migratedFromVersion20)
+        {
+            settings!.ConfigVersion = CurrentConfigVersion;
+        }
+        else if (settings is not null && settings.ConfigVersion != CurrentConfigVersion)
         {
             PreserveObsoleteConfig(sourcePath, settings.ConfigVersion);
             settings = null;
@@ -104,6 +110,14 @@ public sealed class ConfigService
             settings.NormalizePromptSettings();
             settings.NormalizeDisplaySettings();
             settings.ExpressionPreferenceProfile ??= new ExpressionPreferenceProfile();
+            settings.ExpressionPreferenceProfile.Normalize();
+            if (migratedFromVersion20)
+            {
+                // Keep a redacted copy before the first v21 rewrite so migration can be
+                // investigated or manually rolled back without exposing plaintext secrets.
+                PreserveObsoleteConfig(sourcePath, ManagedLocalMigrationSourceVersion);
+                try { Save(settings); } catch { /* migration remains valid in memory */ }
+            }
             return settings;
         }
 
@@ -270,6 +284,10 @@ public sealed class ConfigService
     {
         var candidates = new[]
         {
+            // 单文件发布下随包文件被解包到临时目录，而 AppContext.BaseDirectory 指向 EXE 目录，
+            // 因此先查 AppPaths.ContentRoot，再回退到程序目录。
+            Path.Combine(AppPaths.ContentRoot, "Config", "default-config.json"),
+            Path.Combine(AppPaths.ContentRoot, "default-config.json"),
             Path.Combine(AppContext.BaseDirectory, "Config", "default-config.json"),
             Path.Combine(AppContext.BaseDirectory, "default-config.json")
         };

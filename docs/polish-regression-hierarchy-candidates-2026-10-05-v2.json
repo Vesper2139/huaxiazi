@@ -1,0 +1,161 @@
+{
+  "schema_version": "1.0",
+  "purpose": "internal_regression_only",
+  "phase0_gate_contribution": 0,
+  "task_family_count": 16,
+  "backbone_count": 2,
+  "matched_legacy_intent_suffix_family_count": 16,
+  "backbones": [
+    {
+      "backbone_id": "hxz-polish-backbone-a3a3fd75b38547e4",
+      "status": "provisional_requires_human_review",
+      "task_family_count": 8,
+      "representative_count": 8,
+      "split_family_counts": {
+        "development": 6,
+        "regression": 2
+      },
+      "task_families": [
+        {
+          "family_id": "hxz-polish-reg-family-252005ab8e278fc7",
+          "split": "development",
+          "intent": "\u8FDB\u5EA6\u6C47\u62A5",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        },
+        {
+          "family_id": "hxz-polish-reg-family-5601a88eef5b67d3",
+          "split": "development",
+          "intent": "\u95EE\u9898\u5206\u6790",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        },
+        {
+          "family_id": "hxz-polish-reg-family-63e29f5a4fd9bff9",
+          "split": "development",
+          "intent": "\u516C\u5F00\u8BF4\u660E",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        },
+        {
+          "family_id": "hxz-polish-reg-family-9ec8e7d402e9462a",
+          "split": "development",
+          "intent": "\u81F4\u8C22",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        },
+        {
+          "family_id": "hxz-polish-reg-family-a1fdca4eab7bc171",
+          "split": "development",
+          "intent": "\u63D0\u51FA\u8BF7\u6C42",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        },
+        {
+          "family_id": "hxz-polish-reg-family-bfb03c869906c6f7",
+          "split": "development",
+          "intent": "\u81F4\u6B49",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        },
+        {
+          "family_id": "hxz-polish-reg-family-c2fb40ce80ba3479",
+          "split": "regression",
+          "intent": "\u8BF4\u660E\u5EF6\u671F",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        },
+        {
+          "family_id": "hxz-polish-reg-family-f6b91cc586bbf9dd",
+          "split": "regression",
+          "intent": "\u5A49\u62D2",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        }
+      ]
+    },
+    {
+      "backbone_id": "hxz-polish-backbone-a53558999c050961",
+      "status": "provisional_requires_human_review",
+      "task_family_count": 8,
+      "representative_count": 8,
+      "split_family_counts": {
+        "development": 7,
+        "regression": 1
+      },
+      "task_families": [
+        {
+          "family_id": "hxz-polish-reg-family-1da9a79141a92c28",
+          "split": "development",
+          "intent": "\u5A49\u62D2",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        },
+        {
+          "family_id": "hxz-polish-reg-family-370a47a20df74272",
+          "split": "development",
+          "intent": "\u95EE\u9898\u5206\u6790",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        },
+        {
+          "family_id": "hxz-polish-reg-family-9dcebc6a8206853e",
+          "split": "development",
+          "intent": "\u516C\u5F00\u8BF4\u660E",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        },
+        {
+          "family_id": "hxz-polish-reg-family-c70727fbb8796cb7",
+          "split": "regression",
+          "intent": "\u81F4\u6B49",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        },
+        {
+          "family_id": "hxz-polish-reg-family-c828039d0277e575",
+          "split": "development",
+          "intent": "\u8BF4\u660E\u5EF6\u671F",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        },
+        {
+          "family_id": "hxz-polish-reg-family-fc826e55fb0beec1",
+          "split": "development",
+          "intent": "\u8FDB\u5EA6\u6C47\u62A5",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        },
+        {
+          "family_id": "hxz-polish-reg-family-fe13359e2170ea06",
+          "split": "development",
+          "intent": "\u63D0\u51FA\u8BF7\u6C42",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        },
+        {
+          "family_id": "hxz-polish-reg-family-ff552c6d00f483fe",
+          "split": "development",
+          "intent": "\u81F4\u8C22",
+          "representative_count": 1,
+          "distinct_reference_output_count": 1
+        }
+      ]
+    }
+  ],
+  "split_backbone_overlap": [
+    {
+      "left_split": "development",
+      "right_split": "regression",
+      "shared_backbone_count": 2,
+      "left_backbone_count": 2,
+      "right_backbone_count": 2
+    }
+  ],
+  "limitations": [
+    "Backbone IDs are deterministic candidates, not human-adjudicated semantic gold labels.",
+    "A backbone shared across splits cannot support unseen-scenario generalization claims.",
+    "The task-family representatives are inherited synthetic records; labels and references remain unreviewed.",
+    "This hierarchy report contributes zero samples to formal phase 0 blind evaluation."
+  ]
+}

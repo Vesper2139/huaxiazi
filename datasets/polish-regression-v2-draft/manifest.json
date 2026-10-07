@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0",
+  "dataset_version": "hxz-polish-regression-v2-draft",
+  "status": "draft",
+  "parent_dataset_version": "hxz-polish-regression-v1",
+  "parent_manifest_sha256": "8da2557b6a9b2f0a6c2d80ffd746bb79d6b494da5b50ad1db4fe45f23d11a2cb",
+  "parent_cases_sha256": "27ddceb1f9706f0851dae720d79ae5361638d7bcef8bd0788f4bfd3260da3195",
+  "parent_source_sha256": "e4406fffefccb7394f7bc13525fc2ea78f7b97d7c3ef14c446253a2040b230d7",
+  "hierarchy_report_sha256": "caa18f116668aa6a8139a4fa79242e163b00ec5895fa7c963f11a6defcead2ff",
+  "purpose": "internal_regression_annotation_draft",
+  "phase_0_gate_contribution": 0,
+  "not_admissible_as_blind_eval": true,
+  "origin": "ai_assisted_draft",
+  "counts": {
+    "labels": 16,
+    "human_verified": 0,
+    "unreviewed": 16
+  },
+  "model": "GPT-6 (Codex)",
+  "draft_by": "AI assistant",
+  "prompt_sha256": "dfa324a7b30584ad53e1c265b8e83594d6289998fc4ffa7711475cbb8b0b316f",
+  "drafted_at_utc": "2026-10-05T03:27:23Z",
+  "files": {
+    "README.md": "5eacb9159838d2ab0ff53ff183e13c38c4791ee7c1a34dc8b146ae4402272296",
+    "label.schema.json": "24051549218dcea04c1b956bf53a3b1c96d7b49baccba9a1a2b5b8041e388a9f",
+    "label-prompt-v1.md": "dfa324a7b30584ad53e1c265b8e83594d6289998fc4ffa7711475cbb8b0b316f",
+    "labels.jsonl": "12efbac55bc2b0923513b522fe8b554eb2a7367072867405abd629d024e41e18"
+  },
+  "limitations": [
+    "All annotations are AI drafts and remain unreviewed; they are not gold labels.",
+    "Backbone grouping is provisional and its split overlaps across development/regression.",
+    "Potential reference-output reuse is a review flag, not an automatic rejection.",
+    "Formal phase 0 blind-evaluation contribution is zero."
+  ]
+}

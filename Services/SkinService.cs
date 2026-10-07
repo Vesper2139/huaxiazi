@@ -166,20 +166,47 @@ public sealed class SkinService
     {
         Register(new SkinManifest("LightPaper", "浅色纸张", "Resources/Themes/Light.xaml"));
         Register(new SkinManifest("DarkNocturne", "深色夜幕", "Resources/Themes/Dark.xaml"));
-        Register(new SkinManifest("LuoXiaoHei", "罗小黑", "Resources/Themes/LuoXiaoHei.xaml",
-            CompanionKind: "spritesheet", PreviewPath: "Resources/Skins/LuoXiaoHei/Idle.png",
-            CompanionSpriteSheetPath: "Resources/Skins/LuoXiaoHei/sprite-sheet-v2.png",
-            CompanionIdleVariantsPath: "Resources/Skins/LuoXiaoHei/idle-variants-v2.png"));
-        Register(new SkinManifest("MaoDie", "耄耋", "Resources/Themes/MaoDie.xaml",
-            CompanionKind: "spritesheet", PreviewPath: "Resources/Skins/MaoDie/Idle.png",
-            CompanionSpriteSheetPath: "Resources/Skins/MaoDie/sprite-sheet.png"));
+        RegisterBuiltInImageSkin("LuoXiaoHei", "罗小黑", "Resources/Themes/LuoXiaoHei.xaml",
+            frameStateOverrides: new Dictionary<string, string> { ["Dragging"] = "Idle" });
+        RegisterBuiltInImageSkin("MaoDie", "耄耋", "Resources/Themes/MaoDie.xaml",
+            idleBehaviorOverrides: new Dictionary<string, string>
+            {
+                ["CuriousLook"] = "Listening", ["Glance"] = "Listening", ["LookAround"] = "Listening"
+            });
+        RegisterBuiltInImageSkin("YongWeiXiaoFei", "永维小菲", "Resources/Themes/YongWeiXiaoFei.xaml");
+        RegisterBuiltInImageSkin("StarSailor", "菲比啾比", "Resources/Themes/StarSailor.xaml");
+        RegisterBuiltInImageSkin("BlueWhaleMaid", "蓝色大肥鱼", "Resources/Themes/BlueWhaleMaid.xaml");
+    }
+
+    /// <summary>
+    /// 所有内置角色皮肤都走同一份目录契约。新增皮肤只需补齐 States 下的
+    /// 十二张规范图片和主题令牌，无需修改渲染控件或状态机。
+    /// </summary>
+    private void RegisterBuiltInImageSkin(
+        string id,
+        string displayName,
+        string resourcePath,
+        IReadOnlyDictionary<string, string>? idleBehaviorOverrides = null,
+        IReadOnlyDictionary<string, string>? frameStateOverrides = null)
+    {
+        var root = $"Resources/Skins/{id}";
+        Register(new SkinManifest(
+            id,
+            displayName,
+            resourcePath,
+            CompanionKind: "image",
+            PreviewPath: $"{root}/preview.png",
+            CompanionStates: BuildCompanionStates(id),
+            AppIconPath: $"Resources/Brand/Skins/{id}.ico",
+            IdleBehaviorOverrides: idleBehaviorOverrides,
+            FrameStateOverrides: frameStateOverrides));
     }
 
     private static IReadOnlyDictionary<string, string> BuildCompanionStates(string folder)
     {
         var states = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var state in Enum.GetNames<CompanionVisualState>())
-            states[state] = $"Resources/Skins/{folder}/{state}.png";
+            states[state] = $"Resources/Skins/{folder}/States/{state}.png";
         return states;
     }
 }

@@ -143,7 +143,7 @@ public sealed class CompanionMotionSystemTests
     }
 
     [Fact]
-    public void PoseComposer_AddsDirectionalDragWithoutMutatingTheBasePose()
+    public void PoseComposer_AddsDirectionalDragWithoutResizingOrMutatingTheBasePose()
     {
         var original = new CompanionPose
         {
@@ -162,14 +162,15 @@ public sealed class CompanionMotionSystemTests
         var composed = PoseComposer.Compose(original, CompanionPose.Identity, intent);
 
         Assert.Equal(1.02, original.ScaleX);
-        Assert.True(composed.ScaleX > original.ScaleX);
+        Assert.Equal(original.ScaleX, composed.ScaleX);
+        Assert.Equal(original.ScaleY, composed.ScaleY);
         Assert.True(composed.OffsetX > 0);
         Assert.True(composed.OffsetY < original.OffsetY);
         Assert.Equal(original.EyeOpen, composed.EyeOpen);
     }
 
     [Fact]
-    public void PoseComposer_DragStartWithoutDirectionStillProvidesVisiblePickupFeedback()
+    public void PoseComposer_DragStartWithoutDirectionKeepsTheStateAssetAtItsCanonicalScale()
     {
         var intent = new CompanionIntent(
             CompanionVisualState.Idle,
@@ -180,8 +181,8 @@ public sealed class CompanionMotionSystemTests
 
         var composed = PoseComposer.Compose(CompanionPose.Identity, CompanionPose.Identity, intent);
 
-        Assert.True(composed.ScaleX > 1);
-        Assert.True(composed.ScaleY < 1);
+        Assert.Equal(1, composed.ScaleX);
+        Assert.Equal(1, composed.ScaleY);
     }
 
     [Theory]
@@ -325,6 +326,25 @@ public sealed class CompanionMotionSystemTests
         Assert.True(interrupted.OffsetX > 0);
         Assert.True(interrupted.ScaleY < 1);
         Assert.Equal(CompanionVisualState.Working, controller.BaseState);
+    }
+
+    [Fact]
+    public void PoseController_DraggingSuppressesIdleBreathingScale()
+    {
+        var clock = new ManualAnimationClock();
+        var controller = new CompanionPoseController(new SequenceRandomSource(0.4), clock);
+        controller.SetBaseState(CompanionVisualState.Idle);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        controller.Apply(new CompanionEvent(
+            CompanionEventKind.DragMoved,
+            Direction: CompanionDirection.East,
+            BaseState: CompanionVisualState.Idle));
+
+        var pose = controller.Advance(TimeSpan.FromMilliseconds(16), animationsEnabled: false, reduceMotion: false);
+
+        Assert.Equal(1, pose.ScaleX);
+        Assert.Equal(1, pose.ScaleY);
+        Assert.True(pose.OffsetX > 0);
     }
 
     [Fact]

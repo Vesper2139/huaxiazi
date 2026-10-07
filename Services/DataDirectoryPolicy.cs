@@ -15,17 +15,20 @@ internal static class DataDirectoryPolicy
     {
         resolvedPath = Path.GetFullPath(defaultRoot);
         errorMessage = string.Empty;
-        if (string.IsNullOrWhiteSpace(configuredPath)) return true;
+        var hasConfiguredPath = !string.IsNullOrWhiteSpace(configuredPath);
+        if (!hasConfiguredPath && !verifyWritable) return true;
 
         try
         {
-            if (configuredPath.Any(char.IsControl))
+            if (hasConfiguredPath && configuredPath!.Any(char.IsControl))
             {
                 errorMessage = "数据目录包含无效字符，请重新选择文件夹。";
                 return false;
             }
-            var expanded = Environment.ExpandEnvironmentVariables(configuredPath.Trim());
-            if (expanded.IndexOfAny(Path.GetInvalidPathChars()) >= 0 || expanded.Any(char.IsControl))
+            var expanded = hasConfiguredPath
+                ? Environment.ExpandEnvironmentVariables(configuredPath!.Trim())
+                : resolvedPath;
+            if (hasConfiguredPath && (expanded.IndexOfAny(Path.GetInvalidPathChars()) >= 0 || expanded.Any(char.IsControl)))
             {
                 errorMessage = "数据目录包含无效字符，请重新选择文件夹。";
                 return false;
@@ -54,8 +57,21 @@ internal static class DataDirectoryPolicy
         }
     }
 
-    public static string ResolveOrDefault(string? configuredPath, string defaultRoot)
-        => TryResolve(configuredPath, defaultRoot, verifyWritable: false, out var resolved, out _)
-            ? resolved
-            : Path.GetFullPath(defaultRoot);
+    public static string ResolveOrDefault(string? configuredPath, string defaultRoot, string? fallbackRoot = null)
+    {
+        if (TryResolve(configuredPath, defaultRoot, verifyWritable: true, out var configured, out _))
+            return configured;
+
+        if (TryResolve(null, defaultRoot, verifyWritable: true, out var primary, out _))
+            return primary;
+
+        if (!string.IsNullOrWhiteSpace(fallbackRoot) &&
+            TryResolve(null, fallbackRoot, verifyWritable: true, out var fallback, out _))
+            return fallback;
+
+        // Preserve the historical path as the final deterministic fallback. The
+        // health check will still report a useful error if even this path cannot
+        // be opened, but a restricted session gets a chance to use fallbackRoot.
+        return Path.GetFullPath(defaultRoot);
+    }
 }

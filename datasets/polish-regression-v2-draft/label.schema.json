@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://huaxiazi.local/schemas/polish-regression-label-v2-draft.json",
+  "title": "Internal Polish Regression AI Draft Label v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "dataset_version", "parent_dataset_version", "family_id", "backbone_id", "backbone_status", "split", "origin", "source_record_id", "fields", "human_status", "reviewer_id", "reviewed_at_utc", "review_flags"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "id": {"type": "string", "pattern": "^hxz-polish-reg-label-[a-f0-9]{16}$"},
+    "dataset_version": {"const": "hxz-polish-regression-v2-draft"},
+    "parent_dataset_version": {"const": "hxz-polish-regression-v1"},
+    "family_id": {"type": "string", "pattern": "^hxz-polish-reg-family-[a-f0-9]{16}$"},
+    "backbone_id": {"type": "string", "pattern": "^hxz-polish-backbone-[a-f0-9]{16}$"},
+    "backbone_status": {"const": "provisional_requires_human_review"},
+    "split": {"enum": ["development", "regression"]},
+    "origin": {"const": "ai_assisted_draft"},
+    "source_record_id": {"type": "string", "minLength": 1},
+    "fields": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/field"},
+      "required": ["requested_intent", "semantic_scene", "input_style", "target_formality", "draft_fact_anchors", "injection_marker", "reference_output_reuse", "legacy_scenario", "legacy_channel", "legacy_risk_level", "legacy_task", "legacy_expected_decision", "legacy_claims", "legacy_reference_output", "legacy_rubric"]
+    },
+    "human_status": {"const": "unreviewed"},
+    "reviewer_id": {"type": "null"},
+    "reviewed_at_utc": {"type": "null"},
+    "review_flags": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "confidence", "basis", "provenance"],
+      "properties": {
+        "value": {},
+        "confidence": {"enum": ["high", "medium", "low", "source_metadata_unverified"]},
+        "basis": {"type": "string", "minLength": 1},
+        "provenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "draft_by", "model", "prompt_hash", "drafted_at_utc", "human_status", "reviewer_id", "reviewed_at_utc", "source_record_id"],
+          "properties": {
+            "kind": {"enum": ["ai_draft", "legacy_import"]},
+            "draft_by": {"type": "string", "minLength": 1},
+            "model": {"type": "string", "minLength": 1},
+            "prompt_hash": {"type": "string", "minLength": 1},
+            "drafted_at_utc": {"type": "string", "format": "date-time"},
+            "human_status": {"const": "unreviewed"},
+            "reviewer_id": {"type": "null"},
+            "reviewed_at_utc": {"type": "null"},
+            "source_record_id": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    }
+  }
+}

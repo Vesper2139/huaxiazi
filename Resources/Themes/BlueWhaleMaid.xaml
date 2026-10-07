@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+    <sys:String x:Key="ThemeId">BlueWhaleMaid</sys:String>
+    <Color x:Key="BrandColor">#3F76D1</Color><Color x:Key="BrandColorDark">#2456A2</Color><Color x:Key="BrandHoverColor">#6095E8</Color>
+    <Color x:Key="BgColor">#EAF4FF</Color><Color x:Key="PanelColor">#F7FBFF</Color><Color x:Key="TextColor">#142743</Color>
+    <Color x:Key="BodyTextColor">#284465</Color><Color x:Key="MutedColor">#6985A5</Color><Color x:Key="DisabledTextColor">#A9BDD5</Color>
+    <Color x:Key="BorderColor">#8EAED3</Color><Color x:Key="HighlightColor">#243F76D1</Color><Color x:Key="SelectionColor">#753F76D1</Color>
+    <Color x:Key="SuccessColor">#4C9A9C</Color><Color x:Key="DangerColor">#B55362</Color><Color x:Key="GlassTopColor">#FFFFFF</Color>
+    <Color x:Key="GlassBottomColor">#DCEEFF</Color><Color x:Key="GlassBaseColor">#F3F9FF</Color><Color x:Key="EditorFillColor">#FCFEFF</Color>
+    <Color x:Key="CapsuleFillColor">#163F76D1</Color><Color x:Key="CapsuleBorderColor">#82A7D1</Color><Color x:Key="InputFillColor">#FCFEFF</Color>
+    <Color x:Key="InputBorderColor">#82A7D1</Color><Color x:Key="FocusBorderColor">#C03F76D1</Color><Color x:Key="GlassBorderColor">#82A7D1</Color>
+    <Color x:Key="HoverSurfaceColor">#183F76D1</Color><Color x:Key="SelectedSurfaceColor">#283F76D1</Color><Color x:Key="PopupColor">#F7FBFF</Color>
+    <Color x:Key="DockColor">#DDEEFF</Color><Color x:Key="SwitchTrackColor">#93B5D7</Color><Color x:Key="ScrollThumbColor">#8A6985A5</Color>
+    <Color x:Key="CompanionSurfaceColor">#91CEFF</Color><Color x:Key="CompanionFaceColor">#FDFEFF</Color><Color x:Key="CompanionAccentColor">#3C8DE8</Color>
+    <Color x:Key="CompanionBorderColor">#2456A2</Color><Color x:Key="CompanionGlowColor">#4A3F76D1</Color><Color x:Key="CompanionShadowColor">#6A142743</Color>
+    <CornerRadius x:Key="WindowRadius">14</CornerRadius><CornerRadius x:Key="InputRadius">11</CornerRadius><CornerRadius x:Key="ButtonRadius">9</CornerRadius>
+    <CornerRadius x:Key="DropdownRadius">9</CornerRadius><CornerRadius x:Key="SmallRadius">7</CornerRadius><CornerRadius x:Key="CardRadius">12</CornerRadius>
+    <sys:Double x:Key="SkinCompanionSize">44</sys:Double><sys:Double x:Key="SkinTitleBarHeight">34</sys:Double><sys:Double x:Key="SkinCompanionOverscan">1</sys:Double><sys:Double x:Key="SkinCompanionOffsetY">0</sys:Double>
+    <sys:Double x:Key="SkinToolButtonSize">24</sys:Double><sys:Double x:Key="SkinIconStrokeWidth">1.5</sys:Double>
+    <sys:Double x:Key="SkinControlHeight">34</sys:Double><Thickness x:Key="SkinContentSpacing">10</Thickness>
+    <SolidColorBrush x:Key="BrandBrush" Color="#3F76D1"/><SolidColorBrush x:Key="BrandDarkBrush" Color="#2456A2"/><SolidColorBrush x:Key="BrandHoverBrush" Color="#6095E8"/><SolidColorBrush x:Key="BrandGradientBrush" Color="#3F76D1"/>
+    <SolidColorBrush x:Key="BgBrush" Color="#EAF4FF"/><SolidColorBrush x:Key="PanelBrush" Color="#F7FBFF"/><SolidColorBrush x:Key="TextBrush" Color="#142743"/><SolidColorBrush x:Key="BodyTextBrush" Color="#284465"/><SolidColorBrush x:Key="MutedBrush" Color="#6985A5"/><SolidColorBrush x:Key="DisabledTextBrush" Color="#A9BDD5"/>
+    <SolidColorBrush x:Key="BorderBrush" Color="#8EAED3"/><SolidColorBrush x:Key="HighlightBrush" Color="#243F76D1"/><SolidColorBrush x:Key="SelectionBrush" Color="#753F76D1"/><SolidColorBrush x:Key="SuccessBrush" Color="#4C9A9C"/><SolidColorBrush x:Key="DangerBrush" Color="#B55362"/>
+    <SolidColorBrush x:Key="GlassBrush" Color="#F3F9FF"/><SolidColorBrush x:Key="GlassBorderBrush" Color="#82A7D1"/><SolidColorBrush x:Key="HuaxiaziEdgeBrush" Color="#82A7D1"/><SolidColorBrush x:Key="EditorBrush" Color="#FCFEFF"/><SolidColorBrush x:Key="CapsuleBrush" Color="#163F76D1"/><SolidColorBrush x:Key="CapsuleBorderBrush" Color="#82A7D1"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#FCFEFF"/><SolidColorBrush x:Key="InputBorderBrush" Color="#82A7D1"/><SolidColorBrush x:Key="FocusBorderBrush" Color="#C03F76D1"/><SolidColorBrush x:Key="HoverSurfaceBrush" Color="#183F76D1"/><SolidColorBrush x:Key="SelectedSurfaceBrush" Color="#283F76D1"/><SolidColorBrush x:Key="PopupBrush" Color="#F7FBFF"/>
+    <SolidColorBrush x:Key="DockBrush" Color="#DDEEFF"/><SolidColorBrush x:Key="SwitchTrackBrush" Color="#93B5D7"/><SolidColorBrush x:Key="SwitchThumbBrush" Color="#FFFFFF"/><SolidColorBrush x:Key="ScrollThumbBrush" Color="#8A6985A5"/>
+    <SolidColorBrush x:Key="CompanionSurfaceBrush" Color="#91CEFF"/><SolidColorBrush x:Key="CompanionFaceBrush" Color="#FDFEFF"/><SolidColorBrush x:Key="CompanionAccentBrush" Color="#3C8DE8"/><SolidColorBrush x:Key="CompanionBorderBrush" Color="#2456A2"/>
+</ResourceDictionary>

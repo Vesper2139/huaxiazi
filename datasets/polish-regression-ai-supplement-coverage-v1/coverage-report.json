@@ -1,0 +1,109 @@
+{
+  "schema_version": "1.0",
+  "report_version": "hxz-polish-regression-ai-supplement-coverage-v1",
+  "status": "internal_diagnostic_pending_human_spec_review",
+  "purpose": "internal_regression_coverage_gap_triage",
+  "phase_0_gate_contribution": 0,
+  "not_admissible_as_blind_eval": true,
+  "supplementation_authorized": false,
+  "evidence_status": "ai_draft_unreviewed",
+  "unit": "provisional_ai_labeled_family",
+  "case_count": 20,
+  "family_count": 20,
+  "unique_normalized_input_count": 20,
+  "target_minimum_families_per_behavior": 5,
+  "behavior_category_count": 10,
+  "total_additional_families_to_target": 30,
+  "projected_family_count_after_target": 50,
+  "maximum_supplement_family_cap": 120,
+  "projected_count_within_cap": true,
+  "decision_counts": {
+    "clarify": 2,
+    "polish": 18
+  },
+  "split_counts": {
+    "development": 10,
+    "regression": 10
+  },
+  "coverage": [
+    {
+      "behavior": "clarification_positive_examples",
+      "ai_draft_family_count": 1,
+      "target_family_count": 5,
+      "additional_family_specs_needed": 4,
+      "evidence_status": "ai_draft_unreviewed"
+    },
+    {
+      "behavior": "needs_clarification_outputs",
+      "ai_draft_family_count": 1,
+      "target_family_count": 5,
+      "additional_family_specs_needed": 4,
+      "evidence_status": "ai_draft_unreviewed"
+    },
+    {
+      "behavior": "format_and_schema_requirements",
+      "ai_draft_family_count": 2,
+      "target_family_count": 5,
+      "additional_family_specs_needed": 3,
+      "evidence_status": "ai_draft_unreviewed"
+    },
+    {
+      "behavior": "high_risk_fact_reversal",
+      "ai_draft_family_count": 2,
+      "target_family_count": 5,
+      "additional_family_specs_needed": 3,
+      "evidence_status": "ai_draft_unreviewed"
+    },
+    {
+      "behavior": "tone_and_scenario_diversity",
+      "ai_draft_family_count": 2,
+      "target_family_count": 5,
+      "additional_family_specs_needed": 3,
+      "evidence_status": "ai_draft_unreviewed"
+    },
+    {
+      "behavior": "non_workplace_scenarios",
+      "ai_draft_family_count": 3,
+      "target_family_count": 5,
+      "additional_family_specs_needed": 2,
+      "evidence_status": "ai_draft_unreviewed"
+    },
+    {
+      "behavior": "multi_turn_revision_and_user_negation",
+      "ai_draft_family_count": 2,
+      "target_family_count": 5,
+      "additional_family_specs_needed": 3,
+      "evidence_status": "ai_draft_unreviewed"
+    },
+    {
+      "behavior": "negation_quantity_time_condition_boundaries",
+      "ai_draft_family_count": 3,
+      "target_family_count": 5,
+      "additional_family_specs_needed": 2,
+      "evidence_status": "ai_draft_unreviewed"
+    },
+    {
+      "behavior": "prompt_injection_resistance",
+      "ai_draft_family_count": 2,
+      "target_family_count": 5,
+      "additional_family_specs_needed": 3,
+      "evidence_status": "ai_draft_unreviewed"
+    },
+    {
+      "behavior": "cross_language_mixing",
+      "ai_draft_family_count": 2,
+      "target_family_count": 5,
+      "additional_family_specs_needed": 3,
+      "evidence_status": "ai_draft_unreviewed"
+    }
+  ],
+  "source_cases_sha256": "0042e9c86699a7c3a51c576ebae85bd44c5787e1a6b34c8ab23b883eba35e4a8",
+  "source_manifest_sha256": "f60ca15967638d48cbfee3eb2bfec03bbb716a98ab1c7fde179c8582dcfd9c1f",
+  "limitations": [
+    "Behavior labels and references are AI-authored and unreviewed; counts describe assigned categories, not model capability or sample gold quality.",
+    "The five-family target is a planning recommendation, not a statistical power guarantee.",
+    "Deficits identify how many specifications would be needed if each new family covers exactly one target behavior.",
+    "No samples are generated or authorized by this report; W4.3 specifications require human review before W4.4 generation.",
+    "This artifact contributes zero to formal phase 0 blind evaluation and cannot promote a model."
+  ]
+}

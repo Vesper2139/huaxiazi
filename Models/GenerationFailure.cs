@@ -7,12 +7,20 @@ public enum GenerationFailureKind
 {
     RequestRejected,
     Authentication,
+    PermissionDenied,
+    BillingIssue,
+    AccountPrerequisite,
+    RequestTooLarge,
+    ContextLimitExceeded,
     ResourceMissing,
     RateLimited,
     Timeout,
     ProviderUnavailable,
     Network,
-    InvalidResponse
+    InvalidResponse,
+    StructuredOutputUnsupported,
+    Refused,
+    Incomplete
 }
 
 public sealed class GenerationFailureException : InvalidOperationException

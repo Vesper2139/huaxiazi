@@ -12,12 +12,13 @@
     <IsTestProject>true</IsTestProject>
     <LangVersion>latest</LangVersion>
     <UseWPF>true</UseWPF>
+    <_MSTestEnableParentProcessQuery>false</_MSTestEnableParentProcessQuery>
     <RootNamespace>Huaxiazi.Tests</RootNamespace>
     <AssemblyName>Huaxiazi.Tests</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
@@ -26,6 +27,7 @@
     <!-- 引用主工程，从而复用 Models / Services 的纯逻辑实现 -->
     <ProjectReference Include="..\Huaxiazi.csproj" />
     <ProjectReference Include="..\DatasetBuilder\Huaxiazi.DatasetBuilder.csproj" />
+    <ProjectReference Include="..\tools\BlindEvaluationRunner\BlindEvaluationRunner.csproj" />
   </ItemGroup>
 
   <Target Name="CopyHuaxiaziAssets" AfterTargets="Build">

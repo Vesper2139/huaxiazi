@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "artifact_version": "hxz-polish-reg-ai-supplement-coverage-v1",
+  "status": "internal_diagnostic_pending_human_spec_review",
+  "purpose": "internal_regression_coverage_gap_triage",
+  "source_cases_sha256": "0042e9c86699a7c3a51c576ebae85bd44c5787e1a6b34c8ab23b883eba35e4a8",
+  "source_manifest_sha256": "f60ca15967638d48cbfee3eb2bfec03bbb716a98ab1c7fde179c8582dcfd9c1f",
+  "phase_0_gate_contribution": 0,
+  "not_admissible_as_blind_eval": true,
+  "supplementation_authorized": false,
+  "files": {
+    "coverage-report.json": "f98f27d744526bacf07e029fb699a131895c1ba8f412fcd573cdc029706a5647"
+  }
+}

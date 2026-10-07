@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Linq;
 using Huaxiazi.Services;
 using Xunit;
 
@@ -80,6 +83,36 @@ public sealed class SkinPackageTests : IDisposable
     }
 
     [Fact]
+    public void Install_ImageCompanionWithNonCanonicalStateDimensions_IsRejected()
+    {
+        Directory.CreateDirectory(_root);
+        var entries = CreateImagePackageEntries("wrong-size", "Wrong size", "Error");
+        var package = CreatePackage("wrong-size.huaxiaziskin", entries);
+
+        var service = new SkinPackageService(Path.Combine(_root, "installed"));
+        var error = Assert.Throws<InvalidDataException>(() => service.Install(package));
+
+        Assert.Contains("181×181", error.Message);
+    }
+
+    [Fact]
+    public void Install_CanonicalIndependentImageCompanion_IsDiscoverable()
+    {
+        Directory.CreateDirectory(_root);
+        var package = CreatePackage("canonical.huaxiaziskin",
+            CreateImagePackageEntries("canonical", "Canonical"));
+        var service = new SkinPackageService(Path.Combine(_root, "installed"));
+
+        var installed = service.Install(package);
+        var discovered = Assert.Single(service.DiscoverInstalled());
+
+        Assert.Equal("image", installed.CompanionKind);
+        Assert.True(installed.CompanionProfile.HasCompleteStateSet);
+        Assert.Equal(installed.Id, discovered.Id);
+        Assert.True(discovered.CompanionProfile.HasCompleteStateSet);
+    }
+
+    [Fact]
     public void Install_VectorCompanionWithIncompleteAnimationManifest_IsRejected()
     {
         Directory.CreateDirectory(_root);
@@ -132,9 +165,39 @@ public sealed class SkinPackageTests : IDisposable
             """);
         File.WriteAllText(Path.Combine(install, "theme.json"), "{}");
 
-        var discovered = new SkinPackageService(Path.Combine(_root, "installed")).DiscoverInstalled();
+        var diagnostics = new List<string>();
+        var discovered = new SkinPackageService(Path.Combine(_root, "installed"), diagnostics.Add).DiscoverInstalled();
 
         Assert.Empty(discovered);
+        Assert.Single(diagnostics);
+    }
+
+    [Fact]
+    public void Install_ImageCompanionWithFakePng_IsReportedAsInvalidData()
+    {
+        Directory.CreateDirectory(_root);
+        var entries = CreateImagePackageEntries("fake-png", "Fake PNG");
+        entries["States/Idle.png"] = System.Text.Encoding.UTF8.GetBytes("not-a-png");
+        var package = CreatePackage("fake-png.huaxiaziskin", entries);
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            new SkinPackageService(Path.Combine(_root, "installed")).Install(package));
+
+        Assert.Contains("透明 PNG", error.Message);
+    }
+
+    [Fact]
+    public void Install_ReservedDeviceName_IsRejectedWithInvalidData()
+    {
+        Directory.CreateDirectory(_root);
+        var package = CreatePackage("reserved.huaxiaziskin", new Dictionary<string, string>
+        {
+            ["skin.json"] = """{ "schemaVersion": 1, "id": "con", "displayName": "Reserved", "version": "1.0.0", "themeResource": "theme.json", "companion": { "kind": "vector", "states": {} } }""",
+            ["theme.json"] = CompleteThemeJson
+        });
+
+        Assert.Throws<InvalidDataException>(() =>
+            new SkinPackageService(Path.Combine(_root, "installed")).Install(package));
     }
 
     private string CreatePackage(string name, IReadOnlyDictionary<string, string> entries)
@@ -148,6 +211,49 @@ public sealed class SkinPackageTests : IDisposable
             writer.Write(content);
         }
         return path;
+    }
+
+    private string CreatePackage(string name, IReadOnlyDictionary<string, byte[]> entries)
+    {
+        var path = Path.Combine(_root, name);
+        using var archive = ZipFile.Open(path, ZipArchiveMode.Create);
+        foreach (var (entryName, content) in entries)
+        {
+            var entry = archive.CreateEntry(entryName);
+            using var stream = entry.Open();
+            stream.Write(content);
+        }
+        return path;
+    }
+
+    private static byte[] CreatePng(int width, int height)
+    {
+        using var bitmap = new Bitmap(width, height);
+        bitmap.SetPixel(width / 2, height / 2, Color.Black);
+        using var stream = new MemoryStream();
+        bitmap.Save(stream, ImageFormat.Png);
+        return stream.ToArray();
+    }
+
+    private static Dictionary<string, byte[]> CreateImagePackageEntries(
+        string id, string displayName, string? wrongSizeState = null)
+    {
+        var mappings = string.Join(",", SkinContract.CompanionStates.Select(state =>
+            $"\"{state}\":\"States/{state}.png\""));
+        var entries = new Dictionary<string, byte[]>
+        {
+            ["skin.json"] = System.Text.Encoding.UTF8.GetBytes(
+                $$"""
+                  { "schemaVersion": 1, "id": "{{id}}", "displayName": "{{displayName}}", "version": "1.0.0",
+                    "themeResource": "theme.json", "companion": { "kind": "image", "states": { {{mappings}} } } }
+                  """),
+            ["theme.json"] = System.Text.Encoding.UTF8.GetBytes(CompleteThemeJson)
+        };
+        foreach (var state in SkinContract.CompanionStates)
+            entries[$"States/{state}.png"] = CreatePng(
+                state == wrongSizeState ? SkinContract.CompanionStateImageSize - 1 : SkinContract.CompanionStateImageSize,
+                SkinContract.CompanionStateImageSize);
+        return entries;
     }
 
     private const string CompleteThemeJson = """

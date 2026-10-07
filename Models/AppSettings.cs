@@ -43,6 +43,10 @@ public sealed class AppSettings
     [JsonPropertyName("historyEnabled")]
     public bool HistoryEnabled { get; set; } = true;
 
+    /// <summary>When enabled, retain content-free generation request metadata on this device only.</summary>
+    [JsonPropertyName("localGenerationDiagnosticsEnabled")]
+    public bool LocalGenerationDiagnosticsEnabled { get; set; }
+
     [JsonPropertyName("historyRetentionDays")]
     public int HistoryRetentionDays { get; set; } = 30;
 
@@ -77,6 +81,9 @@ public sealed class AppSettings
     [JsonPropertyName("outputStyle")]
     public string OutputStyle { get; set; } = "自然";
 
+    [JsonPropertyName("outputStyleOverrides")]
+    public Dictionary<string, string> OutputStyleOverrides { get; set; } = new(StringComparer.Ordinal);
+
     [JsonPropertyName("customStyleInstructions")]
     public string CustomStyleInstructions { get; set; } = string.Empty;
 
@@ -85,6 +92,9 @@ public sealed class AppSettings
 
     [JsonPropertyName("preferenceLearningEnabled")]
     public bool PreferenceLearningEnabled { get; set; } = true;
+
+    [JsonPropertyName("shareConfirmedPreferencesWithCloud")]
+    public bool ShareConfirmedPreferencesWithCloud { get; set; }
 
     [JsonPropertyName("expressionPreferenceProfile")]
     public ExpressionPreferenceProfile ExpressionPreferenceProfile { get; set; } = new();
@@ -122,7 +132,7 @@ public sealed class AppSettings
     [JsonPropertyName("themeMode")]
     public string ThemeMode { get; set; } = "System";
 
-    /// <summary>完整外观皮肤。default 表示由 ThemeMode 解析浅色/深色资源。</summary>
+    /// <summary>完整角色与材质皮肤。default 表示使用 ThemeMode 的默认皮肤；非 default 皮肤仍服从 ThemeMode 的明暗层。</summary>
     [JsonPropertyName("skinId")]
     public string SkinId { get; set; } = "default";
 
@@ -176,6 +186,31 @@ public sealed class AppSettings
 
     [JsonPropertyName("activeProviderProfileId")]
     public string ActiveProviderProfileId { get; set; } = "default";
+
+    [JsonPropertyName("providerRoutingMode")]
+    public ProviderRoutingMode ProviderRoutingMode { get; set; } = ProviderRoutingMode.Manual;
+
+    [JsonPropertyName("polishProviderProfileId")]
+    public string PolishProviderProfileId { get; set; } = string.Empty;
+
+    [JsonPropertyName("promptOptimizeProviderProfileId")]
+    public string PromptOptimizeProviderProfileId { get; set; } = string.Empty;
+
+    [JsonPropertyName("fallbackProviderProfileId")]
+    public string FallbackProviderProfileId { get; set; } = string.Empty;
+
+    [JsonPropertyName("polishFastProviderProfileId")]
+    public string PolishFastProviderProfileId { get; set; } = string.Empty;
+    [JsonPropertyName("polishBalancedProviderProfileId")]
+    public string PolishBalancedProviderProfileId { get; set; } = string.Empty;
+    [JsonPropertyName("polishReasoningProviderProfileId")]
+    public string PolishReasoningProviderProfileId { get; set; } = string.Empty;
+    [JsonPropertyName("promptOptimizeFastProviderProfileId")]
+    public string PromptOptimizeFastProviderProfileId { get; set; } = string.Empty;
+    [JsonPropertyName("promptOptimizeBalancedProviderProfileId")]
+    public string PromptOptimizeBalancedProviderProfileId { get; set; } = string.Empty;
+    [JsonPropertyName("promptOptimizeReasoningProviderProfileId")]
+    public string PromptOptimizeReasoningProviderProfileId { get; set; } = string.Empty;
 
     /// <summary>OpenAI-Compatible API 基地址。</summary>
     [JsonPropertyName("apiBase")]
@@ -258,6 +293,10 @@ public sealed class AppSettings
     [JsonPropertyName("dataDirectory")]
     public string DataDirectory { get; set; } = string.Empty;
 
+    /// <summary>签名本地模型目录地址；为空表示发行版未配置在线目录。</summary>
+    [JsonPropertyName("localModelCatalogUrl")]
+    public string LocalModelCatalogUrl { get; set; } = string.Empty;
+
     /// <summary>
     /// 配置结构版本号。0 表示旧版/未带版本字段的配置；
     /// 升级到新版默认值或字段变更时由 ConfigService.Migrate 提升，作为向后兼容的迁移锚点。
@@ -336,6 +375,8 @@ public sealed class AppSettings
             profile.Temperature = System.Math.Clamp(profile.Temperature, 0, 2);
             profile.TopP = System.Math.Clamp(profile.TopP, 0, 1);
             profile.MaxTokens = System.Math.Clamp(profile.MaxTokens, 128, 32768);
+            profile.LocalRuntimeOptions ??= new LocalRuntimeOptions();
+            profile.LocalRuntimeOptions.Normalize();
             if (string.IsNullOrWhiteSpace(profile.SecretId)) profile.SecretId = ProviderCredentialBinding.ForProfile(profile);
         }
 
@@ -343,6 +384,22 @@ public sealed class AppSettings
         {
             ActiveProviderProfileId = ProviderProfiles[0].Id;
         }
+
+        PolishProviderProfileId = NormalizeProfileReference(PolishProviderProfileId);
+        PromptOptimizeProviderProfileId = NormalizeProfileReference(PromptOptimizeProviderProfileId);
+        FallbackProviderProfileId = NormalizeProfileReference(FallbackProviderProfileId);
+        PolishFastProviderProfileId = NormalizeProfileReference(PolishFastProviderProfileId);
+        PolishBalancedProviderProfileId = NormalizeProfileReference(PolishBalancedProviderProfileId);
+        PolishReasoningProviderProfileId = NormalizeProfileReference(PolishReasoningProviderProfileId);
+        PromptOptimizeFastProviderProfileId = NormalizeProfileReference(PromptOptimizeFastProviderProfileId);
+        PromptOptimizeBalancedProviderProfileId = NormalizeProfileReference(PromptOptimizeBalancedProviderProfileId);
+        PromptOptimizeReasoningProviderProfileId = NormalizeProfileReference(PromptOptimizeReasoningProviderProfileId);
+
+        string NormalizeProfileReference(string? id) =>
+            !string.IsNullOrWhiteSpace(id) && ProviderProfiles.Any(profile =>
+                string.Equals(profile.Id, id, StringComparison.OrdinalIgnoreCase))
+                ? id
+                : string.Empty;
     }
 
     /// <summary>
@@ -386,6 +443,7 @@ public sealed class AppSettings
 
     public void NormalizePromptSettings()
     {
+        OutputStyleOverrides = OutputStylePreferenceResolver.NormalizeOverrides(OutputStyleOverrides);
         EnabledPromptCategories ??= [];
         EnabledPromptCategories = EnabledPromptCategories.Distinct().ToList();
         if (EnabledPromptCategories.Count == 0) EnabledPromptCategories.Add(PromptCategory.General);
@@ -418,7 +476,7 @@ public sealed class AppSettings
         EditorDefaultHeight = System.Math.Clamp(EditorDefaultHeight, 28, 800);
         WindowOpacity = System.Math.Clamp(WindowOpacity, 0.65, 1);
         FloatingBallOpacity = System.Math.Clamp(FloatingBallOpacity, 0.35, 1);
-        FloatingBallSize = System.Math.Clamp(FloatingBallSize, 32, 96);
+        FloatingBallSize = CompanionDisplayMetrics.NormalizeSize(FloatingBallSize);
         if (CloseBehavior is not ("Hide" or "Tray" or "Exit")) CloseBehavior = "Hide";
         if (EscapeBehavior is not ("Hide" or "Tray" or "None")) EscapeBehavior = "Hide";
     }

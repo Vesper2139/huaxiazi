@@ -83,6 +83,103 @@ public sealed class SecurityHardeningTests
     }
 
     [Fact]
+    public void MiniMax_LegacyOfficialEndpointRemainsAllowedForExistingProfiles()
+    {
+        var profile = new ProviderProfile
+        {
+            Platform = ProviderPlatform.MiniMax,
+            Protocol = ProviderProtocol.OpenAICompatible,
+            Type = ProviderType.Cloud,
+            ApiBase = "https://api.minimax.chat/v1",
+            Model = "MiniMax-Text-01"
+        };
+
+        Assert.True(ProviderEndpointPolicy.TryValidate(profile, "secret", out _, out _));
+    }
+
+    [Theory]
+    [InlineData("https://api.together.ai/v1")]
+    [InlineData("https://api.together.xyz/v1")]
+    public void Together_CurrentAndExistingOfficialEndpointsRemainAllowed(string apiBase)
+    {
+        var profile = new ProviderProfile
+        {
+            Platform = ProviderPlatform.Together,
+            Protocol = ProviderProtocol.OpenAICompatible,
+            Type = ProviderType.Cloud,
+            ApiBase = apiBase,
+            Model = "Qwen/Qwen3.5-9B"
+        };
+
+        Assert.True(ProviderEndpointPolicy.TryValidate(profile, "secret", out _, out _));
+    }
+
+    [Theory]
+    [InlineData("https://api.together.ai.attacker.example/v1")]
+    [InlineData("https://api.together.xyz.attacker.example/v1")]
+    public void Together_RejectsLookalikeOfficialEndpoint(string apiBase)
+    {
+        var profile = new ProviderProfile
+        {
+            Platform = ProviderPlatform.Together,
+            Protocol = ProviderProtocol.OpenAICompatible,
+            Type = ProviderType.Cloud,
+            ApiBase = apiBase,
+            Model = "Qwen/Qwen3.5-9B"
+        };
+
+        Assert.False(ProviderEndpointPolicy.TryValidate(profile, "secret", out _, out _));
+    }
+
+    [Fact]
+    public void MiniMax_RejectsLookalikeLegacyEndpoint()
+    {
+        var profile = new ProviderProfile
+        {
+            Platform = ProviderPlatform.MiniMax,
+            Protocol = ProviderProtocol.OpenAICompatible,
+            Type = ProviderType.Cloud,
+            ApiBase = "https://api.minimax.chat.attacker.example/v1",
+            Model = "MiniMax-Text-01"
+        };
+
+        Assert.False(ProviderEndpointPolicy.TryValidate(profile, "secret", out _, out _));
+    }
+
+    [Fact]
+    public void Grok_ResponsesAndExistingChatProtocolsRemainAllowedOnOfficialEndpoint()
+    {
+        foreach (var protocol in new[] { ProviderProtocol.OpenAIResponses, ProviderProtocol.OpenAICompatible })
+        {
+            var profile = new ProviderProfile
+            {
+                Platform = ProviderPlatform.Grok,
+                Protocol = protocol,
+                Type = ProviderType.Cloud,
+                ApiBase = "https://api.x.ai/v1",
+                Model = "grok-4.3"
+            };
+
+            Assert.True(ProviderEndpointPolicy.TryValidate(profile, "secret", out _, out _));
+        }
+    }
+
+    [Fact]
+    public void Grok_RejectsNonOpenAiProtocolOnOfficialEndpoint()
+    {
+        var profile = new ProviderProfile
+        {
+            Platform = ProviderPlatform.Grok,
+            Protocol = ProviderProtocol.AnthropicMessages,
+            Type = ProviderType.Cloud,
+            ApiBase = "https://api.x.ai/v1",
+            Model = "grok-4.3"
+        };
+
+        Assert.False(ProviderEndpointPolicy.TryValidate(profile, "secret", out _, out _));
+    }
+
+    [Fact]
     public void ProviderNormalization_DerivesMissingSecretBinding()
     {
         var settings = new AppSettings

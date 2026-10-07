@@ -9,7 +9,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $releaseRoot = [IO.Path]::GetFullPath($ReleaseDirectory)
-$deliveryNames = @("Huaxiazi-Portable.zip", "Huaxiazi-Setup.exe", "Huaxiazi.exe")
+$deliveryNames = @("Huaxiazi-Portable.zip", "Huaxiazi-Setup.exe") + @(
+    Get-ChildItem -LiteralPath $releaseRoot -File -Filter "Huaxiazi-Setup-*.bin" |
+        Select-Object -ExpandProperty Name
+)
 $lines = @(
     Get-ChildItem -LiteralPath $releaseRoot -File |
         Where-Object Name -In $deliveryNames |

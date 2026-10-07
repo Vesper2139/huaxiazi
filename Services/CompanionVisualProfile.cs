@@ -11,11 +11,25 @@ namespace Huaxiazi.Services;
 public sealed class CompanionVisualProfile
 {
     private readonly IReadOnlyDictionary<CompanionVisualState, string> _assets;
+    private readonly IReadOnlyDictionary<CompanionIdleBehavior, CompanionVisualState> _idleBehaviorOverrides;
+    private readonly IReadOnlyDictionary<CompanionVisualState, CompanionVisualState> _frameStateOverrides;
 
-    private CompanionVisualProfile(string kind, IReadOnlyDictionary<CompanionVisualState, string> assets, string? vectorPath, string? spriteSheetPath, int spriteSheetColumns, int spriteSheetRows, string? idleVariantsPath, int idleVariantsColumns)
+    private CompanionVisualProfile(
+        string kind,
+        IReadOnlyDictionary<CompanionVisualState, string> assets,
+        IReadOnlyDictionary<CompanionIdleBehavior, CompanionVisualState> idleBehaviorOverrides,
+        IReadOnlyDictionary<CompanionVisualState, CompanionVisualState> frameStateOverrides,
+        string? vectorPath,
+        string? spriteSheetPath,
+        int spriteSheetColumns,
+        int spriteSheetRows,
+        string? idleVariantsPath,
+        int idleVariantsColumns)
     {
         Kind = kind;
         _assets = assets;
+        _idleBehaviorOverrides = idleBehaviorOverrides;
+        _frameStateOverrides = frameStateOverrides;
         VectorPath = vectorPath;
         SpriteSheetPath = spriteSheetPath;
         SpriteSheetColumns = Math.Max(1, spriteSheetColumns);
@@ -39,6 +53,12 @@ public sealed class CompanionVisualProfile
     public bool TryGetAsset(CompanionVisualState state, out string path) =>
         _assets.TryGetValue(state, out path!);
 
+    public CompanionVisualState ResolveIdleBehavior(CompanionIdleBehavior behavior, CompanionVisualState fallback) =>
+        _idleBehaviorOverrides.TryGetValue(behavior, out var state) ? state : fallback;
+
+    public CompanionVisualState ResolveFrameState(CompanionVisualState state) =>
+        _frameStateOverrides.TryGetValue(state, out var mapped) ? mapped : state;
+
     public static CompanionVisualProfile Create(
         string kind,
         IReadOnlyDictionary<string, string>? stateAssets,
@@ -47,7 +67,9 @@ public sealed class CompanionVisualProfile
         int spriteSheetColumns = 4,
         int spriteSheetRows = 3,
         string? idleVariantsPath = null,
-        int idleVariantsColumns = 4)
+        int idleVariantsColumns = 4,
+        IReadOnlyDictionary<string, string>? idleBehaviorOverrides = null,
+        IReadOnlyDictionary<string, string>? frameStateOverrides = null)
     {
         var typed = new Dictionary<CompanionVisualState, string>();
         if (stateAssets is not null)
@@ -56,6 +78,22 @@ public sealed class CompanionVisualProfile
                 if (Enum.TryParse<CompanionVisualState>(name, ignoreCase: true, out var state) && !string.IsNullOrWhiteSpace(path))
                     typed[state] = path;
         }
-        return new CompanionVisualProfile(kind, typed, vectorPath, spriteSheetPath, spriteSheetColumns, spriteSheetRows, idleVariantsPath, idleVariantsColumns);
+        var idle = new Dictionary<CompanionIdleBehavior, CompanionVisualState>();
+        if (idleBehaviorOverrides is not null)
+        {
+            foreach (var (behaviorName, stateName) in idleBehaviorOverrides)
+                if (Enum.TryParse<CompanionIdleBehavior>(behaviorName, true, out var behavior) &&
+                    Enum.TryParse<CompanionVisualState>(stateName, true, out var state))
+                    idle[behavior] = state;
+        }
+        var frames = new Dictionary<CompanionVisualState, CompanionVisualState>();
+        if (frameStateOverrides is not null)
+        {
+            foreach (var (stateName, mappedName) in frameStateOverrides)
+                if (Enum.TryParse<CompanionVisualState>(stateName, true, out var state) &&
+                    Enum.TryParse<CompanionVisualState>(mappedName, true, out var mapped))
+                    frames[state] = mapped;
+        }
+        return new CompanionVisualProfile(kind, typed, idle, frames, vectorPath, spriteSheetPath, spriteSheetColumns, spriteSheetRows, idleVariantsPath, idleVariantsColumns);
     }
 }

@@ -32,10 +32,15 @@ public partial class MainWindow : Window
     private bool _companionDragging;
     private Point _companionLastDragPosition;
 
-    public MainWindow()
+    public MainWindow() : this(null)
+    {
+    }
+
+    internal MainWindow(MainViewModel? viewModel)
     {
         InitializeComponent();
-        _vm = new MainViewModel();
+        Icon = AppIconService.LoadWindowIcon();
+        _vm = viewModel ?? new MainViewModel();
         DataContext = _vm;
         _autosaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(App.Settings.AutosaveDelayMilliseconds) };
         _autosaveTimer.Tick += (_, _) =>
@@ -57,9 +62,20 @@ public partial class MainWindow : Window
         };
         _vm.PropertyChanged += ViewModel_OnPropertyChanged;
         App.SettingsChanged += App_SettingsChanged;
-        Closed += (_, _) => App.SettingsChanged -= App_SettingsChanged;
+        App.SkinService.SkinChanged += SkinService_OnSkinChanged;
+        Closed += (_, _) =>
+        {
+            App.SettingsChanged -= App_SettingsChanged;
+            App.SkinService.SkinChanged -= SkinService_OnSkinChanged;
+        };
         WindowPlacementService.Attach(this);
         SizeChanged += MainWindow_OnSizeChanged;
+    }
+
+    private void SkinService_OnSkinChanged(object? sender, string skinId)
+    {
+        if (Dispatcher.CheckAccess()) Icon = AppIconService.LoadWindowIcon(skinId);
+        else Dispatcher.BeginInvoke(new Action(() => Icon = AppIconService.LoadWindowIcon(skinId)));
     }
 
     private void App_SettingsChanged(object? sender, EventArgs e)
@@ -538,6 +554,11 @@ public partial class MainWindow : Window
     internal void ApplyDisplayPreferences(Huaxiazi.Models.AppSettings settings)
     {
         settings.NormalizeDisplaySettings();
+        var companionLayout = CompanionDisplayMetrics.ResolveLayout(settings.FloatingBallSize);
+        CompanionDragHandle.Width = companionLayout.HitTargetSize;
+        CompanionDragHandle.Height = companionLayout.HitTargetSize;
+        CompanionViewport.Width = companionLayout.ViewportSize;
+        CompanionViewport.Height = companionLayout.ViewportSize;
         Opacity = settings.WindowOpacity;
         MainTextBox.FontSize = settings.EditorFontSize;
         var renderedLineHeight = Math.Ceiling(MainTextBox.FontSize * MainTextBox.FontFamily.LineSpacing);

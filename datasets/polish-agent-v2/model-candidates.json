@@ -1,0 +1,17 @@
+{
+  "as_of":"2026-09-27",
+  "purpose":"local_model_selection_for_polish_and_prompt_engineering",
+  "candidates":[
+    {"id":"qwen3-4b-instruct","family":"Qwen3","origin":"domestic","tier":"desktop_low_vram","expected_role":"fast_polish_baseline","strengths":["Chinese fluency","low latency","local ecosystem"],"risks":["long-context degradation","complex agent planning"]},
+    {"id":"qwen3-8b-instruct","family":"Qwen3","origin":"domestic","tier":"desktop_mainline","expected_role":"default_local_baseline","strengths":["Chinese writing","instruction following","structured output","tool ecosystem"],"risks":["quantization sensitivity","thinking-mode overuse"]},
+    {"id":"qwen3-14b","family":"Qwen3","origin":"domestic","tier":"single_gpu_medium","expected_role":"quality_upgrade","strengths":["multi-constraint rewrite","reasoning"],"risks":["memory and latency"]},
+    {"id":"qwen3-30b-a3b","family":"Qwen3","origin":"domestic","tier":"server_or_large_memory","expected_role":"agent_upgrade","strengths":["MoE efficiency","reasoning","tool use"],"risks":["runtime support","memory footprint"]},
+    {"id":"glm-4.7-flash","family":"GLM","origin":"domestic","tier":"large_local","expected_role":"agent_comparator","strengths":["Chinese agent behavior","long context","tool use"],"risks":["new runtime compatibility","quantization availability"]},
+    {"id":"gpt-oss-20b","family":"gpt-oss","origin":"international","tier":"single_high_end_gpu_or_memory","expected_role":"reasoning_and_structure_comparator","strengths":["reasoning control","tools","structured outputs","Apache-2.0"],"risks":["Harmony format","Chinese naturalness"]},
+    {"id":"deepseek-v4-flash","family":"DeepSeek","origin":"domestic","tier":"multi_gpu_server","expected_role":"high_end_reference","strengths":["long context","agentic reasoning","MIT open weights"],"risks":["not ordinary desktop deployable","large storage and memory"]},
+    {"id":"mistral-small-3.2-or-4","family":"Mistral","origin":"international","tier":"single_gpu_medium","expected_role":"multilingual_comparator","strengths":["latency","English and multilingual instruction"],"risks":["Chinese tone and idiom quality"]},
+    {"id":"gemma-3-12b-or-27b","family":"Gemma","origin":"international","tier":"single_gpu_medium","expected_role":"multilingual_comparator","strengths":["multilingual","lightweight local deployment"],"risks":["license terms","Chinese agent behavior"]},
+    {"id":"llama-4","family":"Llama","origin":"international","tier":"large_local","expected_role":"english_agent_comparator","strengths":["agent ecosystem","multimodal","English instruction"],"risks":["Chinese not in official supported-language list","custom license","large memory"]},
+    {"id":"internlm3-8b-instruct","family":"InternLM","origin":"domestic","tier":"desktop_mainline","expected_role":"Chinese_regression_baseline","strengths":["Chinese orientation","8B local deployment"],"risks":["smaller tool ecosystem"]}
+  ]
+}

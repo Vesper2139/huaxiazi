@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "proposal_version": "hxz-polish-reg-backbone-family-proposal-v1",
+  "status": "draft_proposal",
+  "purpose": "internal_family_merge_impact_analysis",
+  "parent_dataset_version": "hxz-polish-regression-v1",
+  "decision_source": "outputs/polish-regression-neardup-review-2026-10-05/near-duplicate-human-review - 副本.xlsx",
+  "decision_source_sha256": "7473ed7aa2fea7ff820a77f4498d1f0a8261488a88888762b30522bce0cfec08",
+  "phase_0_gate_contribution": 0,
+  "not_admissible_as_blind_eval": true,
+  "source_rationale_authoritative": false,
+  "split_policy": "Keep merged components containing any regression member in regression; retain original split for singleton/development-only components.",
+  "files": {
+    "case-family-map.jsonl": "d953f7fbaeb868fe64bc30a669b28d897eeed537e1ad9329d6f2d96576c1aaff",
+    "groups.jsonl": "6eda68e3023e72f8b8969efbadc42aaaeedfec74cd4ccb8587772b6430bd88f1",
+    "impact.json": "a347290202e76a1ca9ae76fd1bc3bb9f46497d74a710e506ab10e985b97f9c51"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "schema_version": "2.0",
+  "dataset_version": "hxz-polish-agent-v2-3000",
+  "purpose": "agent_behavior_training",
+  "source_dataset": "hxz-synthetic-v1",
+  "source_sha256": "c3a6c739c75119cbd0957ee34014c1220a3421fc80371a71867b72197298630f",
+  "generated_at": "2026-09-24T05:29:36.4272686Z",
+  "total": 3000,
+  "counts": {
+    "test": 375,
+    "train": 2250,
+    "dev": 375
+  },
+  "per_template_family": 125,
+  "family_split_policy": "18 train families / 3 dev families / 3 test families",
+  "files": {
+    "canonical": "canonical.jsonl",
+    "sft": "sft.jsonl",
+    "model_candidates": "model-candidates.json",
+    "evaluation_plan": "evaluation-plan.md",
+    "research": "../../docs/local-model-research-2026-09-27.md"
+  },
+  "limitations": [
+    "源数据为项目自有合成样本，不等同于真实用户语料",
+    "需要人工抽检自然度、事实保真和场景覆盖后再用于权重训练",
+    "test 按模板族隔离，但源模板仍可能存在语义近似"
+  ],
+  "canonical_sha256": "e4406fffefccb7394f7bc13525fc2ea78f7b97d7c3ef14c446253a2040b230d7",
+  "sft_sha256": "3950c20ad9fc3536b8bd3e2e2284ffc606b324b24c045889add0f83402a458f0"
+}

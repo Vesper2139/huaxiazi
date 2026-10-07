@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Huaxiazi.Models;
@@ -25,7 +26,7 @@ public sealed class HealthCheckReport
     public required IReadOnlyList<HealthCheckItem> Items { get; init; }
     public bool HasLocalFailures => Items.Any(item => item.Scope == HealthCheckScope.Local && item.Status == HealthCheckStatus.Failed);
     public bool HasExternalFailures => Items.Any(item => item.Scope == HealthCheckScope.External && item.Status == HealthCheckStatus.Failed);
-    public string Summary => $"Local {Items.Count(item => item.Scope == HealthCheckScope.Local && item.Status == HealthCheckStatus.Healthy)}/5 · " +
+    public string Summary => $"Local {Items.Count(item => item.Scope == HealthCheckScope.Local && item.Status == HealthCheckStatus.Healthy)}/{Items.Count(item => item.Scope == HealthCheckScope.Local)} · " +
                              $"External {(HasExternalFailures ? "异常" : "正常")} · {CheckedAt.ToLocalTime():HH:mm:ss}";
 }
 
@@ -33,11 +34,21 @@ public sealed class HealthCheckReport
 public sealed class HealthCheckService
 {
     private readonly HttpClient _httpClient;
+    private readonly LocalModelStore _localModelStore;
+    private readonly string _runtimeRoot;
+    private readonly Func<string, CancellationToken, Task> _runtimeExecutableProbe;
+    private readonly Func<bool, IReadOnlyList<string>> _runtimeDependencyProbe;
 
-    public HealthCheckService(HttpMessageHandler? handler = null)
+    public HealthCheckService(HttpMessageHandler? handler = null, LocalModelStore? localModelStore = null,
+        string? runtimeRoot = null, Func<string, CancellationToken, Task>? runtimeExecutableProbe = null,
+        Func<bool, IReadOnlyList<string>>? runtimeDependencyProbe = null)
     {
         _httpClient = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
         _httpClient.Timeout = TimeSpan.FromSeconds(4);
+        _localModelStore = localModelStore ?? new LocalModelStore();
+        _runtimeRoot = Path.GetFullPath(runtimeRoot ?? LocalRuntimePaths.GetRuntimeRoot());
+        _runtimeExecutableProbe = runtimeExecutableProbe ?? LocalRuntimePackageService.ProbeInstalledExecutableAsync;
+        _runtimeDependencyProbe = runtimeDependencyProbe ?? InspectRuntimeDependencies;
     }
 
     public async Task<HealthCheckReport> CheckAsync(
@@ -83,9 +94,26 @@ public sealed class HealthCheckService
         try
         {
             Directory.CreateDirectory(dataRoot);
-            var probe = Path.Combine(dataRoot, ".health-write-probe");
-            await File.WriteAllTextAsync(probe, "ok", cancellationToken);
-            File.Delete(probe);
+            var probe = Path.Combine(dataRoot, $".health-write-probe-{Guid.NewGuid():N}");
+            try
+            {
+                await File.WriteAllTextAsync(probe, "ok", cancellationToken);
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(probe)) File.Delete(probe);
+                }
+                catch (IOException)
+                {
+                    // The write already proved the directory is usable.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Ignore a transient ACL/endpoint-protection race during cleanup.
+                }
+            }
             items.Add(Healthy("Storage", HealthCheckScope.Local, "数据目录可读写。"));
         }
         catch (Exception exception)
@@ -132,6 +160,48 @@ public sealed class HealthCheckService
         CancellationToken cancellationToken)
     {
         if (provider is null) return Failed("Provider", HealthCheckScope.External, "没有可用的活动模型配置。");
+        if (provider.Platform == ProviderPlatform.ManagedLocal)
+        {
+            if (string.IsNullOrWhiteSpace(provider.LocalModelInstallationId))
+                return Failed("Provider", HealthCheckScope.External, "未选择受管本地模型。");
+            if (!_localModelStore.GetInstalledModels().Any(model => model.InstallationId == provider.LocalModelInstallationId))
+                return Failed("Provider", HealthCheckScope.External, "所选本地模型尚未安装。");
+            var gpuMode = provider.LocalRuntimeOptions?.GpuMode ?? LocalGpuMode.Auto;
+            var candidates = LocalRuntimeManager.ResolveRuntimeCandidates(_runtimeRoot, gpuMode);
+            if (candidates.Count == 0)
+                return Failed("Provider", HealthCheckScope.Local, "本地推理运行时未安装，当前无法生成。");
+
+            var probeFailures = new List<string>();
+            foreach (var candidate in candidates)
+            {
+                var missingDependencies = _runtimeDependencyProbe(candidate.UseVulkan);
+                if (missingDependencies.Count > 0)
+                {
+                    probeFailures.Add($"{(candidate.UseVulkan ? "Vulkan" : "CPU")}: {DescribeMissingRuntimeDependencies(missingDependencies)}");
+                    continue;
+                }
+
+                try
+                {
+                    using var probeTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    probeTimeout.CancelAfter(TimeSpan.FromSeconds(5));
+                    await _runtimeExecutableProbe(candidate.ExecutablePath, probeTimeout.Token).ConfigureAwait(false);
+                    var backend = candidate.UseVulkan ? "Vulkan" : "CPU";
+                    var fallbackNote = probeFailures.Count == 0
+                        ? string.Empty
+                        : $"；{string.Join("；", probeFailures)}；已验证 CPU 回退路径";
+                    return Healthy("Provider", HealthCheckScope.Local,
+                        $"本地运行时 {backend} 可执行文件版本探测通过{fallbackNote}；未启动模型、未发起外部网络请求。");
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception exception)
+                {
+                    probeFailures.Add($"{(candidate.UseVulkan ? "Vulkan" : "CPU")}: {exception.Message}");
+                }
+            }
+            return Failed("Provider", HealthCheckScope.Local,
+                "本地运行时可执行文件版本探测失败：" + string.Join("；", probeFailures));
+        }
         if (!ProviderEndpointPolicy.TryValidate(provider, apiKey, out var endpoint, out var validationError))
             return Failed("Provider", HealthCheckScope.External, validationError);
 
@@ -149,6 +219,45 @@ public sealed class HealthCheckService
         {
             return Failed("Provider", HealthCheckScope.External, "端点不可达：" + exception.Message);
         }
+    }
+
+    private static IReadOnlyList<string> InspectRuntimeDependencies(bool useVulkan)
+    {
+        if (!OperatingSystem.IsWindows()) return [];
+
+        var required = new List<string>(capacity: 4)
+        {
+            "MSVCP140.dll",
+            "VCRUNTIME140.dll",
+            "VCRUNTIME140_1.dll"
+        };
+        if (useVulkan) required.Add("vulkan-1.dll");
+
+        var missing = new List<string>();
+        foreach (var library in required)
+        {
+            // Match the managed runtime's OS-installed prerequisites; do not let an unrelated PATH entry
+            // make the health check report a dependency that the separately launched runtime cannot resolve.
+            if (!NativeLibrary.TryLoad(library, typeof(HealthCheckService).Assembly,
+                    DllImportSearchPath.System32, out var handle))
+            {
+                missing.Add(library);
+                continue;
+            }
+            NativeLibrary.Free(handle);
+        }
+        return missing;
+    }
+
+    private static string DescribeMissingRuntimeDependencies(IReadOnlyList<string> missing)
+    {
+        var missingText = string.Join(", ", missing);
+        if (missing.Any(name => name.StartsWith("VCRUNTIME", StringComparison.OrdinalIgnoreCase) ||
+                                name.StartsWith("MSVCP", StringComparison.OrdinalIgnoreCase)))
+            return $"缺少 Microsoft Visual C++ x64 运行库（{missingText}）。请安装 Microsoft Visual C++ 2015–2022 x64 Redistributable： https://aka.ms/vs/17/release/vc_redist.x64.exe ，然后重试";
+        if (missing.Contains("vulkan-1.dll", StringComparer.OrdinalIgnoreCase))
+            return "缺少 Vulkan loader（vulkan-1.dll）；请更新显卡驱动，或在本地模型设置中切换为 CPU 后端";
+        return $"缺少本地运行时依赖：{missingText}";
     }
 
     private static HealthCheckItem Healthy(string name, HealthCheckScope scope, string message) =>

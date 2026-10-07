@@ -76,7 +76,7 @@
               StrokeThickness="1.4" StrokeStartLineCap="Round" Opacity="0" />
             <Path x:Name="RightSignal" Data="M40 16 L40 28 M36.5 18 L36.5 26" Stroke="{DynamicResource CompanionFaceBrush}"
               StrokeThickness="1.4" StrokeStartLineCap="Round" Opacity="0" />
-            <Rectangle x:Name="SkinSpriteHost" Margin="-1" Visibility="Collapsed" IsHitTestVisible="False"
+            <Rectangle x:Name="SkinSpriteHost" Margin="0" Visibility="Collapsed" IsHitTestVisible="False"
                        RenderTransformOrigin="0.5,0.5">
                 <Rectangle.RenderTransform>
                     <TransformGroup>
@@ -92,6 +92,23 @@
                 </Rectangle.RenderTransform>
                 <Rectangle.Fill>
                     <ImageBrush x:Name="SkinSpriteBrush" Stretch="UniformToFill" ViewboxUnits="RelativeToBoundingBox" />
+                </Rectangle.Fill>
+            </Rectangle>
+            <Rectangle x:Name="SkinSpriteHostSecondary" Margin="0" Visibility="Collapsed" Opacity="0" IsHitTestVisible="False"
+                       RenderTransformOrigin="0.5,0.5">
+                <Rectangle.RenderTransform>
+                    <TransformGroup>
+                        <ScaleTransform x:Name="SkinSpriteScaleSecondary"
+                                        ScaleX="{DynamicResource SkinCompanionOverscan}"
+                                        ScaleY="{DynamicResource SkinCompanionOverscan}" />
+                        <TranslateTransform x:Name="SkinSpriteOffsetSecondary"
+                                             Y="{DynamicResource SkinCompanionOffsetY}" />
+                        <TranslateTransform x:Name="SkinSpriteGazeSecondary" />
+                        <ScaleTransform x:Name="SkinSpriteTransitionScaleSecondary" ScaleX="1" ScaleY="1" />
+                    </TransformGroup>
+                </Rectangle.RenderTransform>
+                <Rectangle.Fill>
+                    <ImageBrush x:Name="SkinSpriteBrushSecondary" Stretch="UniformToFill" ViewboxUnits="RelativeToBoundingBox" />
                 </Rectangle.Fill>
             </Rectangle>
             <local:VectorCompanionRenderer x:Name="VectorSpriteHost" Visibility="Collapsed" />

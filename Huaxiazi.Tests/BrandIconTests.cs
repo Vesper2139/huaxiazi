@@ -14,17 +14,17 @@ namespace Huaxiazi.Tests;
 public sealed class BrandIconTests
 {
     [Fact]
-    public void WindowsAndShortcut_UseTheSharedBrandArtworkWhileNavigationUsesTheCompanion()
+    public void WindowsAndInstaller_UseTheSharedBrandArtworkWhileNavigationUsesTheCompanion()
     {
         var root = RepoRoot();
         var mainWindow = File.ReadAllText(Path.Combine(root, "Views", "MainWindow.xaml"));
         var project = File.ReadAllText(Path.Combine(root, "Huaxiazi.csproj"));
-        var installer = File.ReadAllText(Path.Combine(root, "deploy", "install.ps1"));
+        var installer = File.ReadAllText(Path.Combine(root, "deploy", "installer.iss"));
 
         Assert.Contains("x:Name=\"CompanionHost\"", mainWindow);
         Assert.DoesNotContain("NavigationBrandIcon", mainWindow);
         Assert.Contains("<ApplicationIcon>Resources\\Brand\\Huaxiazi.ico</ApplicationIcon>", project);
-        Assert.Contains("$lnk.IconLocation", installer);
+        Assert.Contains("SetupIconFile=..\\Resources\\Brand\\Huaxiazi.ico", installer);
     }
 
     [Fact]
@@ -120,6 +120,62 @@ public sealed class BrandIconTests
         thread.Start();
         thread.Join();
         Assert.Null(failure);
+    }
+
+    [Theory]
+    [InlineData("YongWeiXiaoFei")]
+    [InlineData("StarSailor")]
+    [InlineData("BlueWhaleMaid")]
+    public void BuiltInSkinIcons_AreDeclaredAndLoadable(string skinId)
+    {
+        var skin = new SkinService().GetSkin(skinId);
+        Assert.NotNull(skin);
+        Assert.False(string.IsNullOrWhiteSpace(skin!.AppIconPath));
+
+        var iconPath = Path.Combine(RepoRoot(), skin.AppIconPath!.Replace('/', Path.DirectorySeparatorChar));
+        Assert.True(File.Exists(iconPath), iconPath);
+        using var icon = new Icon(iconPath);
+        Assert.True(icon.Width >= 16);
+        Assert.True(icon.Height >= 16);
+    }
+
+    [Theory]
+    [InlineData("LuoXiaoHei")]
+    [InlineData("MaoDie")]
+    public void ExistingCharacterSkins_ExposeLoadableBrandIcons(string skinId)
+    {
+        var skin = new SkinService().GetSkin(skinId);
+        Assert.NotNull(skin);
+        Assert.False(string.IsNullOrWhiteSpace(skin!.AppIconPath));
+
+        var iconPath = Path.Combine(RepoRoot(), skin.AppIconPath!.Replace('/', Path.DirectorySeparatorChar));
+        Assert.True(File.Exists(iconPath), iconPath);
+        using var icon = new Icon(iconPath);
+        Assert.True(icon.Width >= 16);
+        Assert.True(icon.Height >= 16);
+    }
+
+    [Theory]
+    [InlineData("YongWeiXiaoFei")]
+    [InlineData("StarSailor")]
+    [InlineData("BlueWhaleMaid")]
+    public void NewSkinCompanionAssets_UseNormalizedTransparentSheets(string skinId)
+    {
+        var root = RepoRoot();
+        var skinRoot = Path.Combine(root, "Resources", "Skins", skinId);
+        using var portrait = new Bitmap(Path.Combine(skinRoot, "portrait.png"));
+        using var sheet = new Bitmap(Path.Combine(skinRoot, "companion-sprite-sheet.png"));
+        using var idle = new Bitmap(Path.Combine(skinRoot, "companion-idle-variants.png"));
+
+        Assert.Equal(512, portrait.Width);
+        Assert.Equal(512, portrait.Height);
+        Assert.Equal(724, sheet.Width);
+        Assert.Equal(543, sheet.Height);
+        Assert.Equal(724, idle.Width);
+        Assert.Equal(181, idle.Height);
+        Assert.Equal(0, portrait.GetPixel(0, 0).A);
+        Assert.Equal(0, sheet.GetPixel(0, 0).A);
+        Assert.Equal(0, idle.GetPixel(0, 0).A);
     }
 
     private static string RepoRoot()

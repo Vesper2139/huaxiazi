@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "ruleset_id": "hxz-polish-near-duplicate-char-trigram-v1",
+  "normalization": "unicode-formkc-lowercase-alphanumeric-codepoint-trigrams-v1",
+  "shingle_size": 3,
+  "similarity": "jaccard",
+  "candidate_threshold": 0.8,
+  "sensitivity_thresholds": [0.7, 0.8, 0.9],
+  "threshold_status": "provisional_uncalibrated",
+  "threshold_use": "human_review_queue_only",
+  "automatic_merge": false,
+  "rationale": "The frozen corpus currently has 16 family representatives, so exact pairwise scoring requires only 120 comparisons and avoids approximate MinHash variance. A preliminary threshold sweep produced 46 candidate pairs at 0.70, 19 at 0.80, and 0 at 0.90; 0.80 is a review-queue workload choice, not a calibrated duplicate classifier. Every candidate remains pending human adjudication, and no family or split is changed."
+}

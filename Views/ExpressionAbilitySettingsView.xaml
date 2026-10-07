@@ -153,12 +153,103 @@
                     <Border Style="{StaticResource AbilityDivider}" />
                     <Grid Style="{StaticResource AbilitySettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                        <StackPanel VerticalAlignment="Center"><TextBlock Text="本地偏好学习" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" /><TextBlock Text="仅保存长度、语气等结构化偏好，不保存正文" Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0" /></StackPanel>
+                        <StackPanel VerticalAlignment="Center"><TextBlock Text="查看本地交互统计" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" /><TextBlock Text="按任务和场景计数接受、编辑、重试与撤销；不保存正文，也不会自动改写偏好" Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0" /></StackPanel>
                         <ToggleButton Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding PreferenceLearningEnabled}" VerticalAlignment="Center" />
                     </Grid>
+                    <Border Style="{StaticResource AbilityDivider}" />
+                    <Grid Style="{StaticResource AbilitySettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="允许确认偏好随云端请求发送" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" />
+                            <TextBlock Text="默认关闭。开启后云端请求可包含当前任务/场景已确认的篇幅、语气、保留措辞和禁用表达；交互统计永不发送。关闭时只在确定的本机请求中使用偏好；若配置云端备用，也会从该请求中省略。" Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ToggleButton Grid.Column="1" Style="{StaticResource SwitchToggle}" IsChecked="{Binding ShareConfirmedPreferencesWithCloud}" VerticalAlignment="Center" ToolTip="允许将当前任务和场景已确认的结构化偏好加入云端请求" />
+                    </Grid>
+                    <Border Style="{StaticResource AbilityDivider}" />
+                    <TextBlock Text="按任务和场景确认长期偏好" Foreground="{DynamicResource BodyTextBrush}" FontWeight="SemiBold" Margin="0,0,0,5" />
+                    <TextBlock Text="编辑后保存设置即表示确认。可为不同场景单独设置；本轮明确要求始终优先。" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,10" />
+                    <Grid Margin="0,0,0,10">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="150" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="任务" Style="{StaticResource LabelText}" Margin="0,0,0,4" />
+                        <TextBlock Grid.Column="2" Text="篇幅" Style="{StaticResource LabelText}" Margin="0,0,0,4" />
+                        <ComboBox Grid.Row="1" ItemsSource="{Binding ExpressionPreferenceTasks}" DisplayMemberPath="DisplayName" SelectedValuePath="Value"
+                                  SelectedValue="{Binding ExpressionPreferenceTask, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" />
+                        <ComboBox Grid.Row="1" Grid.Column="2" ItemsSource="{Binding ExpressionLengthOptions}" DisplayMemberPath="DisplayName" SelectedValuePath="Value"
+                                  SelectedValue="{Binding PreferredExpressionLength, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" />
+                        <TextBlock Grid.Row="2" Text="适用场景" Style="{StaticResource LabelText}" Margin="0,10,0,4" />
+                        <TextBlock Grid.Row="2" Grid.Column="2" Text="语气" Style="{StaticResource LabelText}" Margin="0,10,0,4" />
+                        <ComboBox Grid.Row="3" ItemsSource="{Binding ExpressionPreferenceScenarios}" DisplayMemberPath="DisplayName" SelectedValuePath="Value"
+                                  SelectedValue="{Binding ExpressionPreferenceScenario, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" />
+                        <ComboBox Grid.Row="3" Grid.Column="2" ItemsSource="{Binding ExpressionToneOptions}" DisplayMemberPath="DisplayName" SelectedValuePath="Value"
+                                  SelectedValue="{Binding PreferredExpressionTone, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" />
+                    </Grid>
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="150" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center"><TextBlock Text="场景输出风格" Style="{StaticResource LabelText}" /><TextBlock Text="优先于全局风格" Foreground="{DynamicResource MutedBrush}" FontSize="12" /></StackPanel>
+                        <ComboBox Grid.Column="2" ItemsSource="{Binding ScopedOutputStyleOptions}" DisplayMemberPath="DisplayName" SelectedValuePath="Value"
+                                  SelectedValue="{Binding ScopedOutputStyle, Mode=TwoWay}" Style="{StaticResource GlassComboBox}" />
+                    </Grid>
+                    <CheckBox Content="尽量保留我原来的措辞" IsChecked="{Binding PreserveOriginalWording}" Margin="0,0,0,8" />
+                    <TextBlock Text="禁用表达（每行一条，仅用于当前任务和场景）" Style="{StaticResource LabelText}" />
+                    <TextBox Text="{Binding ForbiddenExpressionText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource GlassPlainTextBox}"
+                             TextWrapping="Wrap" AcceptsReturn="True" MinHeight="48" MaxHeight="88" Margin="0,5,0,4" VerticalScrollBarVisibility="Auto" />
+                    <TextBlock Text="保存设置后，这些内容会标记为来源=user-confirmed、置信度=1，并只用于所选任务和场景。" Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
-            <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding PreferenceSummary}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" VerticalAlignment="Center" /><Button Grid.Column="1" Style="{StaticResource AbilityLinkButton}" Content="恢复默认" Command="{Binding ResetExpressionPreferencesCommand}" Margin="14,0,0,0" ToolTip="清除本地学习到的表达偏好" /></Grid>
+            <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="{Binding PreferenceSummary}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" VerticalAlignment="Center" /><TextBlock Text="{Binding PreferenceMetadataSummary}" Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0" /><TextBlock Text="导出包含已保存的表达偏好、全局和任务级输出风格，以及不含原文的交互统计；不包含密钥或历史。" Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0" /><TextBlock Text="清除只影响本机当前配置；此前导出的 JSON 和包含 config.json 快照的手动备份 ZIP 会保留，需从副本中清除时请手动删除对应文件。" Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0" /></StackPanel><StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button Style="{StaticResource AbilityLinkButton}" Content="清除当前范围偏好" Command="{Binding ClearCurrentExpressionPreferenceCommand}" Margin="14,0,0,0" ToolTip="只移除当前任务和场景的结构化偏好，设置页保存后生效；本地交互统计、输出风格及其它范围偏好会保留" /><Button Style="{StaticResource AbilityLinkButton}" Content="导出偏好" Click="ExportPreferences_OnClick" Margin="14,0,0,0" ToolTip="导出本机已保存的表达偏好、输出风格和交互统计" /><Button Style="{StaticResource AbilityLinkButton}" Content="清除全部偏好" Command="{Binding ResetExpressionPreferencesCommand}" Margin="14,0,0,0" ToolTip="删除当前配置中的确认偏好和本地交互统计；不改动此前导出的 JSON 或手动备份 ZIP" /></StackPanel></Grid>
+
+            <Border Style="{StaticResource SectionCard}" Padding="14,10" Margin="0,10,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="可选的篇幅候选" Style="{StaticResource LabelText}" />
+                        <TextBlock Text="{Binding ExpressionPreferenceCandidateSummary}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,10,0" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Visibility="{Binding HasExpressionPreferenceCandidate, Converter={StaticResource BoolToVisibility}}">
+                        <Button Style="{StaticResource AbilityLinkButton}" Content="载入候选" Command="{Binding ApplyExpressionPreferenceCandidateCommand}" ToolTip="载入篇幅候选到编辑器；保存设置后才确认" />
+                        <Button Style="{StaticResource AbilityLinkButton}" Content="忽略此候选" Command="{Binding IgnoreExpressionPreferenceCandidateCommand}" Margin="10,0,0,0" ToolTip="在本机忽略此候选" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource SectionCard}" Padding="14,10" Margin="0,8,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="可选的语气候选" Style="{StaticResource LabelText}" />
+                        <TextBlock Text="{Binding ExpressionToneCandidateSummary}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,10,0" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Visibility="{Binding HasExpressionToneCandidate, Converter={StaticResource BoolToVisibility}}">
+                        <Button Style="{StaticResource AbilityLinkButton}" Content="载入候选" Command="{Binding ApplyExpressionToneCandidateCommand}" ToolTip="载入语气候选到编辑器；保存设置后才确认" />
+                        <Button Style="{StaticResource AbilityLinkButton}" Content="忽略此候选" Command="{Binding IgnoreExpressionToneCandidateCommand}" Margin="10,0,0,0" ToolTip="只在本机忽略此候选" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource SectionCard}" Padding="14,10" Margin="0,8,0,0">
+                <StackPanel>
+                    <TextBlock Text="可选的禁用表达候选" Style="{StaticResource LabelText}" />
+                    <TextBlock Text="{Binding ForbiddenExpressionCandidateSummary}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,8" />
+                    <ItemsControl ItemsSource="{Binding ForbiddenExpressionCandidates}" Visibility="{Binding HasForbiddenExpressionCandidates, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Value}" Style="{StaticResource LabelText}" />
+                                        <TextBlock Text="{Binding SupportingOutputs, StringFormat=在 {0} 个已接受结果中删除}" Foreground="{DynamicResource MutedBrush}" FontSize="12" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Style="{StaticResource AbilityLinkButton}" Content="载入编辑" Command="{Binding DataContext.ApplyForbiddenExpressionCandidateCommand, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}" CommandParameter="{Binding}" ToolTip="载入当前范围的禁用表达编辑框；保存前可修改或删除" />
+                                        <Button Style="{StaticResource AbilityLinkButton}" Content="忽略" Command="{Binding DataContext.IgnoreForbiddenExpressionCandidateCommand, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}" CommandParameter="{Binding}" Margin="8,0,0,0" ToolTip="只在本机忽略这一个候选" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
 
             <TextBlock Text="自定义规则（高级）" Style="{StaticResource AbilitySectionHeading}" />
             <Border Style="{StaticResource SectionCard}" Padding="18,14">

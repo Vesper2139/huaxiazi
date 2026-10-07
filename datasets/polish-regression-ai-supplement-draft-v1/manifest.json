@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "dataset_version": "hxz-polish-regression-ai-supplement-draft-v1",
+  "status": "draft",
+  "purpose": "internal_regression_only",
+  "parent_dataset_version": "hxz-polish-regression-v1",
+  "parent_manifest_sha256": "8da2557b6a9b2f0a6c2d80ffd746bb79d6b494da5b50ad1db4fe45f23d11a2cb",
+  "coverage_gap_report_sha256": "7ce21a6b3f0e37700890f7b81f8abb61675064d8a288fec324ca093a3d4248a8",
+  "generator": "AI-authored synthetic examples",
+  "drafted_at_utc": "2026-10-05T07:26:30Z",
+  "counts": {
+    "cases": 20,
+    "variants": 20,
+    "families": 20,
+    "development": 10,
+    "regression": 10,
+    "clarify": 2,
+    "polish": 18,
+    "behavior_categories": 10,
+    "tool_failure_samples": 0
+  },
+  "origin": "ai_assisted_draft",
+  "phase_0_gate_contribution": 0,
+  "not_admissible_as_blind_eval": true,
+  "not_usable_for_model_promotion": true,
+  "files": {
+    "cases.jsonl": "0042e9c86699a7c3a51c576ebae85bd44c5787e1a6b34c8ab23b883eba35e4a8",
+    "generation-prompt.md": "a17ff4398f3567a099d3e0b3de364c2ef055ec7ca2c6020a94cb61e9d9d39556",
+    "README.md": "ee4b2756bbeb7de178f30e004f5602a55ecdf1e8e29e18e7f54da2ecdd42dd03"
+  }
+}

@@ -54,6 +54,18 @@ public sealed class DpapiSecretStoreTests : IDisposable
              sid.IsWellKnown(WellKnownSidType.AuthenticatedUserSid)));
     }
 
+    [Fact]
+    public void ExistingDirectory_WhenAclRepairIsDenied_DoesNotBlockCredentialHealthCheck()
+    {
+        Directory.CreateDirectory(_root);
+
+        var store = new DpapiSecretStore(
+            _root,
+            (_, _) => throw new UnauthorizedAccessException("simulated ACL denial"));
+
+        Assert.Null(store.Read("profile-default"));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

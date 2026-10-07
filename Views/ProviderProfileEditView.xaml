@@ -120,6 +120,15 @@
                                  IsReadOnly="{Binding IsApiBaseEditable, Converter={StaticResource InverseBool}}"
                                  ToolTip="官方厂商自动填写；自定义接口可修改" />
 
+                        <StackPanel Margin="0,12,0,0" Visibility="{Binding IsOpenAiProtocolSelectorVisible, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="OpenAI API 协议" Style="{StaticResource LabelText}" Margin="0,0,0,4" />
+                            <ComboBox x:Name="OpenAiProtocolSelector" Style="{StaticResource CompactSettingsComboBox}"
+                                      ItemsSource="{Binding OpenAiProtocolOptions}"
+                                      DisplayMemberPath="DisplayName" SelectedValuePath="Value"
+                                      SelectedValue="{Binding SelectedOpenAiProtocol, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      ToolTip="Responses 与 Chat Completions 使用不同请求格式；Responses 的 max_output_tokens 包含推理 token；现有配置默认保持 Chat Completions。" />
+                        </StackPanel>
+
                         <TextBlock Text="模型" Style="{StaticResource LabelText}" Margin="0,14,0,4" />
                         <ComboBox x:Name="ModelSelector" Style="{StaticResource CompactSettingsComboBox}" IsEditable="True"
                                   TextSearch.TextPath="ModelId" ItemsSource="{Binding AvailableModels}"
@@ -128,6 +137,16 @@
                                   Loaded="ModelSelector_OnLoaded" SelectionChanged="ModelSelector_OnSelectionChanged"
                                   LostFocus="ModelSelector_OnLostFocus"
                                   ToolTip="选择推荐模型，或直接输入实际 Model ID" />
+                        <StackPanel Margin="0,5,0,0" Visibility="{Binding IsOpenRouterModelRefreshVisible, Converter={StaticResource BoolToVisibility}}">
+                            <Button Content="刷新 OpenRouter 型号"
+                                    Command="{Binding RefreshOpenRouterModelsCommand}"
+                                    IsEnabled="{Binding IsRefreshingOpenRouterModels, Converter={StaticResource InverseBool}}"
+                                    HorizontalAlignment="Left" Style="{StaticResource GlassButton}" Padding="10,5"
+                                    ToolTip="仅在点击时将当前 OpenRouter API Key 发送至官方目录接口；不发送对话内容。" />
+                            <TextBlock Text="{Binding OpenRouterModelCatalogStatus}" Style="{StaticResource LabelText}"
+                                       FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
 
                         <StackPanel Margin="0,18,0,0">
                             <TextBlock Text="推理强度" Style="{StaticResource LabelText}" Margin="0,0,0,4" />
@@ -136,9 +155,11 @@
                                       DisplayMemberPath="DisplayName"
                                       SelectedValuePath="Value"
                                       SelectedValue="{Binding SelectedInferenceLevel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      ToolTip="用低、中、高快速选择推理强度；需要精细控制时选择自定义" />
+                                      ToolTip="低、中、高会套用参数预设；实际采样和推理由所选 Provider/型号决定。需要精细控制时选择自定义" />
                             <TextBlock Text="{Binding SelectedInferenceDescription}" Style="{StaticResource LabelText}" FontSize="11"
                                        Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0" />
+                            <TextBlock Text="{Binding SelectedProviderCapabilitySummary}" Style="{StaticResource LabelText}" FontSize="11"
+                                       Foreground="{DynamicResource MutedBrush}" Margin="0,6,0,0" TextWrapping="Wrap" />
                         </StackPanel>
 
                         <Expander Header="自定义高级参数" Style="{StaticResource SettingsExpander}" Margin="0,14,0,0"

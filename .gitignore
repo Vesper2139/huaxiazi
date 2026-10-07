@@ -14,6 +14,17 @@ __pycache__/
 # ===== 统一生成输出（由脚本生成，不入库） =====
 out/
 deploy/out/
+/outputs/
+/training/runs/
+/.tmp-test-env/
+/.test-temp/
+
+# 不应将大模型权重加入源码提交；模型由用户按需独立下载。
+*.gguf
+
+# 测试命令误传相对 NuGetLockFilePath 时会在项目子目录生成这些临时文件。
+/DatasetBuilder/deploy/packages.tests.win-x64.lock.json
+/Huaxiazi.Tests/deploy/packages.tests.win-x64.lock.json
 
 # 发布物只由受保护的 CI 构建并作为 Release artifact 分发，不进入源码仓库
 release/

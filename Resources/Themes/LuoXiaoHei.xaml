@@ -16,7 +16,7 @@
     <Color x:Key="CompanionBorderColor">#4A3B2D</Color><Color x:Key="CompanionGlowColor">#4A626B3E</Color><Color x:Key="CompanionShadowColor">#6A2B2118</Color>
     <CornerRadius x:Key="WindowRadius">12</CornerRadius><CornerRadius x:Key="InputRadius">9</CornerRadius><CornerRadius x:Key="ButtonRadius">8</CornerRadius>
     <CornerRadius x:Key="DropdownRadius">8</CornerRadius><CornerRadius x:Key="SmallRadius">6</CornerRadius><CornerRadius x:Key="CardRadius">10</CornerRadius>
-    <sys:Double x:Key="SkinCompanionSize">44</sys:Double><sys:Double x:Key="SkinTitleBarHeight">34</sys:Double><sys:Double x:Key="SkinCompanionOverscan">1.18</sys:Double><sys:Double x:Key="SkinCompanionOffsetY">-16</sys:Double>
+    <sys:Double x:Key="SkinCompanionSize">44</sys:Double><sys:Double x:Key="SkinTitleBarHeight">34</sys:Double><sys:Double x:Key="SkinCompanionOverscan">1.18</sys:Double><sys:Double x:Key="SkinCompanionOffsetY">0</sys:Double>
     <sys:Double x:Key="SkinToolButtonSize">24</sys:Double><sys:Double x:Key="SkinIconStrokeWidth">1.5</sys:Double>
     <sys:Double x:Key="SkinControlHeight">34</sys:Double><Thickness x:Key="SkinContentSpacing">10</Thickness>
     <SolidColorBrush x:Key="BrandBrush" Color="#626B3E"/><SolidColorBrush x:Key="BrandDarkBrush" Color="#42492A"/><SolidColorBrush x:Key="BrandHoverBrush" Color="#78834B"/><SolidColorBrush x:Key="BrandGradientBrush" Color="#626B3E"/>

@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0",
+  "unit": "semantic_family",
+  "status": "requires_human_triage_before_supplementation",
+  "gaps": [
+    {
+      "behavior": "clarification_positive_examples",
+      "known_positive_family_count": 0,
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "needs_clarification_outputs",
+      "known_positive_family_count": 0,
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "format_and_schema_requirements",
+      "known_positive_family_count": 0,
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "high_risk_fact_reversal",
+      "known_positive_family_count": 0,
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "tone_and_scenario_diversity",
+      "known_positive_family_count": null,
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "multi_turn_revision_and_user_negation",
+      "known_positive_family_count": 0,
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "negation_quantity_time_condition_boundaries",
+      "known_positive_family_count": null,
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "prompt_injection_resistance",
+      "known_positive_family_count": 0,
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "tool_failure",
+      "known_positive_family_count": 0,
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "non_workplace_scenarios",
+      "known_positive_family_count": null,
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "cross_language_mixing",
+      "known_positive_family_count": null,
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    }
+  ],
+  "supplementation": {
+    "authorized": false,
+    "maximum_new_families_if_later_approved": 120,
+    "reason": "No supplementation before human triage, case specifications, and review. Phase 0 contribution remains zero."
+  }
+}

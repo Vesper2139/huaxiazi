@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://huaxiazi.local/schemas/polish-regression-human-review-v1.json",
+  "title": "Internal Polish Regression Human Review Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "review_item_id", "family_id", "reviewer_id", "reviewed_at_utc", "overall_decision", "backbone_decision", "reference_reuse_decision", "field_decisions", "reviewer_is_independent_of_draft_author", "rationale"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "review_item_id": {"type": "string", "pattern": "^hxz-polish-human-review-[a-f0-9]{16}$"},
+    "family_id": {"type": "string", "pattern": "^hxz-polish-reg-family-[a-f0-9]{16}$"},
+    "reviewer_id": {"type": "string", "minLength": 1},
+    "reviewed_at_utc": {"type": "string", "format": "date-time"},
+    "overall_decision": {"enum": ["accept", "revise", "reject", "unresolved"]},
+    "backbone_decision": {
+      "type": "object", "additionalProperties": false,
+      "required": ["outcome", "final_backbone_id", "rationale"],
+      "properties": {
+        "outcome": {"enum": ["confirm", "split", "merge", "unresolved"]},
+        "final_backbone_id": {"type": ["string", "null"]},
+        "rationale": {"type": ["string", "null"]}
+      }
+    },
+    "reference_reuse_decision": {
+      "type": "object", "additionalProperties": false,
+      "required": ["outcome", "rationale"],
+      "properties": {
+        "outcome": {"enum": ["acceptable", "requires_distinct_reference", "exclude_family_from_scoring", "unresolved"]},
+        "rationale": {"type": ["string", "null"]}
+      }
+    },
+    "field_decisions": {
+      "type": "object", "additionalProperties": false,
+      "required": ["requested_intent", "semantic_scene", "input_style", "target_formality", "draft_fact_anchors", "injection_marker", "legacy_scenario", "legacy_channel", "legacy_risk_level", "legacy_task", "legacy_expected_decision", "legacy_claims", "legacy_reference_output", "legacy_rubric"],
+      "patternProperties": {
+        ".*": {
+          "type": "object", "additionalProperties": false,
+          "required": ["outcome", "final_value", "rationale"],
+          "properties": {
+            "outcome": {"enum": ["accept", "revise", "reject", "uncertain"]},
+            "final_value": {},
+            "rationale": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "reviewer_is_independent_of_draft_author": {"const": true},
+    "rationale": {"type": "string", "minLength": 1}
+  }
+}

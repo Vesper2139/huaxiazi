@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://huaxiazi.example/schemas/ai-blind-eval-v3.1.json",
+  "title": "话匣子 AI 盲评样本 v3.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "task",
+    "semantic_family_id",
+    "source",
+    "input",
+    "input_style",
+    "constraints",
+    "risk_level",
+    "split",
+    "expected_decision",
+    "human_review",
+    "annotations"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "task": { "enum": ["polish", "prompt_optimize"] },
+    "semantic_family_id": { "type": "string", "minLength": 1 },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_kind", "license_or_consent_ref", "deidentification"],
+      "properties": {
+        "source_kind": { "enum": ["project_owned", "licensed", "user_authorized_deidentified"] },
+        "license_or_consent_ref": { "type": "string", "minLength": 1 },
+        "deidentification": { "type": "string", "minLength": 1 },
+        "source_record_hash": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" }
+      }
+    },
+    "input": { "type": "string", "minLength": 1 },
+    "conversation_id": { "type": "string", "minLength": 1 },
+    "turns": {
+      "type": "array",
+      "minItems": 2,
+      "description": "Optional ordered polish conversation. Sequential turn_index values and input equality with the final turn are enforced by the admission validator.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["turn_index", "user_input"],
+        "properties": {
+          "turn_index": { "type": "integer", "minimum": 1 },
+          "user_input": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "input_style": { "enum": ["colloquial", "fragmentary", "formal", "speech_transcription", "mixed_language"] },
+    "context": { "type": "object" },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "risk_level": { "enum": ["low", "medium", "high"] },
+    "split": { "enum": ["development", "frozen_test"] },
+    "expected_decision": { "enum": ["produce", "clarify", "refuse"] },
+    "reference_output": { "type": ["string", "null"] },
+    "annotations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["facts_and_constraints", "target_tone", "format_requirements", "clarification_required", "high_risk_key_facts"],
+      "properties": {
+        "facts_and_constraints": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "target_tone": { "type": "string", "minLength": 1 },
+        "format_requirements": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "clarification_required": { "type": "boolean" },
+        "high_risk_key_facts": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "human_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewer_ids", "review_status", "independent_annotations"],
+      "properties": {
+        "reviewer_ids": { "type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "review_status": { "enum": ["accepted", "adjudicated"] },
+        "adjudicator_id": { "type": "string", "minLength": 1 },
+        "independent_annotations": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "$ref": "#/$defs/annotation_vote" }
+        },
+        "adjudication": {
+          "oneOf": [
+            { "$ref": "#/$defs/annotation_vote" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "review_status": { "const": "accepted" } } },
+          "then": {
+            "not": { "required": ["adjudicator_id"] },
+            "properties": { "adjudication": { "type": "null" } }
+          }
+        },
+        {
+          "if": { "properties": { "review_status": { "const": "adjudicated" } } },
+          "then": { "required": ["adjudicator_id", "adjudication"] }
+        }
+      ]
+    }
+  },
+  "dependentRequired": {
+    "conversation_id": ["turns"],
+    "turns": ["conversation_id"]
+  },
+  "allOf": [
+    {
+      "if": { "required": ["turns"] },
+      "then": { "properties": { "task": { "const": "polish" } } }
+    }
+  ],
+  "$defs": {
+    "annotation_vote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewer_id", "labels"],
+      "properties": {
+        "reviewer_id": { "type": "string", "minLength": 1 },
+        "labels": { "$ref": "#/$defs/gold_labels" }
+      }
+    },
+    "gold_labels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task", "input_style", "constraints", "risk_level", "expected_decision", "reference_output", "annotations"],
+      "properties": {
+        "task": { "enum": ["polish", "prompt_optimize"] },
+        "input_style": { "enum": ["colloquial", "fragmentary", "formal", "speech_transcription", "mixed_language"] },
+        "constraints": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "risk_level": { "enum": ["low", "medium", "high"] },
+        "expected_decision": { "enum": ["produce", "clarify", "refuse"] },
+        "reference_output": { "type": ["string", "null"] },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["facts_and_constraints", "target_tone", "format_requirements", "clarification_required", "high_risk_key_facts"],
+          "properties": {
+            "facts_and_constraints": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "target_tone": { "type": "string", "minLength": 1 },
+            "format_requirements": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "clarification_required": { "type": "boolean" },
+            "high_risk_key_facts": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          }
+        }
+      }
+    }
+  }
+}

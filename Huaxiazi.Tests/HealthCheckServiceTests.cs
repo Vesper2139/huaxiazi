@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Huaxiazi.Models;
@@ -13,7 +14,7 @@ namespace Huaxiazi.Tests;
 
 public sealed class HealthCheckServiceTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "HuaxiaziHealth_" + Guid.NewGuid().ToString("N"));
+    private readonly string _root = Path.Combine(AppContext.BaseDirectory, "health-check-test-" + Guid.NewGuid().ToString("N"));
 
     private sealed class StubHandler(HttpStatusCode statusCode) : HttpMessageHandler
     {
@@ -48,6 +49,19 @@ public sealed class HealthCheckServiceTests : IDisposable
         Assert.Contains(report.Items, item => item.Name == "HotKey" && item.Status == HealthCheckStatus.Healthy);
         Assert.Contains(report.Items, item => item.Name == "Storage" && item.Status == HealthCheckStatus.Healthy);
         Assert.Contains(report.Items, item => item.Name == "Provider" && item.Status == HealthCheckStatus.Healthy);
+    }
+
+    [Fact]
+    public async Task CheckAsync_StorageProbeIgnoresAStaleProbeDirectory()
+    {
+        Directory.CreateDirectory(_root);
+        Directory.CreateDirectory(Path.Combine(_root, ".health-write-probe"));
+
+        var report = await new HealthCheckService(new StubHandler(HttpStatusCode.NotFound))
+            .CheckAsync(LocalSettings(), _root, _ => null, hotkeyRegistered: true);
+
+        var storage = Assert.Single(report.Items, item => item.Name == "Storage");
+        Assert.Equal(HealthCheckStatus.Healthy, storage.Status);
     }
 
     [Fact]
@@ -102,7 +116,160 @@ public sealed class HealthCheckServiceTests : IDisposable
 
         var provider = Assert.Single(report.Items, item => item.Name == "Provider");
         Assert.Equal(HealthCheckStatus.Failed, provider.Status);
+        Assert.Equal(HealthCheckScope.External, provider.Scope);
+        Assert.True(report.HasExternalFailures);
         Assert.Equal(0, handler.Calls);
+    }
+
+    [Fact]
+    public async Task CheckAsync_ManagedLocalProviderDoesNotMakeExternalNetworkRequest()
+    {
+        var settings = new AppSettings
+        {
+            ProviderProfiles =
+            [
+                new ProviderProfile
+                {
+                    Id = "managed", Name = "受管本地", Type = ProviderType.Local,
+                    Platform = ProviderPlatform.ManagedLocal, ApiBase = "http://127.0.0.1:0/v1",
+                    Model = "qwen-test@1", LocalModelInstallationId = "qwen-test@1"
+                }
+            ],
+            ActiveProviderProfileId = "managed"
+        };
+        var handler = new CountingHandler();
+        var store = new LocalModelStore(Path.Combine(_root, "models"));
+        var sourcePath = Path.Combine(_root, "model.gguf");
+        Directory.CreateDirectory(_root);
+        await File.WriteAllBytesAsync(sourcePath, Encoding.UTF8.GetBytes("GGUF-test-model"));
+        var installed = await store.ImportModelAsync(sourcePath, "测试模型");
+        settings.ProviderProfiles[0].LocalModelInstallationId = installed.InstallationId;
+
+        var report = await new HealthCheckService(handler, store, Path.Combine(_root, "runtime"))
+            .CheckAsync(settings, _root, _ => null, hotkeyRegistered: true);
+
+        var provider = Assert.Single(report.Items, item => item.Name == "Provider");
+        Assert.Equal(HealthCheckStatus.Failed, provider.Status);
+        Assert.Equal(HealthCheckScope.Local, provider.Scope);
+        Assert.True(report.HasLocalFailures);
+        Assert.False(report.HasExternalFailures);
+        Assert.Equal(0, handler.Calls);
+        Assert.Contains("运行时", provider.Message);
+    }
+
+    [Fact]
+    public async Task CheckAsync_ManagedLocalProviderProbesExecutableAndKeepsCpuFallbackLocal()
+    {
+        var settings = new AppSettings
+        {
+            ProviderProfiles =
+            [
+                new ProviderProfile
+                {
+                    Id = "managed", Name = "受管本地", Type = ProviderType.Local,
+                    Platform = ProviderPlatform.ManagedLocal, ApiBase = "http://127.0.0.1:0/v1",
+                    Model = "qwen-test@1", LocalModelInstallationId = "qwen-test@1"
+                }
+            ],
+            ActiveProviderProfileId = "managed"
+        };
+        var handler = new CountingHandler();
+        var store = new LocalModelStore(Path.Combine(_root, "probe-models"));
+        var modelPath = Path.Combine(_root, "probe-model.gguf");
+        Directory.CreateDirectory(_root);
+        await File.WriteAllBytesAsync(modelPath, Encoding.UTF8.GetBytes("GGUF-test-model"));
+        var installed = await store.ImportModelAsync(modelPath, "测试模型");
+        settings.ProviderProfiles[0].LocalModelInstallationId = installed.InstallationId;
+        var runtimeRoot = Path.Combine(_root, "probe-runtime");
+        var cpuExecutable = Path.Combine(runtimeRoot, "cpu", "llama-server.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(cpuExecutable)!);
+        await File.WriteAllTextAsync(cpuExecutable, "runtime marker");
+        var probed = new List<string>();
+
+        var report = await new HealthCheckService(handler, store, runtimeRoot,
+                (path, _) => { probed.Add(path); return Task.CompletedTask; })
+            .CheckAsync(settings, _root, _ => null, hotkeyRegistered: true);
+
+        var provider = Assert.Single(report.Items, item => item.Name == "Provider");
+        Assert.Equal(HealthCheckStatus.Healthy, provider.Status);
+        Assert.Contains("CPU 可执行文件版本探测通过", provider.Message);
+        Assert.Contains("未启动模型", provider.Message);
+        Assert.Equal([cpuExecutable], probed);
+        Assert.False(report.HasExternalFailures);
+        Assert.False(report.HasLocalFailures);
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Fact]
+    public async Task CheckAsync_MissingVulkanLoaderReportsCpuFallbackAndDoesNotProbeVulkan()
+    {
+        var (settings, store, runtimeRoot, handler) = await CreateManagedLocalRuntimeFixtureAsync("VulkanMissingLoader");
+        var vulkanExecutable = Path.Combine(runtimeRoot, "vulkan", "llama-server.exe");
+        var cpuExecutable = Path.Combine(runtimeRoot, "cpu", "llama-server.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(vulkanExecutable)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(cpuExecutable)!);
+        await File.WriteAllTextAsync(vulkanExecutable, "vulkan runtime marker");
+        await File.WriteAllTextAsync(cpuExecutable, "cpu runtime marker");
+        var probed = new List<string>();
+
+        var report = await new HealthCheckService(handler, store, runtimeRoot,
+                (path, _) => { probed.Add(path); return Task.CompletedTask; },
+                useVulkan => useVulkan ? ["vulkan-1.dll"] : [])
+            .CheckAsync(settings, _root, _ => null, hotkeyRegistered: true);
+
+        var provider = Assert.Single(report.Items, item => item.Name == "Provider");
+        Assert.Equal(HealthCheckStatus.Healthy, provider.Status);
+        Assert.Contains("Vulkan loader", provider.Message);
+        Assert.Contains("CPU", provider.Message);
+        Assert.Equal([cpuExecutable], probed);
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Fact]
+    public async Task CheckAsync_MissingVisualCppRuntimeGivesInstallGuidanceWithoutLaunchingRuntime()
+    {
+        var (settings, store, runtimeRoot, handler) = await CreateManagedLocalRuntimeFixtureAsync("CpuMissingVCRuntime");
+        var cpuExecutable = Path.Combine(runtimeRoot, "cpu", "llama-server.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(cpuExecutable)!);
+        await File.WriteAllTextAsync(cpuExecutable, "cpu runtime marker");
+        var probeCalled = false;
+
+        var report = await new HealthCheckService(handler, store, runtimeRoot,
+                (_, _) => { probeCalled = true; return Task.CompletedTask; },
+                _ => ["VCRUNTIME140.dll", "MSVCP140.dll"])
+            .CheckAsync(settings, _root, _ => null, hotkeyRegistered: true);
+
+        var provider = Assert.Single(report.Items, item => item.Name == "Provider");
+        Assert.Equal(HealthCheckStatus.Failed, provider.Status);
+        Assert.Contains("Microsoft Visual C++ x64", provider.Message);
+        Assert.Contains("https://aka.ms/vs/17/release/vc_redist.x64.exe", provider.Message);
+        Assert.False(probeCalled);
+        Assert.Equal(0, handler.Calls);
+    }
+
+    private async Task<(AppSettings Settings, LocalModelStore Store, string RuntimeRoot, CountingHandler Handler)>
+        CreateManagedLocalRuntimeFixtureAsync(string name)
+    {
+        Directory.CreateDirectory(_root);
+        var settings = new AppSettings
+        {
+            ProviderProfiles =
+            [
+                new ProviderProfile
+                {
+                    Id = "managed", Name = "受管本地", Type = ProviderType.Local,
+                    Platform = ProviderPlatform.ManagedLocal, ApiBase = "http://127.0.0.1:0/v1",
+                    Model = "qwen-test@1", LocalModelInstallationId = "qwen-test@1"
+                }
+            ],
+            ActiveProviderProfileId = "managed"
+        };
+        var store = new LocalModelStore(Path.Combine(_root, name + "-models"));
+        var modelPath = Path.Combine(_root, name + "-model.gguf");
+        await File.WriteAllBytesAsync(modelPath, Encoding.UTF8.GetBytes("GGUF-test-model"));
+        var installed = await store.ImportModelAsync(modelPath, "测试模型");
+        settings.ProviderProfiles[0].LocalModelInstallationId = installed.InstallationId;
+        return (settings, store, Path.Combine(_root, name + "-runtime"), new CountingHandler());
     }
 
     [Fact]

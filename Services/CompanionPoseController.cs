@@ -137,7 +137,10 @@ public sealed class CompanionPoseController
         }
 
         var basePose = BasePose(BaseState, _clock.Elapsed);
-        var microPose = reduceMotion ? CompanionPose.Identity : MicroPose(_clock.Elapsed, _microBehavior);
+        // 拖动期间停用待机呼吸缩放；拖动态素材本身已提供反馈，根画布保持恒定尺寸。
+        var microPose = reduceMotion || _intent.Action == CompanionActionKind.Drag
+            ? CompanionPose.Identity
+            : MicroPose(_clock.Elapsed, _microBehavior);
         var activeIntent = reduceMotion
             ? _intent with { Action = CompanionActionKind.None }
             : _intent with { BaseState = BaseState };

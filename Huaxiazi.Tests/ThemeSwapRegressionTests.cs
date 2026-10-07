@@ -1,10 +1,12 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Huaxiazi.Services;
 using Huaxiazi.Views;
+using Huaxiazi.ViewModels;
 using Xunit;
 
 namespace Huaxiazi.Tests;
@@ -65,6 +67,7 @@ public sealed class ThemeSwapRegressionTests
     public void MainWindow_ThemeSwap_ResolvesNewSkinInWindowScope()
     {
         Exception? failure = null;
+        string? dataRoot = null;
         var thread = new Thread(() =>
         {
             try
@@ -73,7 +76,9 @@ public sealed class ThemeSwapRegressionTests
                 LoadAppResources(app);
                 var skin = new SkinService(app.Resources);
 
-                var window = new MainWindow();
+                var setup = CreateWindowWithIsolatedData();
+                dataRoot = setup.DataRoot;
+                var window = setup.Window;
                 window.Show(); // 连接视觉树，验证窗口资源作用域随换肤解析新皮肤
                 var windowBgBefore = ((SolidColorBrush)window.Background).Color;
 
@@ -86,12 +91,16 @@ public sealed class ThemeSwapRegressionTests
                 var surfaceBrush = (SolidColorBrush)window.WindowSurface.TryFindResource("GlassBrush");
 
                 Assert.Equal(Color.FromRgb(0x10, 0x10, 0x14), windowBgBefore);
-                Assert.Equal(Color.FromRgb(0xF3, 0xF1, 0xEC), windowBgBrush.Color);
-                Assert.Equal(Color.FromRgb(0xFF, 0xFE, 0xFB), surfaceBrush.Color);
+                Assert.Equal(Color.FromRgb(0xF5, 0xF4, 0xF1), windowBgBrush.Color);
+                Assert.Equal(Color.FromRgb(0xF8, 0xF7, 0xF2), surfaceBrush.Color);
                 window.Close();
             }
             catch (Exception exception) { failure = exception; }
-            finally { TestHelpers.ResetWpfApplication(); }
+            finally
+            {
+                TestHelpers.ResetWpfApplication();
+                DeleteIsolatedData(dataRoot);
+            }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -105,12 +114,15 @@ public sealed class ThemeSwapRegressionTests
         // 真实消息循环：动态资源失效在 Dispatcher 空闲后被处理，验证窗口有效背景确实换肤。
         // 若此处断言失败，说明换肤机制在真实运行下也不生效 —— 那是必须修的回归。
         Exception? failure = null;
+        string? dataRoot = null;
         var thread = new Thread(() =>
         {
             var app = TestHelpers.EnsureWpfApplication();
             LoadAppResources(app);
             var skin = new SkinService(app.Resources);
-            var window = new MainWindow();
+            var setup = CreateWindowWithIsolatedData();
+            dataRoot = setup.DataRoot;
+            var window = setup.Window;
             window.Show();
             window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
             {
@@ -130,8 +142,8 @@ public sealed class ThemeSwapRegressionTests
                     {
                         var bgAfter = ((SolidColorBrush)window.Background).Color;
                         var surfaceAfter = ((SolidColorBrush)window.WindowSurface.Background).Color;
-                        Assert.Equal(Color.FromRgb(0xF3, 0xF1, 0xEC), bgAfter);
-                        Assert.Equal(Color.FromRgb(0xFF, 0xFE, 0xFB), surfaceAfter);
+                        Assert.Equal(Color.FromRgb(0xF5, 0xF4, 0xF1), bgAfter);
+                        Assert.Equal(Color.FromRgb(0xF8, 0xF7, 0xF2), surfaceAfter);
                     }
                     catch (Exception exception) { failure = exception; }
                     window.Close();
@@ -140,6 +152,7 @@ public sealed class ThemeSwapRegressionTests
             }));
             System.Windows.Threading.Dispatcher.Run();
             TestHelpers.ResetWpfApplication();
+            DeleteIsolatedData(dataRoot);
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -171,5 +184,19 @@ public sealed class ThemeSwapRegressionTests
             System.Windows.Threading.DispatcherPriority.Background,
             new Action(() => frame.Continue = false));
         System.Windows.Threading.Dispatcher.PushFrame(frame);
+    }
+
+    private static (MainWindow Window, string DataRoot) CreateWindowWithIsolatedData()
+    {
+        var dataRoot = Path.Combine(Path.GetTempPath(), "HuaxiaziThemeSwap_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dataRoot);
+        var viewModel = new MainViewModel(new WorkspaceDraftService(dataRoot), new ArchiveService(dataRoot));
+        return (new MainWindow(viewModel), dataRoot);
+    }
+
+    private static void DeleteIsolatedData(string? dataRoot)
+    {
+        if (!string.IsNullOrWhiteSpace(dataRoot) && Directory.Exists(dataRoot))
+            Directory.Delete(dataRoot, recursive: true);
     }
 }

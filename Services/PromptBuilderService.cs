@@ -26,15 +26,17 @@ public sealed class PromptBuilderService
 
     public PromptBuilderService()
     {
-        // 优先从程序运行目录的 Prompts 子目录读取（发布后随程序分发）。
-        var baseDir = AppContext.BaseDirectory;
+        // 优先从随包内容目录的 Prompts 子目录读取。
+        // 单文件发布下 AppContext.BaseDirectory 指向宿主 EXE 所在目录而不是解包目录，
+        // 直接用它会读不到任何提示词模板，因此统一走 AppPaths。
+        var baseDir = AppPaths.ContentRoot;
         _promptsDirectory = Path.Combine(baseDir, "Prompts");
 
-        // 开发期（从源码 bin 之外运行时）回退到项目目录。
+        // 开发期（从源码 bin 之外运行时）回退到程序集所在目录。
         if (!Directory.Exists(_promptsDirectory))
         {
             var candidate = Path.Combine(
-                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? baseDir,
+                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? AppContext.BaseDirectory,
                 "Prompts");
             if (Directory.Exists(candidate))
             {
@@ -72,7 +74,18 @@ public sealed class PromptBuilderService
         }
 
         var personalized = new StringBuilder(result);
-        PromptContextComposer.AppendPersonalization(personalized, request.Persona, request.PreferenceInstructions);
+        var styleInstruction = OutputStyleInstruction(request.OutputStyle);
+        if (!string.IsNullOrWhiteSpace(request.Persona) || !string.IsNullOrWhiteSpace(request.PreferenceInstructions))
+        {
+            var preferenceInstructions = string.IsNullOrWhiteSpace(request.PreferenceInstructions)
+                ? styleInstruction
+                : request.PreferenceInstructions + "\n" + styleInstruction;
+            PromptContextComposer.AppendPersonalization(personalized, request.Persona, preferenceInstructions);
+        }
+        else
+        {
+            personalized.AppendLine().AppendLine(styleInstruction);
+        }
         result = personalized.ToString();
 
         if (plan is not null && !string.IsNullOrWhiteSpace(plan.StrategyInstructions))
@@ -103,6 +116,7 @@ public sealed class PromptBuilderService
         if (plan is not null && plan.SelectedSkillIds.Count > 0)
             strategy += "\n选用 Skill：" + string.Join("、", plan.SelectedSkillIds) + "；权重：" + string.Join("、", plan.SkillWeights.Select(item => item.Key + "=" + item.Value.ToString("0.000")));
         var developer = "类别：" + request.Category.GetDisplayName() + "；深度：" + request.Depth.GetDisplayName();
+        developer += "\n" + OutputStyleInstruction(request.OutputStyle);
         // A user-editable "custom system prompt" is not allowed to replace the
         // product system layer. Compile it as untrusted, lower-priority developer
         // guidance so safety rules and the protocol remain authoritative.
@@ -116,6 +130,7 @@ public sealed class PromptBuilderService
             UserInput = request.UserInput,
             Category = request.Category,
             Depth = request.Depth,
+            OutputStyle = request.OutputStyle,
             // Never allow user text to replace the bundled system prompt in
             // the layered production entry point.
             CustomSystemPrompt = string.Empty
@@ -144,6 +159,9 @@ public sealed class PromptBuilderService
             .Replace("{{Depth}}", depthText, StringComparison.Ordinal)
             .Replace("{{UserInput}}", "[用户输入通过 user message 单独提供]", StringComparison.Ordinal);
     }
+
+    private static string OutputStyleInstruction(string? outputStyle) =>
+        $"用户选择的输出风格：{OutputStyleCatalog.Describe(outputStyle)}。此风格仅调整表达，不得覆盖本轮明确要求和事实保真规则。";
 
     public string BuildRepairPrompt(PromptRequest request, ProfessionalizationPlan plan, System.Collections.Generic.IReadOnlyList<QualityIssue> issues)
     {

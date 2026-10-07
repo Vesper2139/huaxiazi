@@ -11,7 +11,7 @@ namespace Huaxiazi.Tests;
 
 public sealed class PolishWorkflowServiceTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "HuaxiaziWorkflow_" + Guid.NewGuid().ToString("N"));
+    private readonly string _root = Path.Combine(Environment.CurrentDirectory, "out", "test-artifacts", "HuaxiaziWorkflow_" + Guid.NewGuid().ToString("N"));
 
     private sealed class StaticClient(string response) : ITextGenerationClient
     {
@@ -29,6 +29,42 @@ public sealed class PolishWorkflowServiceTests : IDisposable
             var response = responses[Math.Min(_index, responses.Length - 1)];
             _index++;
             return Task.FromResult(response);
+        }
+    }
+
+    private sealed class StructuredClient(string response) : ITextGenerationClient, IStructuredTextGenerationClient
+    {
+        public int StructuredCalls { get; private set; }
+        public string Schema { get; private set; } = string.Empty;
+
+        public Task<string> GenerateAsync(string systemPrompt, string userInput, CancellationToken cancellationToken = default) =>
+            Task.FromResult("plain-text-path-must-not-be-used");
+
+        public Task<string> GenerateStructuredAsync(string systemPrompt, string userInput, string jsonSchema, CancellationToken cancellationToken = default)
+        {
+            StructuredCalls++;
+            Schema = jsonSchema;
+            return Task.FromResult(response);
+        }
+    }
+
+    private sealed class SchemaRejectingSequenceClient(params string[] textResponses) : ITextGenerationClient, IStructuredTextGenerationClient
+    {
+        private int _textIndex;
+        public int StructuredCalls { get; private set; }
+        public int PlainCalls { get; private set; }
+
+        public Task<string> GenerateAsync(string systemPrompt, string userInput, CancellationToken cancellationToken = default)
+        {
+            PlainCalls++;
+            return Task.FromResult(textResponses[Math.Min(_textIndex++, textResponses.Length - 1)]);
+        }
+
+        public Task<string> GenerateStructuredAsync(string systemPrompt, string userInput, string jsonSchema, CancellationToken cancellationToken = default)
+        {
+            StructuredCalls++;
+            return Task.FromException<string>(new GenerationFailureException(
+                GenerationFailureKind.StructuredOutputUnsupported, "schema unsupported", System.Net.HttpStatusCode.BadRequest));
         }
     }
 
@@ -68,6 +104,23 @@ public sealed class PolishWorkflowServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExecuteAsync_RequiresArchiveBeforeProviderCallWhenAutoArchiveIsEnabled()
+    {
+        var client = new SequenceClient("{\"kind\":\"final\",\"content\":\"成稿\"}");
+        var workflow = new PolishWorkflowService(client, new PolishPromptBuilderService(), archive: null);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => workflow.ExecuteAsync(
+            new PolishRequest { OriginalText = "原文" },
+            clarificationEnabled: false,
+            autoArchive: true,
+            existingItemId: null,
+            createdAt: DateTimeOffset.UtcNow));
+
+        Assert.Contains("ArchiveService", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(0, client.Calls);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_FinalResponse_AutoArchivesOneRevision()
     {
         var client = new StaticClient("""
@@ -87,6 +140,102 @@ public sealed class PolishWorkflowServiceTests : IDisposable
         Assert.NotNull(result.SavedRevision);
         Assert.Equal("我要晚两天", result.SavedRevision!.OriginalText);
         Assert.Equal("我会晚两天完成，并及时同步进展。", File.ReadAllText(result.SavedRevision.FilePath));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_UsesNativePolishSchemaAndKeepsResponseParsing()
+    {
+        var client = new StructuredClient("""
+            {"kind":"final","scenario":"职场沟通","topic":"进度","content":"我会及时同步进度。","questions":[]}
+            """);
+        var workflow = new PolishWorkflowService(client, new PolishPromptBuilderService(), archive: null);
+
+        var result = await workflow.ExecuteAsync(
+            new PolishRequest { OriginalText = "我会同步进度" },
+            clarificationEnabled: true,
+            autoArchive: false,
+            existingItemId: null,
+            createdAt: DateTimeOffset.UtcNow);
+
+        Assert.Equal(1, client.StructuredCalls);
+        using var schema = JsonDocument.Parse(client.Schema);
+        Assert.Contains(schema.RootElement.GetProperty("properties").GetProperty("questions").GetProperty("type").EnumerateArray(), type => type.GetString() == "array");
+        Assert.Equal(new[] { "final", "needs_clarification" }, schema.RootElement.GetProperty("properties").GetProperty("kind").GetProperty("enum").EnumerateArray().Select(value => value.GetString()).OrderBy(value => value, StringComparer.Ordinal));
+        Assert.Equal(PolishResponseKind.Final, result.Response.Kind);
+        Assert.Equal("我会及时同步进度。", result.Response.Content);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RepairsAfterSchemaDowngradeWithoutRetryingRejectedSchema()
+    {
+        var client = new SchemaRejectingSequenceClient(
+            "not-json",
+            "{\"kind\":\"final\",\"content\":\"我会及时同步进度。\"}");
+        var workflow = new PolishWorkflowService(client, new PolishPromptBuilderService(), archive: null);
+
+        var result = await workflow.ExecuteAsync(
+            new PolishRequest { OriginalText = "我会同步进度" },
+            clarificationEnabled: true,
+            autoArchive: false,
+            existingItemId: null,
+            createdAt: DateTimeOffset.UtcNow);
+
+        Assert.Equal(PolishResponseKind.Final, result.Response.Kind);
+        Assert.True(result.WasRepaired);
+        Assert.Equal("我会及时同步进度。", result.Response.Content);
+        Assert.Equal(1, client.StructuredCalls);
+        Assert.Equal(2, client.PlainCalls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_EmotionModeKeepsEmotionMetadataInsideStructuredResponse()
+    {
+        var client = new StructuredClient("""
+            {"kind":"final","scenario":"","topic":"","content":"我会及时同步。","questions":[],"companion_emotion":"supportive","companion_intensity":0.7}
+            """);
+        var workflow = new PolishWorkflowService(
+            client,
+            new PolishPromptBuilderService(),
+            archive: null,
+            companionModeProvider: () => CompanionDriverMode.EmotionAssistant);
+
+        var result = await workflow.ExecuteAsync(
+            new PolishRequest { OriginalText = "我会同步进度" },
+            clarificationEnabled: true,
+            autoArchive: false,
+            existingItemId: null,
+            createdAt: DateTimeOffset.UtcNow);
+
+        Assert.Equal(1, client.StructuredCalls);
+        using var schema = JsonDocument.Parse(client.Schema);
+        Assert.Contains(schema.RootElement.GetProperty("properties").GetProperty("companion_emotion").GetProperty("enum").EnumerateArray(), value => value.GetString() == "Supportive");
+        Assert.Contains(schema.RootElement.GetProperty("properties").GetProperty("companion_intensity").GetProperty("type").EnumerateArray(), value => value.GetString() == "number");
+        Assert.False(schema.RootElement.GetProperty("properties").GetProperty("companion_intensity").TryGetProperty("minimum", out _));
+        Assert.False(schema.RootElement.GetProperty("properties").GetProperty("companion_intensity").TryGetProperty("maximum", out _));
+        Assert.Equal(PolishResponseKind.Final, result.Response.Kind);
+        Assert.Equal(AssistantEmotionKind.Supportive, result.CompanionEmotion?.Emotion);
+        Assert.Equal(0.7, result.CompanionEmotion?.Intensity);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RepairsJsonThatPassesSchemaButHasUnknownDecision()
+    {
+        var client = new SequenceClient(
+            "{\"kind\":\"unknown\",\"scenario\":\"\",\"topic\":\"\",\"content\":\"\",\"questions\":[]}",
+            "{\"kind\":\"final\",\"scenario\":\"\",\"topic\":\"\",\"content\":\"已完成。\",\"questions\":[]}");
+        var workflow = new PolishWorkflowService(client, new PolishPromptBuilderService(), archive: null);
+
+        var result = await workflow.ExecuteAsync(
+            new PolishRequest { OriginalText = "完成了" },
+            clarificationEnabled: true,
+            autoArchive: false,
+            existingItemId: null,
+            createdAt: DateTimeOffset.UtcNow);
+
+        Assert.Equal(2, client.Calls);
+        Assert.Equal(PolishResponseKind.Final, result.Response.Kind);
+        Assert.Equal("已完成。", result.Response.Content);
+        Assert.True(result.WasRepaired);
     }
 
     [Fact]
@@ -123,6 +272,50 @@ public sealed class PolishWorkflowServiceTests : IDisposable
         Assert.Equal(PolishResponseKind.NeedsClarification, result.Response.Kind);
         Assert.Null(result.SavedRevision);
         Assert.Empty(archive.Search(string.Empty));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ClarifiesMissingProblemEvidenceBeforeCallingGenerationClient()
+    {
+        var client = new SequenceClient("{\"kind\":\"final\",\"content\":\"我会同步当前进展。\"}");
+        var workflow = new PolishWorkflowService(client, new PolishPromptBuilderService(), archive: null);
+
+        var result = await workflow.ExecuteAsync(
+            new PolishRequest
+            {
+                OriginalText = "这件事需要尽快处理。问题分析，语气自然一点。",
+                Purpose = "问题分析"
+            },
+            clarificationEnabled: true,
+            autoArchive: false,
+            existingItemId: null,
+            createdAt: DateTimeOffset.UtcNow);
+
+        Assert.Equal(PolishResponseKind.NeedsClarification, result.Response.Kind);
+        Assert.Contains(result.Response.Questions, question => question.Contains("具体问题", StringComparison.Ordinal));
+        Assert.Equal(0, client.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenClarificationIsDisabledAndFactsAreMissing_FailsBeforeGeneration()
+    {
+        var client = new SequenceClient("{\"kind\":\"final\",\"content\":\"这件事我已处理，后续同步进度。\"}");
+        var workflow = new PolishWorkflowService(client, new PolishPromptBuilderService(), archive: null);
+
+        var result = await workflow.ExecuteAsync(
+            new PolishRequest
+            {
+                OriginalText = "这件事需要尽快处理。",
+                Purpose = "问题分析"
+            },
+            clarificationEnabled: false,
+            autoArchive: false,
+            existingItemId: null,
+            createdAt: DateTimeOffset.UtcNow);
+
+        Assert.Equal(PolishResponseKind.Invalid, result.Response.Kind);
+        Assert.Contains(result.ValidationIssues, issue => issue.Contains("具体问题或异常表现", StringComparison.Ordinal));
+        Assert.Equal(0, client.Calls);
     }
 
     [Fact]

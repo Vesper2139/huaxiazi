@@ -16,6 +16,7 @@ public sealed class PromptRequest
 
     /// <summary>所选优化深度。</summary>
     public PromptDepth Depth { get; init; } = PromptDepth.Standard;
+    public string OutputStyle { get; init; } = "自然";
 
     /// <summary>
     /// 用户画像 / 角色设定（可选）。非空时由 PromptBuilderService 追加到受约束的个性化层，

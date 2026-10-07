@@ -1,0 +1,42 @@
+{
+  "manifest_version": "huaxiazi-blind-evidence-manifest-v1",
+  "status": "template_not_verified",
+  "dataset": {
+    "artifact_ref": "REPLACE_WITH_CONTROLLED_DATASET_REFERENCE",
+    "sha256": "REPLACE_WITH_64_HEX_SHA256",
+    "sample_count": 0,
+    "schema_version": "3.1",
+    "admission_protocol_id": "huaxiazi-blind-evaluation-admission",
+    "admission_protocol_version": "3.1"
+  },
+  "handbook": {
+    "artifact_ref": "vault:REPLACE_WITH_OPAQUE_REFERENCE",
+    "version": "REPLACE_WITH_VERSION",
+    "sha256": "REPLACE_WITH_64_HEX_SHA256"
+  },
+  "authorization_review": {
+    "status": "not_verified",
+    "verified_at_utc": null,
+    "reviewer_role_ref": null,
+    "evidence": []
+  },
+  "reviewer_independence_review": {
+    "status": "not_verified",
+    "verified_at_utc": null,
+    "reviewer_role_ref": null,
+    "evidence": []
+  },
+  "record_evidence": [],
+  "dataset_admission": {
+    "status": "not_run",
+    "report_artifact_ref": null,
+    "report_sha256": null
+  },
+  "exceptions": [],
+  "custody": {
+    "evidence_store_ref": "REPLACE_WITH_ACCESS_CONTROLLED_STORE_REFERENCE",
+    "sealed_at_utc": null,
+    "sealed_by_role_ref": null,
+    "signature": null
+  }
+}

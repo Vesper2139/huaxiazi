@@ -11,10 +11,18 @@ public sealed class DpapiSecretStore : ISecretStore
 {
     private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("Huaxiazi:secrets:v1");
     private readonly string _directory;
+    private readonly Action<DirectoryInfo, DirectorySecurity> _accessControlWriter;
+    private bool _directoryReady;
 
     public DpapiSecretStore(string directory)
+        : this(directory, static (info, security) => info.SetAccessControl(security))
+    {
+    }
+
+    internal DpapiSecretStore(string directory, Action<DirectoryInfo, DirectorySecurity> accessControlWriter)
     {
         _directory = directory ?? throw new ArgumentNullException(nameof(directory));
+        _accessControlWriter = accessControlWriter ?? throw new ArgumentNullException(nameof(accessControlWriter));
         EnsureHardened();
     }
 
@@ -86,8 +94,25 @@ public sealed class DpapiSecretStore : ISecretStore
 
     private void EnsureHardened()
     {
+        if (_directoryReady) return;
+
+        var existed = Directory.Exists(_directory);
         Directory.CreateDirectory(_directory);
-        HardenDirectoryAccess();
+        try
+        {
+            HardenDirectoryAccess();
+        }
+        catch (UnauthorizedAccessException) when (existed)
+        {
+            // Existing installations can have ACLs owned by an earlier token or
+            // endpoint-security policy. Do not fail startup solely on ACL repair.
+        }
+        catch (IOException) when (existed)
+        {
+            // Same compatibility rule for filesystem/ACL races on existing data.
+        }
+
+        _directoryReady = true;
     }
 
     private void HardenDirectoryAccess()
@@ -103,6 +128,6 @@ public sealed class DpapiSecretStore : ISecretStore
         security.AddAccessRule(new FileSystemAccessRule(
             new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), FileSystemRights.FullControl,
             inheritance, PropagationFlags.None, AccessControlType.Allow));
-        new DirectoryInfo(_directory).SetAccessControl(security);
+        _accessControlWriter(new DirectoryInfo(_directory), security);
     }
 }

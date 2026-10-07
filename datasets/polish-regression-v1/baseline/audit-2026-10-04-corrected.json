@@ -1,0 +1,253 @@
+{
+  "schema_version": "1.0",
+  "audit_rule_version": "polish-regression-baseline-v1",
+  "purpose": "internal_regression_only",
+  "phase0_gate_contribution": 0,
+  "not_admissible_as_blind_eval": true,
+  "row_count": 3000,
+  "distinct_input_count": 16,
+  "distinct_reference_output_count": 2,
+  "template_family_count": 24,
+  "clarification_question_row_count": 0,
+  "distinct_claims_object_count": 2,
+  "non_empty_claims_row_count": 1974,
+  "distinct_non_empty_claims_object_count": 1,
+  "split_row_counts": {
+    "dev": 375,
+    "test": 375,
+    "train": 2250
+  },
+  "expected_decision_counts": {
+    "polish": 3000
+  },
+  "output_kind_counts": {
+    "final": 3000
+  },
+  "reviewer_count_counts": {
+    "1": 2512,
+    "2": 488
+  },
+  "split_input_overlap": [
+    {
+      "left_split": "train",
+      "right_split": "dev",
+      "shared_distinct_inputs": 5,
+      "left_distinct_inputs": 16,
+      "right_distinct_inputs": 5
+    },
+    {
+      "left_split": "train",
+      "right_split": "test",
+      "shared_distinct_inputs": 5,
+      "left_distinct_inputs": 16,
+      "right_distinct_inputs": 5
+    },
+    {
+      "left_split": "dev",
+      "right_split": "test",
+      "shared_distinct_inputs": 0,
+      "left_distinct_inputs": 5,
+      "right_distinct_inputs": 5
+    }
+  ],
+  "top_repeated_inputs": [
+    {
+      "input_sha256": "63e58d3ebd4bc56cee34e9ee7dfc7c5b00314c465e5332ac5f0733f25d6bcfe2",
+      "row_count": 275
+    },
+    {
+      "input_sha256": "650ea0b924254cd204bc563169dace9e0349baf0053972e59179531bc46e4186",
+      "row_count": 275
+    },
+    {
+      "input_sha256": "0457ce9290149e9fb2d4ddba0448597348c58bc97de88de24a12c4d6e5468b01",
+      "row_count": 275
+    },
+    {
+      "input_sha256": "8e984a62800511f4fe730f64fc328b4ca5bf4685aefd44317d9577e9fd8de166",
+      "row_count": 275
+    },
+    {
+      "input_sha256": "b315876f976ed24b987e01032c5e2c4489d2cb7fcbd640ba970ac934085bd9c5",
+      "row_count": 251
+    },
+    {
+      "input_sha256": "24fb83bf9a5ca1353881f64ccd3f447b8811bd71f4a0a5f9ae98f7d0aa8914e2",
+      "row_count": 249
+    },
+    {
+      "input_sha256": "929fe223c94bf75a7782805e581a347054ec025941ffe71c3b2f8a54c0e9b115",
+      "row_count": 188
+    },
+    {
+      "input_sha256": "e20d98d039a340d188c4f75ef3cfe7059f8e70450d0740395157bdae8239ede7",
+      "row_count": 188
+    },
+    {
+      "input_sha256": "2ccea78b87b09b1867cca0bb5f1fafa036abbf77455fd0904e47daa06e64ce2d",
+      "row_count": 187
+    },
+    {
+      "input_sha256": "05c3fef946f1baa2709c502d61191cfdfbe58f64c6c5fa18239df777687e9f5d",
+      "row_count": 187
+    }
+  ],
+  "template_families": [
+    {
+      "family": "polish-00",
+      "row_count": 125,
+      "distinct_input_count": 1,
+      "split": "train"
+    },
+    {
+      "family": "polish-01",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "train"
+    },
+    {
+      "family": "polish-02",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "train"
+    },
+    {
+      "family": "polish-03",
+      "row_count": 125,
+      "distinct_input_count": 1,
+      "split": "train"
+    },
+    {
+      "family": "polish-04",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "train"
+    },
+    {
+      "family": "polish-05",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "train"
+    },
+    {
+      "family": "polish-06",
+      "row_count": 125,
+      "distinct_input_count": 1,
+      "split": "train"
+    },
+    {
+      "family": "polish-07",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "train"
+    },
+    {
+      "family": "polish-08",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "train"
+    },
+    {
+      "family": "polish-09",
+      "row_count": 125,
+      "distinct_input_count": 1,
+      "split": "train"
+    },
+    {
+      "family": "polish-10",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "train"
+    },
+    {
+      "family": "polish-11",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "train"
+    },
+    {
+      "family": "polish-12",
+      "row_count": 125,
+      "distinct_input_count": 1,
+      "split": "train"
+    },
+    {
+      "family": "polish-13",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "train"
+    },
+    {
+      "family": "polish-14",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "train"
+    },
+    {
+      "family": "polish-15",
+      "row_count": 125,
+      "distinct_input_count": 1,
+      "split": "train"
+    },
+    {
+      "family": "polish-16",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "train"
+    },
+    {
+      "family": "polish-17",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "train"
+    },
+    {
+      "family": "polish-18",
+      "row_count": 125,
+      "distinct_input_count": 1,
+      "split": "dev"
+    },
+    {
+      "family": "polish-19",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "dev"
+    },
+    {
+      "family": "polish-20",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "dev"
+    },
+    {
+      "family": "polish-21",
+      "row_count": 125,
+      "distinct_input_count": 1,
+      "split": "test"
+    },
+    {
+      "family": "polish-22",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "test"
+    },
+    {
+      "family": "polish-23",
+      "row_count": 125,
+      "distinct_input_count": 2,
+      "split": "test"
+    }
+  ],
+  "input_file_sha256": {
+    "canonical": "e4406fffefccb7394f7bc13525fc2ea78f7b97d7c3ef14c446253a2040b230d7",
+    "sft": "3950c20ad9fc3536b8bd3e2e2284ffc606b324b24c045889add0f83402a458f0",
+    "manifest": "7289108b6fe8ddc36bf7e16f76af5f1fb8c556741aa440d42de369558d1af4fc",
+    "source": "c3a6c739c75119cbd0957ee34014c1220a3421fc80371a71867b72197298630f"
+  },
+  "limitations": [
+    "Synthetic template-rotation smoke corpus only; not representative of real users.",
+    "Rows are not independent samples; coverage decisions must be made at semantic-family level.",
+    "This report contributes zero samples to formal phase 0 blind evaluation.",
+    "Legacy split overlap means the test split does not measure unseen-input generalization."
+  ]
+}

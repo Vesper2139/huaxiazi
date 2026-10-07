@@ -9,7 +9,7 @@ namespace Huaxiazi.Views;
 
 /// <summary>
 /// 收缩态悬浮球。双击展开主窗口；长按/拖动移动位置。
-/// 精灵视觉尺寸固定 44×44，窗口外壳 60×60 留出热区余量。
+/// 精灵、命中区域和透明窗口使用同一个尺寸，避免缩放后出现不可见外壳边界。
 /// 关闭/移动时记忆位置到配置。
 /// </summary>
 public partial class FloatingBallWindow : Window
@@ -17,8 +17,17 @@ public partial class FloatingBallWindow : Window
     public FloatingBallWindow()
     {
         InitializeComponent();
+        Icon = AppIconService.LoadWindowIcon();
+        App.SkinService.SkinChanged += SkinService_OnSkinChanged;
+        Closed += (_, _) => App.SkinService.SkinChanged -= SkinService_OnSkinChanged;
         WindowPlacementService.Attach(this);
         ApplyDisplayPreferences(App.Settings);
+    }
+
+    private void SkinService_OnSkinChanged(object? sender, string skinId)
+    {
+        if (Dispatcher.CheckAccess()) Icon = AppIconService.LoadWindowIcon(skinId);
+        else Dispatcher.BeginInvoke(new Action(() => Icon = AppIconService.LoadWindowIcon(skinId)));
     }
 
     private void FloatingBall_OnLoaded(object sender, RoutedEventArgs e)
@@ -33,18 +42,23 @@ public partial class FloatingBallWindow : Window
     internal void ApplyDisplayPreferences(AppSettings settings)
     {
         settings.NormalizeDisplaySettings();
-        var size = Math.Clamp(settings.FloatingBallSize, 28, 72);
-        var hadPosition = IsVisible && !double.IsNaN(Left) && !double.IsNaN(Top);
-        var center = hadPosition ? new Point(Left + Width / 2, Top + Height / 2) : default;
-        Width = size + 16;
-        Height = size + 16;
-        Orb.Width = size;
-        Orb.Height = size;
+        var layout = CompanionDisplayMetrics.ResolveLayout(settings.FloatingBallSize);
+        var hadPosition = !double.IsNaN(Left) && !double.IsNaN(Top) &&
+                          double.IsFinite(Width) && Width > 0;
+        var oldSize = hadPosition ? Width : layout.WindowSize;
+        Width = layout.WindowSize;
+        Height = layout.WindowSize;
+        Orb.Width = layout.HitTargetSize;
+        Orb.Height = layout.HitTargetSize;
+        CompanionViewport.Width = layout.ViewportSize;
+        CompanionViewport.Height = layout.ViewportSize;
         Opacity = settings.FloatingBallOpacity;
         if (hadPosition)
         {
-            Left = center.X - Width / 2;
-            Top = center.Y - Height / 2;
+            var origin = CompanionDisplayMetrics.CenterPreservingOrigin(
+                new Point(Left, Top), oldSize, layout.WindowSize);
+            Left = origin.X;
+            Top = origin.Y;
         }
     }
 

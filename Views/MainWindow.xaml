@@ -260,11 +260,16 @@
                             </DockPanel>
                         </Border>
                     </StackPanel>
-                    <ComboBox x:Name="ProviderSelector" Grid.Column="1" Style="{StaticResource TitleModelSelector}"
-                              ItemsSource="{Binding ProviderProfiles}" DisplayMemberPath="Name"
-                              SelectedItem="{Binding ActiveProviderProfile, Mode=TwoWay}"
-                              HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0,6,0"
-                              ToolTip="当前模型；切换后下一次生成立即生效" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="8,0,6,0">
+                        <ComboBox x:Name="ProviderSelector" Style="{StaticResource TitleModelSelector}"
+                                  ItemsSource="{Binding ProviderProfiles}" DisplayMemberPath="Name"
+                                  SelectedItem="{Binding ActiveProviderProfile, Mode=TwoWay}"
+                                  HorizontalAlignment="Right" ToolTip="手动选择的 Provider profile；任务绑定或路由策略可决定本次实际模型" />
+                        <TextBlock Text="{Binding LastUsedProviderLabel}" Foreground="{DynamicResource MutedBrush}" FontSize="10"
+                                   HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" MaxWidth="210" />
+                        <TextBlock Text="{Binding LastUsedOutputStyleLabel}" Foreground="{DynamicResource MutedBrush}" FontSize="10"
+                                   HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" MaxWidth="210" />
+                    </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,2,0">
                         <Button Style="{StaticResource WindowControlButton}" Click="TaskbarMinimizeButton_OnClick" ToolTip="最小化到任务栏" AutomationProperties.Name="最小化">
                             <Path Style="{StaticResource CrispIconPath}" Data="{StaticResource IconMinimize}" />
@@ -422,7 +427,7 @@
             <Border.RenderTransform>
                 <TranslateTransform x:Name="CompanionTransitionOffset" X="0" Y="0" />
             </Border.RenderTransform>
-            <Viewbox Width="{DynamicResource SkinCompanionSize}" Height="{DynamicResource SkinCompanionSize}" Stretch="Uniform">
+            <Viewbox Width="{DynamicResource SkinCompanionSize}" Height="{DynamicResource SkinCompanionSize}" x:Name="CompanionViewport" Stretch="Uniform">
                 <local:CompanionFace x:Name="CompanionHost" State="{Binding CompanionState}" />
             </Viewbox>
         </Border>

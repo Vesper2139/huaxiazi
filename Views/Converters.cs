@@ -1,13 +1,60 @@
 using System;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Huaxiazi.Models;
 using Huaxiazi.Services;
 using Huaxiazi.ViewModels;
 
 namespace Huaxiazi.Views;
+
+public sealed class ByteSizeConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is long bytes ? ByteSizeFormatter.FormatModelPackageSize(bytes) : string.Empty;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+public sealed class SkinPreviewSourceConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is not string source || string.IsNullOrWhiteSpace(source))
+            return DependencyProperty.UnsetValue;
+
+        try
+        {
+            Uri uri;
+            if (Path.IsPathRooted(source))
+                uri = new Uri(Path.GetFullPath(source), UriKind.Absolute);
+            else if (Uri.TryCreate(source, UriKind.Absolute, out var absolute))
+                uri = absolute;
+            else
+                uri = new Uri($"pack://application:,,,/Huaxiazi;component/{source.TrimStart('/')}", UriKind.Absolute);
+
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.UriSource = uri;
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch (Exception exception) when (exception is IOException or UriFormatException or InvalidOperationException or NotSupportedException)
+        {
+            // A damaged imported preview must not make the entire settings page fail to render.
+            return DependencyProperty.UnsetValue;
+        }
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
 
 /// <summary>
 /// 将 SelectedCategory 与某个 ToggleButton 的类别参数比较，返回是否选中。

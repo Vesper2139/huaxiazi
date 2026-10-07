@@ -9,6 +9,9 @@ namespace Huaxiazi.Services;
 public sealed class ProfessionalizationPlanner
 {
     private static readonly Regex NamedRecipient = new(@"(?:^|[，,。；;：:\s给向对])(?<entity>[\p{IsCJKUnifiedIdeographs}]{1,3}(?:总|经理|老师|先生|女士|医生|主任))", RegexOptions.Compiled);
+    private static readonly Regex DelayReasonEvidence = new(@"(?:因为|由于|延期(?:的)?原因(?:是|为)?|原因(?:是|在于|为)|受[^，。；]{1,20}影响|因[^，。；]{1,20}(?:延期|推迟|延误))", RegexOptions.Compiled);
+    private static readonly string[] ProblemEvidenceTerms = ["问题是", "问题在于", "问题表现", "故障", "报错", "错误", "异常", "失败", "无法", "不能", "无法使用", "不工作", "卡住", "超时", "崩溃", "缺陷", "风险", "偏差", "不一致", "不符合", "受阻", "延期", "延误", "原因", "影响"];
+    private static readonly string[] GuidanceStarts = ["语气", "风格", "措辞", "表达", "别写", "不要", "改得", "自然一点", "正式一点", "简洁一点"];
     private readonly SmartContextAnalyzer _analyzer;
 
     public ProfessionalizationPlanner(SmartContextAnalyzer? analyzer = null) => _analyzer = analyzer ?? new SmartContextAnalyzer();
@@ -18,6 +21,7 @@ public sealed class ProfessionalizationPlanner
         ArgumentNullException.ThrowIfNull(request);
         var input = request.Input?.Trim() ?? string.Empty;
         var intelligence = _analyzer.Analyze(input);
+        var purpose = First(request.Purpose, intelligence.Purpose);
         var anchors = intelligence.FidelityAnchors
             .Concat(NamedRecipient.Matches(input).Select(match => NormalizeRecipient(match.Groups["entity"].Value)))
             .Distinct(StringComparer.Ordinal).ToArray();
@@ -27,11 +31,12 @@ public sealed class ProfessionalizationPlanner
         var strategyName = string.IsNullOrWhiteSpace(request.PreferredStrategyId)
             ? "话匣子默认表达"
             : string.IsNullOrWhiteSpace(request.PreferredStrategyName) ? request.PreferredStrategyId.Trim() : request.PreferredStrategyName.Trim();
-        var questions = BuildClarificationQuestions(input, request.Mode);
+        var purposeIsExplicit = request.PurposeIsExplicit || ContainsTrailingPurposeDirective(input, purpose);
+        var questions = BuildClarificationQuestions(input, request.Mode, purpose, purposeIsExplicit);
         var instructions = BuildInstructions(request, scenario);
         var modelSelection = ModelSelectionPolicy.Select(new ModelSelectionRequest(
             input.Length,
-            input.Length + instructions.Length,
+            request.ExplicitRequirements?.Length ?? 0,
             RequiresTools: false,
             HighRisk: intelligence.RiskLevel == TextRiskLevel.High,
             RequiresDeepReasoning: request.Mode == ApplicationMode.PromptOptimize && request.Depth == PromptDepth.Detailed));
@@ -46,7 +51,8 @@ public sealed class ProfessionalizationPlanner
             StrategyInstructions = instructions,
             Scenario = scenario,
             Recipient = First(request.Recipient, intelligence.Recipient),
-            Purpose = First(request.Purpose, intelligence.Purpose),
+            Purpose = purpose,
+            PurposeIsExplicit = purposeIsExplicit,
             Formality = First(request.Formality, intelligence.Formality),
             RiskLevel = intelligence.RiskLevel,
             ContainsUncertainty = intelligence.ContainsUncertainty,
@@ -61,14 +67,45 @@ public sealed class ProfessionalizationPlanner
         };
     }
 
-    private static IReadOnlyList<string> BuildClarificationQuestions(string input, ApplicationMode mode)
+    private static IReadOnlyList<string> BuildClarificationQuestions(string input, ApplicationMode mode, string purpose, bool purposeIsExplicit)
     {
         if (string.IsNullOrWhiteSpace(input)) return ["请提供需要处理的原始内容。"];
         if (input.Length <= 10 && Regex.IsMatch(input, @"^(帮我|请|麻烦)?(?:回复|写|改|优化|润色)(一下|下)?[。！!？?]?$"))
             return mode == ApplicationMode.Polish
                 ? ["需要回复谁？", "对方说了什么，或你想表达哪些关键事实？"]
                 : ["希望模型完成什么具体任务？", "已有的输入、限制或交付格式是什么？"];
+
+        if (mode != ApplicationMode.Polish || string.IsNullOrWhiteSpace(purpose)) return [];
+        var factualInput = RemoveTrailingGuidance(input, purpose);
+        if (purposeIsExplicit && string.Equals(purpose, "说明延期", StringComparison.Ordinal) && !DelayReasonEvidence.IsMatch(factualInput))
+            return ["这次延期的具体原因是什么？"];
+        if (purposeIsExplicit && string.Equals(purpose, "问题分析", StringComparison.Ordinal) && !ProblemEvidenceTerms.Any(term => factualInput.Contains(term, StringComparison.Ordinal)))
+            return ["需要分析的具体问题或异常表现是什么？"];
         return [];
+    }
+
+    private static bool ContainsTrailingPurposeDirective(string input, string purpose)
+    {
+        if (string.IsNullOrWhiteSpace(purpose)) return false;
+        var index = input.LastIndexOf(purpose, StringComparison.Ordinal);
+        if (index < 0) return false;
+        var prefix = input[..index].TrimEnd();
+        var suffix = input[(index + purpose.Length)..].TrimStart(' ', '\t', '，', ',', '；', ';', '。');
+        var hasTaskBoundary = prefix.Length == 0 || prefix[^1] is '。' or '！' or '!' or '？' or '?' or '\n';
+        var hasGuidanceTail = suffix.Length == 0 || GuidanceStarts.Any(start => suffix.StartsWith(start, StringComparison.Ordinal));
+        if (prefix.EndsWith("不要", StringComparison.Ordinal) || prefix.EndsWith("不需要", StringComparison.Ordinal) || prefix.EndsWith("无需", StringComparison.Ordinal))
+            return false;
+        return hasTaskBoundary && hasGuidanceTail;
+    }
+
+    private static string RemoveTrailingGuidance(string input, string purpose)
+    {
+        var index = input.LastIndexOf(purpose, StringComparison.Ordinal);
+        if (index <= 0) return input;
+        var suffix = input[(index + purpose.Length)..].TrimStart(' ', '\t', '，', ',', '；', ';', '。');
+        return GuidanceStarts.Any(start => suffix.StartsWith(start, StringComparison.Ordinal))
+            ? input[..index].TrimEnd()
+            : input;
     }
 
     private static string BuildInstructions(ProfessionalizationRequest request, string scenario)

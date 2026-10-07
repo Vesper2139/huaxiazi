@@ -98,7 +98,8 @@ public sealed class DatasetBuilderTests
         var candidate = Assert.Single(report);
         Assert.Equal(4, candidate.Count);
         Assert.Equal(1d, candidate.SafetyRate);
-        Assert.InRange(candidate.SafetyLower95, 0.3, 1d);
+        Assert.InRange(candidate.SafetyFamilyPassLower95, 0.3, 1d);
+        Assert.Equal(2, candidate.GeneralizationFamilyCount);
         Assert.False(candidate.PromotionEligible);
         Assert.Equal(1d, candidate.DecisionRate);
         Assert.Equal(1d, candidate.ConstraintRate);
@@ -137,7 +138,7 @@ public sealed class DatasetBuilderTests
     [Fact]
     public void ArchitectureBatch_ExpandsCandidatesWithoutGoldLabels()
     {
-        var root = Path.Combine(Path.GetTempPath(), "HuaxiaziArchitectureBatch_" + Guid.NewGuid().ToString("N"));
+        var root = CreateTestRoot("ArchitectureBatch");
         Directory.CreateDirectory(root);
         try
         {
@@ -160,7 +161,7 @@ public sealed class DatasetBuilderTests
     [Fact]
     public void ArchitectureBatch_RejectsIncompleteCandidateSchema()
     {
-        var root = Path.Combine(Path.GetTempPath(), "HuaxiaziArchitectureInvalid_" + Guid.NewGuid().ToString("N"));
+        var root = CreateTestRoot("ArchitectureInvalid");
         Directory.CreateDirectory(root);
         try
         {
@@ -174,7 +175,7 @@ public sealed class DatasetBuilderTests
     [Fact]
     public void ArchitectureBatch_RejectsFrozenTestSplit()
     {
-        var root = Path.Combine(Path.GetTempPath(), "HuaxiaziArchitectureFrozen_" + Guid.NewGuid().ToString("N"));
+        var root = CreateTestRoot("ArchitectureFrozen");
         Directory.CreateDirectory(root);
         try
         {
@@ -246,7 +247,9 @@ public sealed class DatasetBuilderTests
     [Fact]
     public void ArchitectureEvaluator_ProvidesPairedComparisonOnCommonIds()
     {
-        var records = PromptArchitectureDatasetGenerator.Generate(new PromptArchitectureGenerationOptions { TrainCount = 0, DevCount = 0, TestCount = 30 });
+        var records = PromptArchitectureDatasetGenerator.Generate(new PromptArchitectureGenerationOptions { TrainCount = 0, DevCount = 0, TestCount = 30 })
+            .Select(record => record with { GeneralizationFamily = record.Id })
+            .ToArray();
         var predictions = records.SelectMany(record => new[]
         {
             new ArchitecturePrediction(record.Id, "left", record.GoldOutput),
@@ -258,7 +261,51 @@ public sealed class DatasetBuilderTests
         Assert.Equal(30, comparison.ComparableCount);
         Assert.True(comparison.LeftWins > comparison.RightWins);
         Assert.True(comparison.LeftWinRate > .5);
+        Assert.Equal(30, comparison.DecisiveFamilyCount);
+        Assert.Equal(30, comparison.FamilyLeftWins);
         Assert.True(comparison.Significant);
+    }
+
+    [Fact]
+    public void ArchitectureEvaluator_DoesNotCountSameFamilyVariantsAsIndependentPreferenceEvidence()
+    {
+        var records = PromptArchitectureDatasetGenerator.Generate(new PromptArchitectureGenerationOptions { TrainCount = 0, DevCount = 0, TestCount = 30 })
+            .Select(record => record with { GeneralizationFamily = "one-family" })
+            .ToArray();
+        var predictions = records.SelectMany(record => new[]
+        {
+            new ArchitecturePrediction(record.Id, "left", record.GoldOutput),
+            new ArchitecturePrediction(record.Id, "right", "")
+        });
+
+        var comparison = PromptArchitectureEvaluator.Compare(records, predictions, "left", "right");
+
+        Assert.Equal(1, comparison.DecisiveFamilyCount);
+        Assert.False(comparison.Significant);
+    }
+
+    [Fact]
+    public void ArchitectureEvaluator_DoesNotPromoteManyRowsFromOneFamily()
+    {
+        var records = PromptArchitectureDatasetGenerator.Generate(new PromptArchitectureGenerationOptions { TrainCount = 0, DevCount = 0, TestCount = 120 })
+            .Select(record => record with
+            {
+                GeneralizationFamily = "one-family",
+                Scenario = "normal_request",
+                ExpectedDecision = "direct_answer_with_constraints",
+                RequiredConstraints = [],
+                ForbiddenConstraints = [],
+                FidelityAnchors = []
+            })
+            .ToArray();
+        var predictions = records.Select(record => new ArchitecturePrediction(record.Id, "candidate", "可直接使用的内容。"));
+
+        var candidate = Assert.Single(PromptArchitectureEvaluator.Evaluate(records, predictions));
+
+        Assert.Equal(1, candidate.GeneralizationFamilyCount);
+        Assert.Equal(1d, candidate.SafetyFamilyPassRate);
+        Assert.InRange(candidate.SafetyFamilyPassLower95, .19, .22);
+        Assert.False(candidate.PromotionEligible);
     }
 
     [Fact]
@@ -299,6 +346,71 @@ public sealed class DatasetBuilderTests
     }
 
     [Fact]
+    public void StructuredOutputValidator_RejectsDuplicateObjectFields()
+    {
+        var contract = new StructuredOutputContract("answer", new HashSet<string> { "answer" }, new HashSet<string> { "answer" });
+
+        var result = StructuredOutputValidator.Validate("{\"answer\":\"版本一\",\"answer\":\"版本二\"}", contract);
+
+        Assert.False(result.IsValid);
+        Assert.Equal("duplicate-field", result.ErrorCode);
+    }
+
+    [Fact]
+    public void StructuredOutputValidator_EnforcesStringTypesForAllowedOptionalFields()
+    {
+        var contract = new StructuredOutputContract(
+            "answer-with-context",
+            new HashSet<string> { "answer" },
+            new HashSet<string> { "answer", "scenario" });
+
+        var valid = StructuredOutputValidator.Validate("{\"answer\":\"完成\",\"scenario\":\"工作\"}", contract);
+        var invalid = StructuredOutputValidator.Validate("{\"answer\":\"完成\",\"scenario\":true}", contract);
+
+        Assert.True(valid.IsValid);
+        Assert.Equal("field-type", invalid.ErrorCode);
+    }
+
+    [Fact]
+    public void StructuredOutputValidator_EnforcesDeclaredStringEnumValues()
+    {
+        var contract = new StructuredOutputContract(
+            "polish-kind",
+            new HashSet<string> { "kind" },
+            new HashSet<string> { "kind" },
+            AllowedStringValues: new Dictionary<string, IReadOnlySet<string>>
+            {
+                ["kind"] = new HashSet<string> { "final", "needs_clarification" }
+            });
+
+        var valid = StructuredOutputValidator.Validate("{\"kind\":\"final\"}", contract);
+        var invalid = StructuredOutputValidator.Validate("{\"kind\":\"unknown\"}", contract);
+
+        Assert.True(valid.IsValid);
+        Assert.Equal("enum-value", invalid.ErrorCode);
+    }
+
+    [Fact]
+    public void StructuredOutputValidator_EnforcesDeclaredNumericBounds()
+    {
+        var contract = new StructuredOutputContract(
+            "emotion-metadata",
+            new HashSet<string> { "intensity" },
+            new HashSet<string> { "intensity" },
+            FieldTypes: new Dictionary<string, StructuredOutputFieldType>
+            {
+                ["intensity"] = StructuredOutputFieldType.Number
+            },
+            NumericRanges: new Dictionary<string, StructuredOutputNumericRange>
+            {
+                ["intensity"] = new(0, 1)
+            });
+
+        Assert.True(StructuredOutputValidator.Validate("{\"intensity\":0.6}", contract).IsValid);
+        Assert.Equal("number-range", StructuredOutputValidator.Validate("{\"intensity\":1.1}", contract).ErrorCode);
+    }
+
+    [Fact]
     public async Task StructuredGenerationWorkflow_RetriesInvalidOutputAndReturnsValidatedAnswer()
     {
         var client = new SequenceTextClient(
@@ -329,6 +441,61 @@ public sealed class DatasetBuilderTests
         Assert.Equal(1, client.Calls);
     }
 
+    [Theory]
+    [InlineData(System.Net.HttpStatusCode.BadRequest)]
+    [InlineData(System.Net.HttpStatusCode.UnprocessableEntity)]
+    public async Task StructuredGenerationWorkflow_FallsBackToValidatedTextWhenProviderRejectsSchema(System.Net.HttpStatusCode statusCode)
+    {
+        var client = new NativeSchemaRejectingClient("{\"answer\":\"已完成\"}", statusCode);
+        var workflow = new StructuredGenerationWorkflow(client, static (_, _) => Task.CompletedTask);
+        var contract = new StructuredOutputContract("answer", new HashSet<string> { "answer" }, new HashSet<string> { "answer" });
+
+        var result = await workflow.ExecuteAsync("系统", "任务", contract);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("已完成", result.Answer);
+        Assert.Equal(1, client.StructuredCalls);
+        Assert.Equal(1, client.TextCalls);
+        Assert.Contains("output_contract", client.TextSystemPrompt);
+    }
+
+    [Fact]
+    public async Task StructuredGenerationWorkflow_DoesNotHideUnrelatedRequestRejectionBehindTextFallback()
+    {
+        var client = new NativeSchemaRejectingClient("{\"answer\":\"不可达\"}", System.Net.HttpStatusCode.BadRequest,
+            Huaxiazi.Models.GenerationFailureKind.RequestRejected);
+        var workflow = new StructuredGenerationWorkflow(client, static (_, _) => Task.CompletedTask);
+        var contract = new StructuredOutputContract("answer", new HashSet<string> { "answer" }, new HashSet<string> { "answer" });
+
+        var error = await Assert.ThrowsAsync<Huaxiazi.Models.GenerationFailureException>(() =>
+            workflow.ExecuteAsync("系统", "任务", contract));
+
+        Assert.Equal(Huaxiazi.Models.GenerationFailureKind.RequestRejected, error.Kind);
+        Assert.Equal(1, client.StructuredCalls);
+        Assert.Equal(0, client.TextCalls);
+    }
+
+    [Fact]
+    public async Task StructuredGenerationWorkflow_BuildsNativeSchemaFromTheContractFields()
+    {
+        var client = new NativeStructuredClient();
+        var workflow = new StructuredGenerationWorkflow(client);
+        var contract = new StructuredOutputContract(
+            "polish-result",
+            new HashSet<string> { "answer", "scenario" },
+            new HashSet<string> { "answer", "scenario", "topic" });
+
+        await workflow.ExecuteAsync("系统", "任务", contract);
+
+        using var schema = System.Text.Json.JsonDocument.Parse(client.Schema);
+        var root = schema.RootElement;
+        Assert.Equal("string", root.GetProperty("properties").GetProperty("scenario").GetProperty("type").GetString());
+        Assert.Contains(root.GetProperty("properties").GetProperty("topic").GetProperty("type").EnumerateArray(), type => type.GetString() == "string");
+        Assert.False(root.GetProperty("properties").TryGetProperty("debug", out _));
+        Assert.Contains(root.GetProperty("required").EnumerateArray(), field => field.GetString() == "scenario");
+        Assert.False(root.GetProperty("additionalProperties").GetBoolean());
+    }
+
     private sealed class SequenceTextClient(params string[] responses) : ITextGenerationClient
     {
         private int _index;
@@ -350,6 +517,33 @@ public sealed class DatasetBuilderTests
             Calls++;
             Schema = jsonSchema;
             return Task.FromResult("{\"answer\":\"已完成\"}");
+        }
+    }
+
+    private sealed class NativeSchemaRejectingClient(
+        string textResponse,
+        System.Net.HttpStatusCode statusCode,
+        Huaxiazi.Models.GenerationFailureKind failureKind = Huaxiazi.Models.GenerationFailureKind.StructuredOutputUnsupported)
+        : ITextGenerationClient, IStructuredTextGenerationClient
+    {
+        public int StructuredCalls { get; private set; }
+        public int TextCalls { get; private set; }
+        public string TextSystemPrompt { get; private set; } = string.Empty;
+
+        public Task<string> GenerateAsync(string systemPrompt, string userInput, CancellationToken cancellationToken = default)
+        {
+            TextCalls++;
+            TextSystemPrompt = systemPrompt;
+            return Task.FromResult(textResponse);
+        }
+
+        public Task<string> GenerateStructuredAsync(string systemPrompt, string userInput, string jsonSchema, CancellationToken cancellationToken = default)
+        {
+            StructuredCalls++;
+            throw new Huaxiazi.Models.GenerationFailureException(
+                failureKind,
+                $"API 返回错误 {(int)statusCode}。",
+                statusCode);
         }
     }
 
@@ -400,7 +594,7 @@ public sealed class DatasetBuilderTests
     [Fact]
     public void Export_WritesCanonicalSftAndPreferenceJsonl()
     {
-        var root = Path.Combine(Path.GetTempPath(), "HuaxiaziDatasetTests_" + Guid.NewGuid().ToString("N"));
+        var root = CreateTestRoot("DatasetExport");
         Directory.CreateDirectory(root);
         try
         {
@@ -521,5 +715,12 @@ public sealed class DatasetBuilderTests
         Assert.Equal(4, report.Splits["train"]);
         Assert.Equal(8, report.Modes["polish"] + report.Modes["prompt_optimize"]);
         Assert.Equal(0, report.LeakageIssueCount);
+    }
+
+    private static string CreateTestRoot(string name)
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "test-data", name + "_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        return root;
     }
 }

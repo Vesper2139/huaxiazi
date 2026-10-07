@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:huaxiazi:ai-blind-pairwise-v1",
+  "title": "Blind pairwise preference judgement",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "left_candidate_id", "right_candidate_id", "votes"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "left_candidate_id": { "type": "string", "minLength": 1 },
+    "right_candidate_id": { "type": "string", "minLength": 1 },
+    "votes": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reviewer_id", "choice"],
+        "properties": {
+          "reviewer_id": { "type": "string", "minLength": 1 },
+          "choice": { "enum": ["left", "right", "tie"] }
+        }
+      }
+    },
+    "adjudication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adjudicator_id", "choice"],
+      "properties": {
+        "adjudicator_id": { "type": "string", "minLength": 1 },
+        "choice": { "enum": ["left", "right", "tie"] }
+      }
+    }
+  }
+}

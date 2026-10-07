@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "dataset_version": "hxz-polish-regression-v1",
+  "status": "frozen",
+  "purpose": "internal_regression_only",
+  "phase_0_gate_contribution": 0,
+  "not_admissible_as_blind_eval": true,
+  "boundary": {
+    "blind_evaluation_allowed": false,
+    "forbidden_blind_source_kinds": [
+      "project_owned",
+      "licensed",
+      "user_authorized_deidentified"
+    ],
+    "allowed_internal_origins": [
+      "project_synthetic_legacy",
+      "ai_assisted_draft",
+      "human_authored_internal"
+    ]
+  },
+  "source": {
+    "dataset": "../polish-agent-v2/canonical.jsonl",
+    "kind": "legacy_project_synthetic",
+    "imported_row_count": 3000,
+    "source_sha256": "e4406fffefccb7394f7bc13525fc2ea78f7b97d7c3ef14c446253a2040b230d7"
+  },
+  "counts": {
+    "rows": 3000,
+    "families": 16,
+    "development_families": 13,
+    "regression_families": 3,
+    "ai_drafts": 0,
+    "human_verified": 0
+  },
+  "files": {
+    "README.md": "802503968cc2cc2839e9b20b24053cf3ce1316e09c42fda487c3fa7809acd69f",
+    "schema.md": "06c183478c9ba7e4ad88183930856c7ed98d99ba89fa3a29a6997df7071e1c53",
+    "case.schema.json": "3d5af4a1e19181bda3b4b923cbc5b0747116ae3c813b5ead19106c4778587788",
+    "cases.jsonl": "27ddceb1f9706f0851dae720d79ae5361638d7bcef8bd0788f4bfd3260da3195",
+    "variants.jsonl": "b4d0d228f65b7d3aa4f4b5c88b2f6f6f88e0517139a9c521155c236ce50056fd",
+    "families.json": "22c50bfca5eb29b2c7fa7bc81027176ad6172e518a9b28ecf055bd5ee4fd9268",
+    "coverage.json": "7a79fd9d81e6fb28de9472ff9438106b7bf0f801b92c73df24afe0d10d1fab76",
+    "gaps.json": "b9d030fc379376963130ef6bc6c31adbaf4cf1cf4a9810369bc877e2799fb467",
+    "baseline/audit-2026-10-04-corrected.json": "27d20133a4bf7a01ec9f4e6830ed1c9ecb9e9bf5b95f9f41d13b95052d7958c9"
+  },
+  "limitations": [
+    "Internal synthetic regression material only; not representative of real users.",
+    "Does not establish external quality or safety and cannot activate prompt, routing, or model-weight changes.",
+    "Formal phase 0 blind-evaluation contribution is zero; all human review remains pending.",
+    "Family assignments use exact normalized keys only; near-duplicate boundary adjudication is not complete."
+  ]
+}

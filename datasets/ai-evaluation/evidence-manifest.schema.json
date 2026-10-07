@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://huaxiazi.invalid/schemas/blind-evidence-manifest-v1.json",
+  "title": "Huaxiazi controlled blind evaluation evidence manifest v1",
+  "description": "A content-free index into an access-controlled evidence store. Structural validity does not authenticate references, identities, rights, timestamps, or reviewer independence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest_version", "status", "dataset", "handbook", "authorization_review", "reviewer_independence_review", "record_evidence", "dataset_admission", "exceptions", "custody"],
+  "properties": {
+    "manifest_version": { "const": "huaxiazi-blind-evidence-manifest-v1" },
+    "status": { "enum": ["template_not_verified", "submitted_for_review", "reviewed", "rejected"] },
+    "dataset": {
+      "type": "object", "additionalProperties": false,
+      "required": ["artifact_ref", "sha256", "sample_count", "schema_version", "admission_protocol_id", "admission_protocol_version"],
+      "properties": {
+        "artifact_ref": { "$ref": "#/$defs/artifactRef" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "sample_count": { "type": "integer", "minimum": 1 },
+        "schema_version": { "type": "string", "minLength": 1 },
+        "admission_protocol_id": { "type": "string", "minLength": 1 },
+        "admission_protocol_version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "handbook": {
+      "type": "object", "additionalProperties": false, "required": ["artifact_ref", "version", "sha256"],
+      "properties": { "artifact_ref": { "$ref": "#/$defs/artifactRef" }, "version": { "type": "string", "minLength": 1 }, "sha256": { "$ref": "#/$defs/sha256" } }
+    },
+    "authorization_review": { "$ref": "#/$defs/review" },
+    "reviewer_independence_review": { "$ref": "#/$defs/review" },
+    "record_evidence": { "type": "array", "items": { "$ref": "#/$defs/recordEvidence" } },
+    "dataset_admission": {
+      "type": "object", "additionalProperties": false, "required": ["status", "report_artifact_ref", "report_sha256"],
+      "properties": {
+        "status": { "enum": ["not_run", "passed", "failed"] },
+        "report_artifact_ref": { "oneOf": [{ "$ref": "#/$defs/artifactRef" }, { "type": "null" }] },
+        "report_sha256": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] }
+      }
+    },
+    "exceptions": { "type": "array", "items": { "$ref": "#/$defs/exception" } },
+    "custody": {
+      "type": "object", "additionalProperties": false, "required": ["evidence_store_ref", "sealed_at_utc", "sealed_by_role_ref", "signature"],
+      "properties": {
+        "evidence_store_ref": { "$ref": "#/$defs/artifactRef" },
+        "sealed_at_utc": { "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }] },
+        "sealed_by_role_ref": { "oneOf": [{ "$ref": "#/$defs/roleRef" }, { "type": "null" }] },
+        "signature": { "oneOf": [{ "type": "object" }, { "type": "null" }] }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "reviewed" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "authorization_review": { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+          "reviewer_independence_review": { "properties": { "status": { "const": "verified" } }, "required": ["status"] },
+          "dataset_admission": { "properties": { "status": { "const": "passed" } }, "required": ["status"] },
+          "exceptions": {
+            "not": {
+              "contains": {
+                "properties": { "status": { "enum": ["open", "rejected"] } },
+                "required": ["status"]
+              }
+            }
+          },
+          "custody": {
+            "properties": {
+              "sealed_at_utc": { "type": "string", "format": "date-time" },
+              "sealed_by_role_ref": { "$ref": "#/$defs/roleRef" },
+              "signature": { "type": "object" }
+            },
+            "required": ["sealed_at_utc", "sealed_by_role_ref", "signature"]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" },
+    "artifactRef": { "type": "string", "pattern": "^vault:[A-Za-z0-9][A-Za-z0-9._:-]{2,159}$", "description": "Opaque access-controlled artifact identifier; never a URL, filesystem path, or public identity." },
+    "roleRef": { "type": "string", "pattern": "^role:[A-Za-z0-9][A-Za-z0-9._-]{1,119}$" },
+    "reviewerRef": { "type": "string", "pattern": "^(reviewer:)?[A-Za-z0-9][A-Za-z0-9._-]{0,119}$" },
+    "opaqueEvidence": {
+      "type": "object", "additionalProperties": false, "required": ["artifact_ref", "sha256", "purpose"],
+      "properties": { "artifact_ref": { "$ref": "#/$defs/artifactRef" }, "sha256": { "$ref": "#/$defs/sha256" }, "purpose": { "type": "string", "minLength": 1 } }
+    },
+    "exception": {
+      "type": "object", "additionalProperties": false,
+      "required": ["exception_ref", "category", "status", "evidence_ref", "evidence_sha256", "recorded_at_utc", "owner_role_ref"],
+      "properties": {
+        "exception_ref": { "type": "string", "pattern": "^exception:[A-Za-z0-9][A-Za-z0-9._-]{1,119}$" },
+        "category": { "enum": ["authorization", "privacy", "reviewer_independence", "adjudication", "retention", "withdrawal", "data_integrity", "other"] },
+        "status": { "enum": ["open", "resolved", "rejected", "withdrawn"] },
+        "evidence_ref": { "oneOf": [{ "$ref": "#/$defs/artifactRef" }, { "type": "null" }] },
+        "evidence_sha256": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "recorded_at_utc": { "type": "string", "format": "date-time", "description": "UTC timestamp; evidence authenticity is verified by the controlled audit system." },
+        "owner_role_ref": { "$ref": "#/$defs/roleRef" }
+      },
+      "oneOf": [
+        { "properties": { "evidence_ref": { "type": "null" }, "evidence_sha256": { "type": "null" } } },
+        { "properties": { "evidence_ref": { "$ref": "#/$defs/artifactRef" }, "evidence_sha256": { "$ref": "#/$defs/sha256" } } }
+      ]
+    },
+    "review": {
+      "type": "object", "additionalProperties": false, "required": ["status", "verified_at_utc", "reviewer_role_ref", "evidence"],
+      "properties": {
+        "status": { "enum": ["not_verified", "verified", "rejected"] },
+        "verified_at_utc": { "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }] },
+        "reviewer_role_ref": { "oneOf": [{ "$ref": "#/$defs/roleRef" }, { "type": "null" }] },
+        "evidence": { "type": "array", "items": { "$ref": "#/$defs/opaqueEvidence" } }
+      }
+    },
+    "submission": {
+      "type": "object", "additionalProperties": false, "required": ["reviewer_ref", "artifact_ref", "sha256", "submitted_at_utc", "blind_package_sha256"],
+      "properties": {
+        "reviewer_ref": { "$ref": "#/$defs/reviewerRef" },
+        "artifact_ref": { "$ref": "#/$defs/artifactRef" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "submitted_at_utc": { "type": "string", "format": "date-time" },
+        "blind_package_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "recordEvidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record_id", "source_ref", "authorization_artifact_ref", "authorization_sha256", "blind_package_artifact_ref", "blind_package_version", "blind_package_sha256", "review_submissions", "adjudication"],
+      "properties": {
+        "record_id": { "type": "string", "minLength": 1 },
+        "source_ref": { "type": "string", "pattern": "^(source:)?[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$" },
+        "authorization_artifact_ref": { "$ref": "#/$defs/artifactRef" },
+        "authorization_sha256": { "$ref": "#/$defs/sha256" },
+        "blind_package_artifact_ref": { "$ref": "#/$defs/artifactRef" },
+        "blind_package_version": { "type": "string", "minLength": 1 },
+        "blind_package_sha256": { "$ref": "#/$defs/sha256" },
+        "review_submissions": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "$ref": "#/$defs/submission" } },
+        "adjudication": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "object", "additionalProperties": false, "required": ["adjudicator_ref", "artifact_ref", "sha256", "submitted_at_utc", "blind_package_sha256"], "properties": {
+              "adjudicator_ref": { "$ref": "#/$defs/reviewerRef" }, "artifact_ref": { "$ref": "#/$defs/artifactRef" }, "sha256": { "$ref": "#/$defs/sha256" }, "submitted_at_utc": { "type": "string", "format": "date-time" }, "blind_package_sha256": { "$ref": "#/$defs/sha256" }
+            } }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -41,19 +41,6 @@ public sealed class AcceptanceDefectTests
     }
 
     [Fact]
-    public void FloatingBall_ProvidesRoomForTheCompanionShadow()
-    {
-        var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "FloatingBallWindow.xaml"));
-        var code = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "FloatingBallWindow.xaml.cs"));
-
-        Assert.Contains("Width=\"60\" Height=\"60\"", xaml);
-        Assert.Contains("Width=\"{DynamicResource SkinCompanionSize}\" Height=\"{DynamicResource SkinCompanionSize}\"", xaml);
-        Assert.Contains("Math.Clamp(settings.FloatingBallSize, 28, 72)", code);
-        Assert.Contains("Width = size + 16", code);
-        Assert.Contains("Height = size + 16", code);
-    }
-
-    [Fact]
     public void DeliveryScripts_UseSingleOutDirectoryContract()
     {
         var publish = File.ReadAllText(Path.Combine(RepoRoot(), "publish.ps1"));
@@ -71,16 +58,18 @@ public sealed class AcceptanceDefectTests
     }
 
     [Fact]
-    public void DeliveryScript_ProducesOnlyThreeStableClientArtifacts()
+    public void DeliveryScript_ProducesOnlyTwoStableClientArtifacts()
     {
         var publish = File.ReadAllText(Path.Combine(RepoRoot(), "publish.ps1"));
 
-        Assert.Contains("PublishSingleFile=true", publish);
-        Assert.Contains("IncludeNativeLibrariesForSelfExtract=true", publish);
-        Assert.Contains("IncludeAllContentForSelfExtract=true", publish);
-        Assert.Contains("Join-Path $PackagesDir \"Huaxiazi.exe\"", publish);
+        Assert.Contains("PublishSingleFile=false", publish);
+        Assert.DoesNotContain("IncludeNativeLibrariesForSelfExtract=true", publish);
+        Assert.DoesNotContain("IncludeAllContentForSelfExtract=true", publish);
+        Assert.DoesNotContain("PublishSingleFile=true", publish);
         Assert.Contains("Join-Path $PackagesDir \"Huaxiazi-Portable.zip\"", publish);
         Assert.Contains("Join-Path $PackagesDir \"Huaxiazi-Setup.exe\"", publish);
+        Assert.DoesNotContain("Copy-Item -LiteralPath (Join-Path $ScriptDir \"deploy/install.ps1\")", publish);
+        Assert.DoesNotContain("Copy-Item -LiteralPath (Join-Path $ScriptDir \"deploy/install.cmd\")", publish);
         Assert.DoesNotContain("release/version.json", publish);
     }
 

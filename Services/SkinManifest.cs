@@ -21,12 +21,15 @@ public sealed record SkinManifest(
     string? InstallPath = null,
     string? CompanionVectorPath = null,
     string? CompanionSpriteSheetPath = null,
-    int CompanionSpriteSheetColumns = 4,
-    int CompanionSpriteSheetRows = 3,
+    int CompanionSpriteSheetColumns = SkinContract.CompanionSpriteSheetColumns,
+    int CompanionSpriteSheetRows = SkinContract.CompanionSpriteSheetRows,
     string? CompanionIdleVariantsPath = null,
-    int CompanionIdleVariantsColumns = 4)
+    int CompanionIdleVariantsColumns = SkinContract.CompanionIdleVariantsColumns,
+    string? AppIconPath = null,
+    IReadOnlyDictionary<string, string>? IdleBehaviorOverrides = null,
+    IReadOnlyDictionary<string, string>? FrameStateOverrides = null)
 {
     /// <summary>由所有窗口共享的类型化角色状态映射；皮肤不拥有业务状态机。</summary>
     public CompanionVisualProfile CompanionProfile { get; } =
-        CompanionVisualProfile.Create(CompanionKind, CompanionStates, CompanionVectorPath, CompanionSpriteSheetPath, CompanionSpriteSheetColumns, CompanionSpriteSheetRows, CompanionIdleVariantsPath, CompanionIdleVariantsColumns);
+        CompanionVisualProfile.Create(CompanionKind, CompanionStates, CompanionVectorPath, CompanionSpriteSheetPath, CompanionSpriteSheetColumns, CompanionSpriteSheetRows, CompanionIdleVariantsPath, CompanionIdleVariantsColumns, IdleBehaviorOverrides, FrameStateOverrides);
 }

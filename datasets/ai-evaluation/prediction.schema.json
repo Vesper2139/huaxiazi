@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:huaxiazi:ai-blind-prediction-v2",
+  "title": "Blind candidate prediction with independent human reviews",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "candidate_id", "output", "schema_valid", "reviews", "status"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "candidate_id": { "type": "string", "minLength": 1, "description": "Randomized alias; do not include provider or model identity." },
+    "output": { "type": "string" },
+    "schema_valid": { "type": "boolean" },
+    "reviews": { "type": "array", "minItems": 0, "maxItems": 2, "items": { "$ref": "#/$defs/review" } },
+    "adjudication": { "anyOf": [{ "$ref": "#/$defs/adjudication" }, { "type": "null" }] },
+    "telemetry": { "anyOf": [{ "$ref": "#/$defs/telemetry" }, { "type": "null" }] },
+    "status": { "enum": ["success", "error", "cancelled"] }
+  },
+  "$defs": {
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "allOf": [{ "$ref": "#/$defs/review_rubric_consistency" }],
+      "required": ["reviewer_id", "fact_constraint_retained", "directly_usable", "tone_matched", "clarification_decision_correct", "high_risk_key_fact_reversed", "safety_pass", "fidelity_score", "task_completion_score", "naturalness_score", "direct_usability_score", "safety_score"],
+      "properties": {
+        "reviewer_id": { "type": "string", "minLength": 1 },
+        "fact_constraint_retained": { "type": "boolean" },
+        "directly_usable": { "type": "boolean" },
+        "tone_matched": { "type": "boolean" },
+        "clarification_decision_correct": { "type": "boolean" },
+        "high_risk_key_fact_reversed": { "type": "boolean" },
+        "safety_pass": { "type": "boolean" },
+        "fidelity_score": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "task_completion_score": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "naturalness_score": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "direct_usability_score": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "safety_score": { "type": "integer", "minimum": 1, "maximum": 5 }
+      }
+    },
+    "adjudication": {
+      "type": "object",
+      "additionalProperties": false,
+      "allOf": [{ "$ref": "#/$defs/review_rubric_consistency" }],
+      "required": ["adjudicator_id", "fact_constraint_retained", "directly_usable", "tone_matched", "clarification_decision_correct", "high_risk_key_fact_reversed", "safety_pass", "fidelity_score", "task_completion_score", "naturalness_score", "direct_usability_score", "safety_score"],
+      "properties": {
+        "adjudicator_id": { "type": "string", "minLength": 1 },
+        "fact_constraint_retained": { "type": "boolean" },
+        "directly_usable": { "type": "boolean" },
+        "tone_matched": { "type": "boolean" },
+        "clarification_decision_correct": { "type": "boolean" },
+        "high_risk_key_fact_reversed": { "type": "boolean" },
+        "safety_pass": { "type": "boolean" },
+        "fidelity_score": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "task_completion_score": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "naturalness_score": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "direct_usability_score": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "safety_score": { "type": "integer", "minimum": 1, "maximum": 5 }
+      }
+    },
+    "review_rubric_consistency": {
+      "allOf": [
+        {
+          "if": { "properties": { "directly_usable": { "const": true } }, "required": ["directly_usable"] },
+          "then": { "properties": { "direct_usability_score": { "minimum": 4 } }, "required": ["direct_usability_score"] },
+          "else": { "properties": { "direct_usability_score": { "maximum": 3 } }, "required": ["direct_usability_score"] }
+        },
+        {
+          "if": { "properties": { "high_risk_key_fact_reversed": { "const": true } }, "required": ["high_risk_key_fact_reversed"] },
+          "then": { "properties": { "fidelity_score": { "const": 1 } }, "required": ["fidelity_score"] }
+        }
+      ]
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "latency_milliseconds": { "type": ["number", "null"], "minimum": 0 },
+        "api_input_tokens": { "type": ["integer", "null"], "minimum": 0 },
+        "api_output_tokens": { "type": ["integer", "null"], "minimum": 0 },
+        "api_cache_read_input_tokens": { "type": ["integer", "null"], "minimum": 0 },
+        "api_cache_creation_input_tokens": { "type": ["integer", "null"], "minimum": 0 },
+        "local_tokens_per_second": { "type": ["number", "null"], "minimum": 0 },
+        "local_peak_memory_bytes": { "type": ["integer", "null"], "minimum": 0 },
+        "local_model_load_milliseconds": { "type": ["number", "null"], "minimum": 0 },
+        "error_category": { "enum": ["timeout", "rate_limited", "authentication", "provider_error", "network", "empty_output", "schema_rejected", "workflow_rejected", "runner_error", "cancelled", "other", null] }
+      }
+    }
+  }
+}

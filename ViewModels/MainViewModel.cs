@@ -24,7 +24,8 @@ public sealed partial class MainViewModel : ObservableObject
 {
     private readonly WorkspaceDraftService _draftStore;
     private readonly ArchiveService _archiveService;
-    private readonly Func<ProviderProfile, string?, ITextGenerationClient> _generationClientFactory;
+    private readonly IClipboardService _clipboardService;
+    private readonly Func<ProviderProfile, string?, ApplicationMode, GenerationDiagnosticsScope?, ITextGenerationClient> _generationClientFactory;
     // 撤回/重做历史按模式（润色 / 提示词优化）拆分，避免切换模式污染彼此的操作栈
     private readonly Dictionary<ApplicationMode, Stack<WorkspaceDraft>> _undoByMode = new();
     private readonly Dictionary<ApplicationMode, Stack<WorkspaceDraft>> _redoByMode = new();
@@ -37,6 +38,10 @@ public sealed partial class MainViewModel : ObservableObject
     private Guid? _currentItemId;
     private string _currentScenario = "其他";
     private string _currentTopic = "未命名表达";
+    private ApplicationMode _preferenceSignalTask = ApplicationMode.Polish;
+    private string _preferenceSignalScenario = string.Empty;
+    private string _preferenceSignalOutputStyle = "自然";
+    private readonly ExpressionPreferenceFeedbackSession _preferenceFeedbackSession = new();
     private readonly SmartContextAnalyzer _contextAnalyzer = new();
     private readonly StructuredPreferenceService _preferenceService = new();
     private readonly ProfessionalizationPlanner _professionalizationPlanner = new();
@@ -47,6 +52,8 @@ public sealed partial class MainViewModel : ObservableObject
     private AssistantEmotionHint? _assistantEmotion;
     private CancellationTokenSource? _assistantEmotionCancellation;
     private GenerationFailureException? _lastGenerationFailure;
+    private string _lastGenerationProfileId = string.Empty;
+    private string _lastGenerationModelName = string.Empty;
     private bool _companionCompleted;
     public GenerationFailureException? LastGenerationFailure
     {
@@ -87,6 +94,9 @@ public sealed partial class MainViewModel : ObservableObject
             return $"{profile.Name} · {profile.Model}";
         }
     }
+
+    public string LastUsedProviderLabel { get; private set; } = "尚无生成记录";
+    public string LastUsedOutputStyleLabel { get; private set; } = "尚无成稿风格记录";
     public ProviderProfile ActiveProviderProfile
     {
         get => App.Settings.GetActiveProviderProfile();
@@ -362,7 +372,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     internal MainViewModel(WorkspaceDraftService draftStore, ArchiveService archiveService)
-        : this(draftStore, archiveService, (profile, key) => new AIService(profile, key))
+        : this(draftStore, archiveService, (profile, key, task, diagnosticsScope) => App.CreateGenerationClient(profile, key, task, diagnosticsScope))
     {
     }
 
@@ -370,10 +380,28 @@ public sealed partial class MainViewModel : ObservableObject
         WorkspaceDraftService draftStore,
         ArchiveService archiveService,
         Func<ProviderProfile, string?, ITextGenerationClient> generationClientFactory)
+        : this(draftStore, archiveService, (profile, key, _, _) => generationClientFactory(profile, key))
+    {
+    }
+
+    internal MainViewModel(
+        WorkspaceDraftService draftStore,
+        ArchiveService archiveService,
+        Func<ProviderProfile, string?, ApplicationMode, ITextGenerationClient> generationClientFactory)
+        : this(draftStore, archiveService, (profile, key, task, _) => generationClientFactory(profile, key, task))
+    {
+    }
+
+    internal MainViewModel(
+        WorkspaceDraftService draftStore,
+        ArchiveService archiveService,
+        Func<ProviderProfile, string?, ApplicationMode, GenerationDiagnosticsScope?, ITextGenerationClient> generationClientFactory,
+        IClipboardService? clipboardService = null)
     {
         _draftStore = draftStore ?? throw new ArgumentNullException(nameof(draftStore));
         _archiveService = archiveService ?? throw new ArgumentNullException(nameof(archiveService));
         _generationClientFactory = generationClientFactory ?? throw new ArgumentNullException(nameof(generationClientFactory));
+        _clipboardService = clipboardService ?? App.ClipboardService;
         App.Settings.NormalizeProductModes();
         App.Settings.NormalizeProviderProfiles();
         App.Settings.NormalizePromptSettings();
@@ -404,6 +432,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void ReloadPreferences()
     {
+        if (!CanLearnPreferences()) _preferenceFeedbackSession.Cancel();
         _showDiff = App.Settings.ShowDiff;
         OnPropertyChanged(nameof(ShowDiff));
         OnPropertyChanged(nameof(Categories));
@@ -473,10 +502,12 @@ public sealed partial class MainViewModel : ObservableObject
         if (string.IsNullOrEmpty(OptimizedResult)) return;
         try
         {
-            App.ClipboardService.CopyText(OptimizedResult);
-            if (CanLearnPreferences())
+            _clipboardService.CopyText(OptimizedResult);
+            if (CanLearnPreferences() && _preferenceFeedbackSession.IsActive)
             {
-                _preferenceService.RecordAcceptance(App.Settings.ExpressionPreferenceProfile);
+                _preferenceService.RecordAcceptance(App.Settings.ExpressionPreferenceProfile, _preferenceSignalTask, _preferenceSignalScenario);
+                CapturePreferenceFeedbackEdit();
+                CompletePreferenceFeedback(accepted: true, rejected: false);
                 SavePreferenceProfile();
             }
         }
@@ -488,7 +519,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         try
         {
-            var text = App.ClipboardService.GetText();
+            var text = _clipboardService.GetText();
             if (!string.IsNullOrEmpty(text)) UserInput = text;
         }
         catch (Exception ex) { ShowError($"读取剪贴板失败：{ex.Message}"); }
@@ -512,9 +543,15 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var undo = UndoStack;
         if (undo.Count == 0) return;
-        if (CanLearnPreferences())
+        var undoChangesGeneratedOutput = !string.Equals(undo.Peek().OptimizedResult, OptimizedResult, StringComparison.Ordinal);
+        if (CanLearnPreferences() && _preferenceFeedbackSession.IsActive)
         {
-            _preferenceService.RecordUndo(App.Settings.ExpressionPreferenceProfile);
+            _preferenceService.RecordUndo(App.Settings.ExpressionPreferenceProfile, _preferenceSignalTask, _preferenceSignalScenario);
+            if (undoChangesGeneratedOutput)
+            {
+                CapturePreferenceFeedbackEdit();
+                CompletePreferenceFeedback(accepted: false, rejected: true);
+            }
             SavePreferenceProfile();
         }
         RedoStack.Push(CaptureWorkspace());
@@ -556,6 +593,8 @@ public sealed partial class MainViewModel : ObservableObject
             _currentItemId = revision.ItemId;
             _currentScenario = revision.Scenario;
             _currentTopic = revision.Topic;
+            _preferenceSignalTask = revision.Mode;
+            _preferenceSignalScenario = revision.Mode == ApplicationMode.PromptOptimize ? revision.Topic : revision.Scenario;
             ArchiveStatus = $"已载入 {revision.Topic} · v{revision.Version:00}";
         }
         finally
@@ -629,6 +668,7 @@ public sealed partial class MainViewModel : ObservableObject
         _requestCancellation?.Dispose();
         _requestCancellation = new CancellationTokenSource();
         var requestCancellation = _requestCancellation;
+        GenerationDiagnosticsScope? diagnosticsScope = null;
 
         try
         {
@@ -638,14 +678,68 @@ public sealed partial class MainViewModel : ObservableObject
             if (requestVersion == Volatile.Read(ref _requestVersion) && IsBusy)
                 SetCompanionWorkPhase(CompanionWorkPhase.Processing);
             var parsedInput = InputContextParser.Parse(_clarificationSubmission ?? UserInput);
-            var profile = App.Settings.GetActiveProviderProfile();
-            var key = App.SecretStore.Read(profile.SecretId);
-            var client = _generationClientFactory(profile, key);
-            using var clientDisposal = client as IDisposable;
+            ModelTier? routingTier = null;
+            string? routingReason = null;
+            if (App.Settings.ProviderRoutingMode == ProviderRoutingMode.Automatic)
+            {
+                var routingPlan = CreateRoutingPlan(requestMode, parsedInput);
+                if (routingPlan.NeedsClarification)
+                {
+                    if (App.Settings.ClarificationEnabled)
+                    {
+                        ClarificationQuestions = routingPlan.ClarificationQuestions;
+                        HasClarification = true;
+                        _clarificationOriginalInput ??= UserInput;
+                        ArchiveStatus = "需要补充关键信息";
+                    }
+                    else
+                    {
+                        var missingInformation = MissingInformationSummary.For(routingPlan);
+                        ArchiveStatus = "信息不足，未生成";
+                        ShowError($"当前信息不足以完成“{FirstNonEmpty(routingPlan.Purpose, "当前任务")}”。缺少：{missingInformation}。本次未向模型发送请求。补充信息后重试，或开启“关键信息缺失时先询问”。");
+                    }
+                    return;
+                }
+                if (!Enum.TryParse<ModelTier>(routingPlan.RecommendedModelTier, ignoreCase: false, out var tier))
+                    throw new InvalidOperationException("当前任务无法确定自动路由模型档位，请改用手动选择或检查任务设置。");
+                routingTier = tier;
+                routingReason = routingPlan.ModelSelectionReason;
+            }
+            var route = ProviderRouter.Select(App.Settings, requestMode, routingTier, routingReason);
+            var includeConfirmedPreferences = PreferenceDisclosurePolicy.CanSendConfirmedPreferences(App.Settings, route);
+            var includeLegacyPreferences = PreferenceDisclosurePolicy.CanSendLegacyPreferences(App.Settings, route);
+            var profile = route.Profile;
+            diagnosticsScope = App.CreateGenerationDiagnosticsScope(
+                requestMode,
+                App.Settings.ProviderRoutingMode,
+                route.Reason,
+                route.Profile.Id,
+                route.ConfiguredFallback?.Id);
+            LastUsedProviderLabel = $"本次尝试：{profile.Name} · {profile.Model}（{ProviderRouter.DescribeReason(route.Reason, route.ModelSelectionReason)}）";
+            OnPropertyChanged(nameof(LastUsedProviderLabel));
+            ITextGenerationClient CreateGenerationClient()
+            {
+                var key = App.SecretStore.Read(profile.SecretId);
+                ITextGenerationClient generationClient = _generationClientFactory(profile, key, requestMode, diagnosticsScope);
+                if (route.ConfiguredFallback is { } fallbackProfile)
+                {
+                    generationClient = new ProviderFallbackGenerationClient(
+                        generationClient,
+                        fallbackProfile,
+                        fallback => _generationClientFactory(fallback, App.SecretStore.Read(fallback.SecretId), requestMode, diagnosticsScope),
+                        fallback =>
+                        {
+                            profile = fallback;
+                            LastUsedProviderLabel = $"主模型失败后使用备用：{fallback.Name} · {fallback.Model}";
+                            OnPropertyChanged(nameof(LastUsedProviderLabel));
+                        });
+                }
+                return generationClient;
+            }
+
             if (requestMode == ApplicationMode.Polish)
             {
-                var workflow = new PolishWorkflowService(client, App.PolishPromptBuilder, _archiveService);
-                var polishRequest = CreatePolishRequest(parsedInput);
+                var polishRequest = CreatePolishRequest(parsedInput, profile, includeConfirmedPreferences, includeLegacyPreferences);
                 if (App.Settings.ClarificationEnabled && polishRequest.Professionalization is { NeedsClarification: true } polishPlan)
                 {
                     ClarificationQuestions = polishPlan.ClarificationQuestions;
@@ -654,6 +748,16 @@ public sealed partial class MainViewModel : ObservableObject
                     ArchiveStatus = "需要补充关键信息";
                     return;
                 }
+                if (!App.Settings.ClarificationEnabled && polishRequest.Professionalization is { NeedsClarification: true } incompletePlan)
+                {
+                    var missingInformation = MissingInformationSummary.For(incompletePlan);
+                    ArchiveStatus = "信息不足，未生成";
+                    ShowError($"当前信息不足以完成“{FirstNonEmpty(incompletePlan.Purpose, "当前任务")}”。缺少：{missingInformation}。本次未向模型发送请求。补充信息后重试，或开启“关键信息缺失时先询问”。");
+                    return;
+                }
+                var client = CreateGenerationClient();
+                using var clientDisposal = client as IDisposable;
+                var workflow = new PolishWorkflowService(client, App.PolishPromptBuilder, _archiveService);
                 var shouldArchive = ShouldArchive();
                 var result = await workflow.ExecuteAsync(
                     polishRequest,
@@ -662,6 +766,28 @@ public sealed partial class MainViewModel : ObservableObject
                     _currentItemId,
                     DateTimeOffset.Now,
                     requestCancellation.Token);
+                diagnosticsScope?.Complete(new GenerationQualityObservation(
+                    diagnosticsScope.RequestCount == 0 ? "not_generated" : result.Response.Kind switch
+                    {
+                        PolishResponseKind.Final => "final",
+                        PolishResponseKind.NeedsClarification => "needs_clarification",
+                        _ => "invalid"
+                    },
+                    diagnosticsScope.RequestCount > 0 ? result.Response.Kind != PolishResponseKind.Invalid : null,
+                    client is IStructuredTextGenerationClient && diagnosticsScope.RequestCount > 0
+                        ? result.Response.Kind != PolishResponseKind.Invalid
+                        : null,
+                    diagnosticsScope.RequestCount > 0
+                        ? result.Response.Kind == PolishResponseKind.Final
+                            ? result.ValidationIssues.Count == 0
+                            : result.Response.Kind == PolishResponseKind.Invalid ? false : null
+                        : null,
+                    result.WasRepaired,
+                    result.ValidationIssues.Count));
+                _lastGenerationProfileId = profile.Id;
+                _lastGenerationModelName = profile.Model;
+                LastUsedProviderLabel = $"本次实际模型：{profile.Name} · {profile.Model}（{(profile.Id == route.Profile.Id ? ProviderRouter.DescribeReason(route.Reason, route.ModelSelectionReason) : "主模型失败后切换到明确配置的备用模型")}）";
+                OnPropertyChanged(nameof(LastUsedProviderLabel));
                 ThrowIfRequestIsStale(requestVersion, requestCancellation.Token);
                 if (shouldArchive && result.Response.Kind == PolishResponseKind.Final)
                 {
@@ -674,25 +800,45 @@ public sealed partial class MainViewModel : ObservableObject
                         ValidationIssues = result.ValidationIssues
                     };
                 }
+                _preferenceSignalTask = ApplicationMode.Polish;
+                _preferenceSignalScenario = polishRequest.Scenario;
+                _preferenceSignalOutputStyle = polishRequest.OutputStyle;
+                if (result.Response.Kind == PolishResponseKind.Final)
+                {
+                    LastUsedOutputStyleLabel = $"最近成稿风格：{polishRequest.OutputStyle}";
+                    OnPropertyChanged(nameof(LastUsedOutputStyleLabel));
+                }
                 ApplyPolishResult(result);
             }
             else
             {
+                var promptCategory = SelectedCategory;
+                var promptPreferenceScenario = promptCategory.GetDisplayName();
                 var request = new PromptRequest
                 {
                     UserInput = parsedInput.Body,
-                    Category = SelectedCategory,
+                    Category = promptCategory,
                     Depth = SelectedDepth,
+                    OutputStyle = OutputStylePreferenceResolver.Resolve(
+                        ApplicationMode.PromptOptimize,
+                        promptPreferenceScenario,
+                        App.Settings.OutputStyle,
+                        App.Settings.OutputStyleOverrides),
                     Persona = App.Settings.UserPersona,
                     CustomSystemPrompt = EffectiveCustomSystemPrompt(),
-                    PreferenceInstructions = BuildPreferenceInstructions(parsedInput.Instructions)
+                    PreferenceInstructions = BuildPreferenceInstructions(
+                        ApplicationMode.PromptOptimize,
+                        parsedInput.Instructions,
+                        promptPreferenceScenario,
+                        includeConfirmedPreferences,
+                        includeLegacyPreferences)
                 };
-                var externalStrategy = ResolveExternalStrategy(ApplicationMode.PromptOptimize, parsedInput.Body, string.Empty, SelectedCategory);
+                var externalStrategy = ResolveExternalStrategy(ApplicationMode.PromptOptimize, parsedInput.Body, string.Empty, promptCategory);
                 var plan = _professionalizationPlanner.Create(new ProfessionalizationRequest
                 {
                     Input = parsedInput.Body,
                     Mode = ApplicationMode.PromptOptimize,
-                    Category = SelectedCategory,
+                    Category = promptCategory,
                     Depth = SelectedDepth,
                     ExplicitRequirements = parsedInput.Instructions,
                     PreferenceInstructions = request.PreferenceInstructions,
@@ -711,11 +857,21 @@ public sealed partial class MainViewModel : ObservableObject
                     ArchiveStatus = "需要补充关键信息";
                     return;
                 }
+                if (!App.Settings.ClarificationEnabled && plan.NeedsClarification)
+                {
+                    var missingInformation = MissingInformationSummary.For(plan);
+                    ArchiveStatus = "信息不足，未生成";
+                    ShowError($"当前信息不足以完成“{FirstNonEmpty(plan.Purpose, "当前任务")}”。缺少：{missingInformation}。本次未向模型发送请求。补充信息后重试，或开启“关键信息缺失时先询问”。");
+                    return;
+                }
+                var client = CreateGenerationClient();
+                using var clientDisposal = client as IDisposable;
                 request = new PromptRequest
                 {
                     UserInput = request.UserInput,
                     Category = request.Category,
                     Depth = request.Depth,
+                    OutputStyle = request.OutputStyle,
                     Persona = request.Persona,
                     CustomSystemPrompt = request.CustomSystemPrompt,
                     PreferenceInstructions = request.PreferenceInstructions,
@@ -723,6 +879,17 @@ public sealed partial class MainViewModel : ObservableObject
                 };
                 var transformation = await new PromptOptimizationWorkflowService(client, App.PromptBuilder)
                     .ExecuteAsync(request, plan, requestCancellation.Token);
+                diagnosticsScope?.Complete(new GenerationQualityObservation(
+                    diagnosticsScope.RequestCount == 0 ? "not_generated" : transformation.IsBlocked ? "blocked" : "final",
+                    transformation.StructuredOutputValid,
+                    transformation.StructuredOutputValid,
+                    diagnosticsScope.RequestCount > 0
+                        ? !transformation.IsBlocked && transformation.ValidationIssues.Count == 0
+                        : null,
+                    transformation.WasRepaired,
+                    transformation.ValidationIssues.Count));
+                LastUsedProviderLabel = $"本次实际模型：{profile.Name} · {profile.Model}（{(profile.Id == route.Profile.Id ? ProviderRouter.DescribeReason(route.Reason, route.ModelSelectionReason) : "主模型失败后切换到明确配置的备用模型")}）";
+                OnPropertyChanged(nameof(LastUsedProviderLabel));
                 ThrowIfRequestIsStale(requestVersion, requestCancellation.Token);
                 if (transformation.IsBlocked)
                 {
@@ -732,12 +899,20 @@ public sealed partial class MainViewModel : ObservableObject
                         : "结果未通过事实保真检查，系统已阻止展示。请重试或补充关键信息。");
                     return;
                 }
+                _lastGenerationProfileId = profile.Id;
+                _lastGenerationModelName = profile.Model;
                 var result = transformation.Content;
                 if (string.IsNullOrWhiteSpace(result))
                 {
                     ShowError("模型返回为空，请重试。");
                     return;
                 }
+                _preferenceSignalTask = ApplicationMode.PromptOptimize;
+                _preferenceSignalScenario = promptPreferenceScenario;
+                _preferenceSignalOutputStyle = request.OutputStyle;
+                LastUsedOutputStyleLabel = $"最近成稿风格：{request.OutputStyle}";
+                OnPropertyChanged(nameof(LastUsedOutputStyleLabel));
+                BeginPreferenceFeedback();
                 RecordWorkspaceUndo();
                 OptimizedResult = result;
                 ViewMode = ViewMode.Optimized;
@@ -755,7 +930,7 @@ public sealed partial class MainViewModel : ObservableObject
                         Scenario = "提示词优化",
                         Topic = SelectedCategory.GetDisplayName(),
                         ContextJson = JsonSerializer.Serialize(new { Category = SelectedCategory, Depth = SelectedDepth }),
-                        Style = SelectedDepth.GetDisplayName(),
+                        Style = request.OutputStyle,
                         ModelProfileId = profile.Id,
                         ModelName = profile.Model
                     }, DateTimeOffset.Now);
@@ -777,15 +952,18 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
+            diagnosticsScope?.Complete(new GenerationQualityObservation("cancelled", null, null, null, false, 0));
             ArchiveStatus = "已取消";
         }
         catch (GenerationFailureException failure)
         {
+            diagnosticsScope?.Complete(new GenerationQualityObservation("failed", null, null, null, false, 0));
             LastGenerationFailure = failure;
             ShowError($"生成失败：{failure.Message}");
         }
         catch (Exception ex)
         {
+            diagnosticsScope?.Complete(new GenerationQualityObservation("failed", null, null, null, false, 0));
             ShowError($"生成失败：{ex.Message}");
         }
         finally
@@ -850,9 +1028,11 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRegenerate))]
     private Task RegenerateAsync()
     {
-        if (CanLearnPreferences())
+        if (CanLearnPreferences() && _preferenceFeedbackSession.IsActive)
         {
-            _preferenceService.RecordRetry(App.Settings.ExpressionPreferenceProfile);
+            _preferenceService.RecordRetry(App.Settings.ExpressionPreferenceProfile, _preferenceSignalTask, _preferenceSignalScenario);
+            CapturePreferenceFeedbackEdit();
+            CompletePreferenceFeedback(accepted: false, rejected: true);
             SavePreferenceProfile();
         }
         return OptimizeAsync();
@@ -894,8 +1074,12 @@ public sealed partial class MainViewModel : ObservableObject
                     UserEdited = App.Settings.SaveOptimizedText && !string.IsNullOrWhiteSpace(_generatedResultBeforeEdit)
                 }),
                 Style = App.Settings.OutputStyle,
-                ModelProfileId = App.Settings.GetActiveProviderProfile().Id,
-                ModelName = App.Settings.GetActiveProviderProfile().Model
+                ModelProfileId = string.IsNullOrWhiteSpace(_lastGenerationProfileId)
+                    ? App.Settings.GetActiveProviderProfile().Id
+                    : _lastGenerationProfileId,
+                ModelName = string.IsNullOrWhiteSpace(_lastGenerationModelName)
+                    ? App.Settings.GetActiveProviderProfile().Model
+                    : _lastGenerationModelName
             }, DateTimeOffset.Now);
         }
         catch (Exception ex)
@@ -906,13 +1090,15 @@ public sealed partial class MainViewModel : ObservableObject
         _currentItemId = revision.ItemId;
         _lastSavedRevision = revision;
         IsEditingResult = false;
-        if (App.Settings.PreferenceLearningEnabled && !App.Settings.IncognitoMode && !string.IsNullOrWhiteSpace(_generatedResultBeforeEdit))
+        if (CanLearnPreferences() && _preferenceFeedbackSession.IsActive && !string.IsNullOrWhiteSpace(_generatedResultBeforeEdit))
         {
             _preferenceService.RecordEdit(
                 App.Settings.ExpressionPreferenceProfile,
                 _generatedResultBeforeEdit,
                 OptimizedResult,
-                CurrentMode == ApplicationMode.PromptOptimize ? "提示词优化" : _currentScenario);
+                _preferenceSignalTask,
+                _preferenceSignalScenario);
+            RecordPreferenceFeedbackEdit(_generatedResultBeforeEdit, OptimizedResult);
             SavePreferenceProfile();
         }
         _generatedResultBeforeEdit = string.Empty;
@@ -938,7 +1124,11 @@ public sealed partial class MainViewModel : ObservableObject
         ArchiveStatus = "已撤销归档";
     }
 
-    private PolishRequest CreatePolishRequest(ParsedInputContext parsed)
+    private PolishRequest CreatePolishRequest(
+        ParsedInputContext parsed,
+        ProviderProfile providerProfile,
+        bool includeConfirmedPreferences,
+        bool includeLegacyPreferences)
     {
         var intelligence = _contextAnalyzer.Analyze(parsed.Body, _sourceApplicationContext);
         _sourceApplicationContext = null;
@@ -954,7 +1144,12 @@ public sealed partial class MainViewModel : ObservableObject
             parsed.Weight,
             parsed.Instructions);
         var resolved = SmartContextAnalyzer.Merge(explicitContext, intelligence, App.Settings.DefaultPolishScenario);
-        var preferenceInstructions = BuildPreferenceInstructions(parsed.Instructions);
+        var preferenceInstructions = BuildPreferenceInstructions(
+            ApplicationMode.Polish,
+            parsed.Instructions,
+            resolved.Scenario,
+            includeConfirmedPreferences,
+            includeLegacyPreferences);
         var externalStrategy = ResolveExternalStrategy(ApplicationMode.Polish, parsed.Body, resolved.Scenario, SelectedCategory);
         var plan = _professionalizationPlanner.Create(new ProfessionalizationRequest
         {
@@ -963,6 +1158,7 @@ public sealed partial class MainViewModel : ObservableObject
             Recipient = resolved.Recipient,
             Scenario = resolved.Scenario,
             Purpose = resolved.Purpose,
+            PurposeIsExplicit = !string.IsNullOrWhiteSpace(parsed.Purpose) || !string.IsNullOrWhiteSpace(Purpose),
             Formality = resolved.Formality,
             ExplicitRequirements = parsed.Instructions,
             PreferenceInstructions = preferenceInstructions,
@@ -981,18 +1177,34 @@ public sealed partial class MainViewModel : ObservableObject
             Purpose = resolved.Purpose,
             Formality = resolved.Formality,
             Scenario = resolved.Scenario,
-            OutputStyle = App.Settings.OutputStyle,
+            OutputStyle = OutputStylePreferenceResolver.Resolve(
+                ApplicationMode.Polish,
+                resolved.Scenario,
+                App.Settings.OutputStyle,
+                App.Settings.OutputStyleOverrides),
             CustomStyleInstructions = App.Settings.CustomStyleInstructions,
             Persona = App.Settings.UserPersona,
             CustomSystemPrompt = EffectiveCustomSystemPrompt(),
             PreferenceInstructions = preferenceInstructions,
             Professionalization = plan,
             Intelligence = intelligence,
-            ModelProfileId = App.Settings.GetActiveProviderProfile().Id,
-            ModelName = App.Settings.GetActiveProviderProfile().Model,
+            ModelProfileId = providerProfile.Id,
+            ModelName = providerProfile.Model,
             SaveOriginalText = App.Settings.SaveOriginalText,
             SaveOptimizedText = App.Settings.SaveOptimizedText
         };
+    }
+
+    private ProfessionalizationPlan CreateRoutingPlan(ApplicationMode mode, ParsedInputContext parsed)
+    {
+        return _professionalizationPlanner.Create(new ProfessionalizationRequest
+        {
+            Input = parsed.Body,
+            Mode = mode,
+            Category = SelectedCategory,
+            Depth = SelectedDepth,
+            ExplicitRequirements = parsed.Instructions
+        });
     }
 
     private void ThrowIfRequestIsStale(long requestVersion, CancellationToken cancellationToken)
@@ -1038,6 +1250,7 @@ public sealed partial class MainViewModel : ObservableObject
                     break;
                 }
                 RecordWorkspaceUndo();
+                BeginPreferenceFeedback();
                 OptimizedResult = result.Response.Content;
                 _generatedResultBeforeEdit = result.Response.Content;
                 _currentScenario = string.IsNullOrWhiteSpace(result.Response.Scenario) ? "其他" : result.Response.Scenario;
@@ -1115,11 +1328,43 @@ public sealed partial class MainViewModel : ObservableObject
         _lastSavedRevision = null;
         _currentItemId = null;
         _generatedResultBeforeEdit = string.Empty;
+        _preferenceFeedbackSession.Cancel();
+    }
+
+    private void BeginPreferenceFeedback()
+    {
+        _preferenceFeedbackSession.Start(
+            _preferenceSignalTask,
+            _preferenceSignalScenario,
+            _preferenceSignalOutputStyle,
+            CanLearnPreferences());
+    }
+
+    private void RecordPreferenceFeedbackEdit(string? generated, string? edited)
+    {
+        _preferenceFeedbackSession.RecordEdit(generated, edited);
+    }
+
+    private void CapturePreferenceFeedbackEdit()
+    {
+        if (string.IsNullOrWhiteSpace(_generatedResultBeforeEdit) ||
+            string.Equals(_generatedResultBeforeEdit, OptimizedResult, StringComparison.Ordinal))
+            return;
+
+        RecordPreferenceFeedbackEdit(_generatedResultBeforeEdit, OptimizedResult);
+    }
+
+    private void CompletePreferenceFeedback(bool accepted, bool rejected)
+    {
+        _preferenceFeedbackSession.Complete(
+            App.Settings.ExpressionPreferenceProfile, _preferenceService, accepted, rejected);
     }
 
     private void ShowError(string message)
     {
         ApplyAssistantEmotion(null);
+        if (System.Windows.Application.Current is App app)
+            app.LogError("Generation", new InvalidOperationException(message));
         ErrorMessage = message;
         HasError = true;
     }
@@ -1284,7 +1529,12 @@ public sealed partial class MainViewModel : ObservableObject
             ? App.Settings.CustomSystemPrompt
             : SelectedPreset.CustomSystemPrompt;
 
-    private string BuildPreferenceInstructions(string? inlineInstructions = null)
+    private string BuildPreferenceInstructions(
+        ApplicationMode task,
+        string? inlineInstructions = null,
+        string? scenario = null,
+        bool includeConfirmedPreferences = false,
+        bool includeLegacyPreferences = false)
     {
         var preferences = new List<string>();
         if (App.Settings.PreserveMeaning) preferences.Add("必须保留原意、事实与立场");
@@ -1292,11 +1542,10 @@ public sealed partial class MainViewModel : ObservableObject
         if (App.Settings.ProfessionalTone) preferences.Add("表达专业、准确、克制");
         if (!string.IsNullOrWhiteSpace(SelectedPreset?.Instructions)) preferences.Add(SelectedPreset.Instructions.Trim());
         if (!string.IsNullOrWhiteSpace(inlineInstructions)) preferences.Add(inlineInstructions.Trim());
-        if (App.Settings.PreferenceLearningEnabled && !App.Settings.IncognitoMode)
-        {
-            var learned = _preferenceService.BuildInstructions(App.Settings.ExpressionPreferenceProfile);
-            if (!string.IsNullOrWhiteSpace(learned)) preferences.Add(learned);
-        }
+        var confirmed = includeConfirmedPreferences
+            ? _preferenceService.BuildInstructions(App.Settings.ExpressionPreferenceProfile, task, scenario, includeLegacyPreferences)
+            : string.Empty;
+        if (!string.IsNullOrWhiteSpace(confirmed)) preferences.Add(confirmed);
         return string.Join("；", preferences);
     }
 
@@ -1323,7 +1572,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void TryAutoCopyResult()
     {
         if (!App.Settings.AutoCopyAfterOptimize || string.IsNullOrWhiteSpace(OptimizedResult)) return;
-        try { App.ClipboardService.CopyText(OptimizedResult); }
+        try { _clipboardService.CopyText(OptimizedResult); }
         catch (Exception ex) { DraftStatus = $"自动复制失败：{ex.Message}"; }
     }
 

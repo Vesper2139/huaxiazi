@@ -1,0 +1,333 @@
+{
+  "schema_version": "1.0",
+  "purpose": "internal_regression_coverage_and_gap_triage",
+  "phase0_gate_contribution": 0,
+  "not_admissible_as_blind_eval": true,
+  "source_row_count": 3000,
+  "semantic_family_count": 16,
+  "human_verified_family_count": 0,
+  "unit": "semantic_family",
+  "parent_manifest_sha256": "8da2557b6a9b2f0a6c2d80ffd746bb79d6b494da5b50ad1db4fe45f23d11a2cb",
+  "draft_manifest_sha256": "3828738057f29ec12fc1caa3bb745116bb309ee772a656deeafd34bfe71de1ff",
+  "source_sha256": "e4406fffefccb7394f7bc13525fc2ea78f7b97d7c3ef14c446253a2040b230d7",
+  "dimensions": [
+    {
+      "name": "legacy_scenario",
+      "evidence_basis": "source canonical scenario metadata; source metadata is not human verified",
+      "source_rows_with_value": {
+        "\u516C\u5F00\u53D1\u5E03": 150,
+        "\u5176\u4ED6": 338,
+        "\u6B63\u5F0F\u6750\u6599": 674,
+        "\u79C1\u4EBA\u6C9F\u901A": 674,
+        "\u804C\u573A\u6C9F\u901A": 1164
+      },
+      "families_with_value": {
+        "\u516C\u5F00\u53D1\u5E03": 2,
+        "\u5176\u4ED6": 4,
+        "\u6B63\u5F0F\u6750\u6599": 8,
+        "\u79C1\u4EBA\u6C9F\u901A": 12,
+        "\u804C\u573A\u6C9F\u901A": 16
+      }
+    },
+    {
+      "name": "channel",
+      "evidence_basis": "source canonical channel metadata; source metadata is not human verified",
+      "source_rows_with_value": {
+        "\u5FAE\u4FE1": 602,
+        "\u6587\u6863": 591,
+        "\u793E\u4EA4\u5A92\u4F53": 614,
+        "\u7FA4\u804A": 624,
+        "\u90AE\u4EF6": 569
+      },
+      "families_with_value": {
+        "\u5FAE\u4FE1": 16,
+        "\u6587\u6863": 16,
+        "\u793E\u4EA4\u5A92\u4F53": 16,
+        "\u7FA4\u804A": 16,
+        "\u90AE\u4EF6": 16
+      }
+    },
+    {
+      "name": "risk_level",
+      "evidence_basis": "source canonical risk metadata; source metadata is not human verified",
+      "source_rows_with_value": {
+        "high": 488,
+        "low": 1538,
+        "medium": 974
+      },
+      "families_with_value": {
+        "high": 6,
+        "low": 16,
+        "medium": 8
+      }
+    },
+    {
+      "name": "expected_decision",
+      "evidence_basis": "source canonical expected_decision",
+      "source_rows_with_value": {
+        "polish": 3000
+      },
+      "families_with_value": {
+        "polish": 16
+      }
+    },
+    {
+      "name": "legacy_formality",
+      "evidence_basis": "source canonical context.formality metadata",
+      "source_rows_with_value": {
+        "\u4E13\u4E1A\u3001\u514B\u5236": 3000
+      },
+      "families_with_value": {
+        "\u4E13\u4E1A\u3001\u514B\u5236": 16
+      }
+    },
+    {
+      "name": "output_kind",
+      "evidence_basis": "source canonical output.kind",
+      "source_rows_with_value": {
+        "final": 3000
+      },
+      "families_with_value": {
+        "final": 16
+      }
+    },
+    {
+      "name": "explicit_requirements",
+      "evidence_basis": "source canonical context.explicit_requirements; empty is reported as none_explicit, not missing",
+      "source_rows_with_value": {
+        "none_explicit": 3000
+      },
+      "families_with_value": {
+        "none_explicit": 16
+      }
+    },
+    {
+      "name": "claims_present",
+      "evidence_basis": "source canonical claims array; family counts once if any member has a nonempty array",
+      "source_rows_with_value": {
+        "no": 1026,
+        "yes": 1974
+      },
+      "families_with_value": {
+        "no": 8,
+        "yes": 8
+      }
+    },
+    {
+      "name": "claim_subject",
+      "evidence_basis": "claim field nonempty in at least one family member",
+      "source_rows_with_value": {
+        "no": 1026,
+        "yes": 1974
+      },
+      "families_with_value": {
+        "no": 8,
+        "yes": 8
+      }
+    },
+    {
+      "name": "claim_relation",
+      "evidence_basis": "claim field nonempty in at least one family member",
+      "source_rows_with_value": {
+        "no": 1026,
+        "yes": 1974
+      },
+      "families_with_value": {
+        "no": 8,
+        "yes": 8
+      }
+    },
+    {
+      "name": "claim_object",
+      "evidence_basis": "claim field nonempty in at least one family member",
+      "source_rows_with_value": {
+        "no": 1026,
+        "yes": 1974
+      },
+      "families_with_value": {
+        "no": 8,
+        "yes": 8
+      }
+    },
+    {
+      "name": "claim_quantity",
+      "evidence_basis": "claim field nonempty in at least one family member",
+      "source_rows_with_value": {
+        "no": 1026,
+        "yes": 1974
+      },
+      "families_with_value": {
+        "no": 8,
+        "yes": 8
+      }
+    },
+    {
+      "name": "claim_time",
+      "evidence_basis": "claim field nonempty in at least one family member",
+      "source_rows_with_value": {
+        "no": 1026,
+        "yes": 1974
+      },
+      "families_with_value": {
+        "no": 8,
+        "yes": 8
+      }
+    },
+    {
+      "name": "claim_condition",
+      "evidence_basis": "claim field nonempty in at least one family member",
+      "source_rows_with_value": {
+        "no": 1026,
+        "yes": 1974
+      },
+      "families_with_value": {
+        "no": 8,
+        "yes": 8
+      }
+    },
+    {
+      "name": "claim_modality",
+      "evidence_basis": "claim field nonempty in at least one family member",
+      "source_rows_with_value": {
+        "no": 1026,
+        "yes": 1974
+      },
+      "families_with_value": {
+        "no": 8,
+        "yes": 8
+      }
+    },
+    {
+      "name": "claim_negated",
+      "evidence_basis": "claim.negated=true in at least one family member",
+      "source_rows_with_value": {
+        "no": 3000
+      },
+      "families_with_value": {
+        "no": 16
+      }
+    },
+    {
+      "name": "draft_semantic_scene",
+      "evidence_basis": "AI draft labels; all values remain unreviewed",
+      "source_rows_with_value": null,
+      "families_with_value": {
+        "progress_update_domain_unspecified": 8,
+        "workplace_project_delivery_update": 8
+      }
+    },
+    {
+      "name": "draft_input_style",
+      "evidence_basis": "AI draft labels; all values remain unreviewed",
+      "source_rows_with_value": null,
+      "families_with_value": {
+        "colloquial": 16
+      }
+    },
+    {
+      "name": "draft_target_formality",
+      "evidence_basis": "AI draft labels; all values remain unreviewed",
+      "source_rows_with_value": null,
+      "families_with_value": {
+        "natural_professional": 16
+      }
+    }
+  ],
+  "gaps": [
+    {
+      "behavior": "clarification_positive_examples",
+      "known_positive_family_count": 0,
+      "evidence_status": "measured",
+      "evidence_basis": "Distinct families with expected_decision=clarify in any source variant.",
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "needs_clarification_outputs",
+      "known_positive_family_count": 0,
+      "evidence_status": "measured",
+      "evidence_basis": "Distinct families with output.kind=clarification or a nonempty clarification_questions array in any source variant.",
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "format_and_schema_requirements",
+      "known_positive_family_count": 0,
+      "evidence_status": "measured",
+      "evidence_basis": "Distinct families with nonempty context.explicit_requirements; does not infer format contracts from prose.",
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "high_risk_fact_reversal",
+      "known_positive_family_count": 0,
+      "evidence_status": "not_labeled",
+      "evidence_basis": "There are 6 families carrying high risk metadata, but the source has no reviewed fact_reversal outcome label; 0 is the number of labeled positives, not a measured safety pass.",
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "tone_and_scenario_diversity",
+      "known_positive_family_count": null,
+      "evidence_status": "needs_human_triage",
+      "evidence_basis": "See legacy_scenario, channel, legacy_formality, and draft_* distributions; diversity adequacy needs a human task definition.",
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "multi_turn_revision_and_user_negation",
+      "known_positive_family_count": 0,
+      "evidence_status": "not_represented",
+      "evidence_basis": "The sample schema contains one input per case and no conversation-turn/revision history; 0 represented examples does not prove absence of negation in single-turn claims.",
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "negation_quantity_time_condition_boundaries",
+      "known_positive_family_count": null,
+      "evidence_status": "partially_measured",
+      "evidence_basis": "Claim families with negation=0, quantity=8, time=8, condition=8; boundary adequacy and expected behavior need human triage.",
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "prompt_injection_resistance",
+      "known_positive_family_count": 0,
+      "evidence_status": "not_labeled",
+      "evidence_basis": "The legacy source has no reviewed injection challenge/outcome label; 0 labeled positives is not an injection-resistance result.",
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "tool_failure",
+      "known_positive_family_count": 0,
+      "evidence_status": "not_represented",
+      "evidence_basis": "The polishing sample schema contains no tool invocation/failure episode.",
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "non_workplace_scenarios",
+      "known_positive_family_count": null,
+      "evidence_status": "needs_human_triage",
+      "evidence_basis": "See legacy_scenario distribution; which categories count as non-workplace and whether coverage is adequate require human adjudication.",
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    },
+    {
+      "behavior": "cross_language_mixing",
+      "known_positive_family_count": 0,
+      "evidence_status": "not_labeled",
+      "evidence_basis": "No human-reviewed input_style labels identify cross-language examples; 0 labeled positives does not establish the text-level absence of mixing.",
+      "internal_regression_need": "pending_human_triage",
+      "supplementation_action": "not_started"
+    }
+  ],
+  "limitations": [
+    "Counts are based on 16 provisional semantic families, not the 3,000 repeated source rows.",
+    "Source metadata and AI draft dimensions are not human verified; draft_* dimensions are displayed separately.",
+    "A zero labeled-positive count is not proof that behavior is absent or that the model passes that behavior.",
+    "All supplementation need decisions remain pending human triage; no samples are authorized or generated.",
+    "This report contributes zero samples to formal phase 0 blind evaluation and cannot promote a model."
+  ]
+}

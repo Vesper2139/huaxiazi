@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "artifact": "hxz-polish-w2-neardup-adjudication-record",
+  "date": "2026-10-05",
+  "business_status": "awaiting_human_review",
+  "w2_3_human_gate_passed": false,
+  "reviewer_identity_verified": false,
+  "simulated_review_record": "decisions.simulated-review.jsonl",
+  "simulated_reviewer_id": "reviewer-a",
+  "adjudicated_pair_count": 19,
+  "cross_split_pair_count": 9,
+  "structural_validation": {
+    "command": "polish-regression-neardup-validate",
+    "valid": true,
+    "means": "记录格式、候选引用与覆盖完整",
+    "does_not_mean": "真人独立裁定已完成"
+  },
+  "authoritative_human_input": "../../outputs/polish-regression-neardup-review-2026-10-05/near-duplicate-human-review.xlsx",
+  "authoritative_human_input_status": "blank_pending_human",
+  "additional_review_copy": {
+    "path": "../../outputs/polish-regression-neardup-review-2026-10-05/near-duplicate-human-review - 副本.xlsx",
+    "decision_row_count": 19,
+    "import_status": "rejected",
+    "rejection_code": "decision-incomplete",
+    "placeholder_rationale_row_count": 19,
+    "reviewer_identity_verified": false,
+    "phase_0_gate_contribution": 0
+  },
+  "blocked_downstream": [
+    "W3.3 族代表标签人工复核",
+    "W4.3-W4.7 补样生成"
+  ],
+  "phase_0_gate_contribution": 0,
+  "not_admissible_as_blind_eval": true,
+  "auto_merge_performed": false,
+  "split_adjustment_performed": false
+}

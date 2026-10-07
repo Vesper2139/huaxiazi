@@ -158,6 +158,12 @@ public sealed class SettingsProductUiTests
         Assert.DoesNotContain("筛选供应商", xaml);
         Assert.Contains("推理强度", xaml);
         Assert.Contains("ItemsSource=\"{Binding InferenceLevels}\"", xaml);
+        Assert.Contains("低、中、高会套用参数预设", xaml);
+        Assert.Contains("实际采样和推理由所选 Provider/型号决定", xaml);
+        Assert.Contains("{Binding SelectedInferenceDescription}", xaml);
+        Assert.DoesNotContain("Apply Qwen3 本地诊断预算", xaml);
+        Assert.DoesNotContain("ApplyMeasuredQwen3MediumPresetCommand", xaml);
+        Assert.Contains("{Binding SelectedProviderCapabilitySummary}", xaml);
         Assert.Contains("Header=\"自定义高级参数\"", xaml);
     }
 
@@ -205,6 +211,20 @@ public sealed class SettingsProductUiTests
         Assert.DoesNotContain("ItemsSource=\"{Binding PromptCategoryOptions}\" IsEnabled=\"{Binding CanConfigureHistoryStorage}\"", settings);
         Assert.DoesNotContain("Margin=\"158,-3,0,8\"", settings);
         Assert.Contains("ScrollViewer.VerticalScrollBarVisibility=\"Auto\"", settings);
+    }
+
+    [Fact]
+    public void SettingsView_ExposesOptInLocalGenerationDiagnosticsAndClearAction()
+    {
+        var settings = File.ReadAllText(Path.Combine(RepoRoot(), "Views", "SettingsView.xaml"));
+
+        Assert.Contains("LocalGenerationDiagnosticsEnabled", settings);
+        Assert.Contains("ClearLocalGenerationDiagnosticsCommand", settings);
+        Assert.Contains("GenerateLocalGenerationDiagnosticsSummaryCommand", settings);
+        Assert.Contains("generation-diagnostics-summary.json", File.ReadAllText(Path.Combine(RepoRoot(), "Services", "GenerationDiagnosticsService.cs")));
+        Assert.Contains("默认关闭", settings);
+        Assert.Contains("无痕模式下仍不记录", settings);
+        Assert.Contains("不会记录原文、成稿、背景、密钥或服务地址", settings);
     }
 
     [Fact]
@@ -355,6 +375,17 @@ public sealed class SettingsProductUiTests
         Assert.Contains("Text=\"生成默认值\"", ability);
         Assert.Contains("Text=\"主界面显示\"", ability);
         Assert.Contains("Text=\"我的风格与身份\"", ability);
+        Assert.Contains("Content=\"导出偏好\"", ability);
+        Assert.Contains("Content=\"清除全部偏好\"", ability);
+        Assert.Contains("Text=\"可选的篇幅候选\"", ability);
+        Assert.Contains("Content=\"载入候选\"", ability);
+        Assert.Contains("Content=\"忽略此候选\"", ability);
+        Assert.Contains("ExpressionPreferenceCandidateSummary", ability);
+        Assert.Contains("可选的禁用表达候选", ability);
+        Assert.Contains("ForbiddenExpressionCandidates", ability);
+        Assert.Contains("ApplyForbiddenExpressionCandidateCommand", ability);
+        Assert.Contains("IgnoreForbiddenExpressionCandidateCommand", ability);
+        Assert.Contains("ExportPreferences_OnClick", ability);
         Assert.Contains("Text=\"自定义规则（高级）\"", ability);
         Assert.Contains("x:Name=\"ExpressionSkillsPane\"", ability);
         Assert.Contains("x:Name=\"OpenSkillsButton\"", ability);

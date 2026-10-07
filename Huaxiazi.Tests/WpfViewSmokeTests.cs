@@ -21,6 +21,9 @@ namespace Huaxiazi.Tests;
 
 public sealed class WpfViewSmokeTests
 {
+    private static readonly string IsolatedDataRoot = System.IO.Path.Combine(
+        AppContext.BaseDirectory, "test-data", "WpfViewSmoke_" + Environment.ProcessId);
+
     [Fact]
     public void OutOfRangeNumericSetting_UsesTheDangerBorderImmediately()
     {
@@ -45,6 +48,7 @@ public sealed class WpfViewSmokeTests
                 window.Close();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -61,7 +65,7 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                App.ReplaceSettings(new Models.AppSettings { IncognitoMode = true });
+                SetTestSettings(new Models.AppSettings { IncognitoMode = true });
                 var window = new MainWindow();
 
                 Assert.Equal(176, window.Height);
@@ -72,6 +76,7 @@ public sealed class WpfViewSmokeTests
                 window.Close();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -97,7 +102,7 @@ public sealed class WpfViewSmokeTests
                     MainWindowWidth = 560,
                     MainWindowHeight = 210
                 };
-                App.ReplaceSettings(settings);
+                SetTestSettings(settings);
                 var window = new MainWindow();
 
                 window.ApplyDisplayPreferences(settings);
@@ -114,6 +119,7 @@ public sealed class WpfViewSmokeTests
                 window.Close();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -130,7 +136,7 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                App.ReplaceSettings(new Models.AppSettings { IncognitoMode = true });
+                SetTestSettings(new Models.AppSettings { IncognitoMode = true });
                 var window = new MainWindow();
                 var editor = Assert.IsType<TextBox>(window.FindName("MainTextBox"));
                 var viewModel = Assert.IsType<MainViewModel>(window.DataContext);
@@ -162,6 +168,51 @@ public sealed class WpfViewSmokeTests
                 window.ShowDialog();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
+    }
+
+    [Fact]
+    public void MainWindow_ClarificationPanelReplacesEditorAndAcceptsTheAnswer()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                EnsureApplicationResources();
+                SetTestSettings(new AppSettings { IncognitoMode = true, ClarificationEnabled = true });
+                var window = new MainWindow();
+                var viewModel = Assert.IsType<MainViewModel>(window.DataContext);
+                viewModel.ClarificationQuestions = ["这次延期的具体原因是什么？"];
+                viewModel.HasClarification = true;
+
+                window.Show();
+                window.UpdateLayout();
+
+                var clarificationPanel = Assert.IsType<Border>(window.FindName("ClarificationPanel"));
+                var editorHost = Assert.IsType<Grid>(window.FindName("EditorContentHost"));
+                var answerBox = Assert.IsType<TextBox>(window.FindName("ClarificationAnswerBox"));
+                Assert.Equal(Visibility.Visible, clarificationPanel.Visibility);
+                Assert.Equal(Visibility.Collapsed, editorHost.Visibility);
+                Assert.True(answerBox.IsVisible);
+
+                answerBox.Text = "延期原因是供应商设备故障。";
+                window.UpdateLayout();
+                Assert.Equal("延期原因是供应商设备故障。", viewModel.ClarificationAnswer);
+
+                var continueButton = FindVisualChildren<Button>(window)
+                    .Single(button => Equals(button.Content, "继续"));
+                Assert.True(continueButton.IsEnabled);
+                Assert.True(continueButton.Command.CanExecute(continueButton.CommandParameter));
+                window.Close();
+            }
+            catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -184,7 +235,7 @@ public sealed class WpfViewSmokeTests
                     EditorFontSize = 24,
                     EditorDefaultHeight = 28
                 };
-                App.ReplaceSettings(settings);
+                SetTestSettings(settings);
                 var window = new MainWindow();
                 var editor = Assert.IsType<TextBox>(window.FindName("MainTextBox"));
 
@@ -197,6 +248,7 @@ public sealed class WpfViewSmokeTests
                 window.Close();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -213,7 +265,7 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                App.ReplaceSettings(new Models.AppSettings { IncognitoMode = true, DefaultMode = Models.ApplicationMode.Polish });
+                SetTestSettings(new Models.AppSettings { IncognitoMode = true, DefaultMode = Models.ApplicationMode.Polish });
                 var window = new MainWindow();
                 var editor = Assert.IsType<TextBox>(window.FindName("MainTextBox"));
                 var viewModel = Assert.IsType<MainViewModel>(window.DataContext);
@@ -242,6 +294,7 @@ public sealed class WpfViewSmokeTests
                 window.Close();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -258,7 +311,7 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                var view = new SettingsView();
+                var view = CreateSettingsView();
                 var secondary = Assert.IsType<Style>(view.Resources["SettingsActionButton"]);
                 var primary = Assert.IsType<Style>(view.Resources["SettingsPrimaryButton"]);
 
@@ -268,6 +321,7 @@ public sealed class WpfViewSmokeTests
                     && setter.Property == FrameworkElement.MinHeightProperty && setter.Value is double value && value == 32);
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -311,6 +365,7 @@ public sealed class WpfViewSmokeTests
                 Assert.True(pageScroller.VerticalOffset > 0);
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -327,8 +382,8 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                App.ReplaceSettings(new AppSettings());
-                var view = new SettingsView();
+                SetTestSettings(new AppSettings());
+                var view = CreateSettingsView();
 
                 var keyBox = Assert.IsType<PasswordBox>(FindProfileEditor(view).FindName("ApiKeyBox"));
                 var modelId = Assert.IsType<ComboBox>(FindProfileEditor(view).FindName("ModelSelector"));
@@ -340,6 +395,7 @@ public sealed class WpfViewSmokeTests
                     && setter.Property == FrameworkElement.MinHeightProperty && setter.Value is double value && value == 42);
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -356,7 +412,7 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                var view = new SettingsView();
+                var view = CreateSettingsView();
                 var vm = Assert.IsType<SettingsViewModel>(view.DataContext);
                 vm.HealthItems.Add(new HealthCheckItem("Config", HealthCheckScope.Local, HealthCheckStatus.Healthy, "配置正常"));
                 var window = new Window { Content = view, Width = 900, Height = 700 };
@@ -365,6 +421,7 @@ public sealed class WpfViewSmokeTests
                 window.Close();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -381,9 +438,10 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                _ = new SettingsView();
+                _ = CreateSettingsView();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -401,8 +459,8 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                App.ReplaceSettings(new AppSettings());
-                var view = new SettingsView();
+                SetTestSettings(new AppSettings());
+                var view = CreateSettingsView();
                 var vm = Assert.IsType<SettingsViewModel>(view.DataContext);
                 var combo = Assert.IsType<ComboBox>(FindProfileEditor(view).FindName("ProviderPlatformSelector"));
 
@@ -423,16 +481,17 @@ public sealed class WpfViewSmokeTests
                 var profile = vm.SelectedProviderProfile!;
                 Assert.Equal(ProviderPlatform.DeepSeek, profile.Platform);
                 Assert.Equal("https://api.deepseek.com/v1", profile.ApiBase);
-                Assert.Equal("deepseek-v4-flash", profile.Model);
+                Assert.Equal("deepseek-flash", profile.Model);
 
                 // 模型下拉绑定 AvailableModels 且联动到 DeepSeek 模型列表
                 var modelCombo = Assert.IsType<ComboBox>(FindProfileEditor(view).FindName("ModelSelector"));
                 var modelBinding = BindingOperations.GetBinding(modelCombo, ItemsControl.ItemsSourceProperty);
                 Assert.Equal("AvailableModels", modelBinding?.Path.Path);
-                Assert.Contains(vm.AvailableModels, m => m.ModelId == "deepseek-v4-flash");
+                Assert.Contains(vm.AvailableModels, m => m.ModelId == "deepseek-flash");
                 Assert.Contains(vm.AvailableModels, m => m.ModelId == "deepseek-v4-pro");
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -450,8 +509,8 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                App.ReplaceSettings(new AppSettings());
-                var view = new SettingsView();
+                SetTestSettings(new AppSettings());
+                var view = CreateSettingsView();
                 var viewModel = Assert.IsType<SettingsViewModel>(view.DataContext);
                 viewModel.ModelId = "gpt-4o-mini";
                 var window = new Window { Content = view, Width = 1120, Height = 810 };
@@ -464,6 +523,7 @@ public sealed class WpfViewSmokeTests
                 window.Close();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -480,8 +540,8 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                App.ReplaceSettings(new AppSettings());
-                var view = new SettingsView();
+                SetTestSettings(new AppSettings());
+                var view = CreateSettingsView();
                 var viewModel = Assert.IsType<SettingsViewModel>(view.DataContext);
                 var window = new Window { Content = view, Width = 1120, Height = 810 };
                 window.Show();
@@ -495,6 +555,7 @@ public sealed class WpfViewSmokeTests
                 window.Close();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -511,8 +572,8 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                App.ReplaceSettings(new AppSettings());
-                var view = new SettingsView();
+                SetTestSettings(new AppSettings());
+                var view = CreateSettingsView();
                 var viewModel = Assert.IsType<SettingsViewModel>(view.DataContext);
                 var editor = FindProfileEditor(view);
                 var modelSelector = Assert.IsType<ComboBox>(editor.FindName("ModelSelector"));
@@ -522,6 +583,7 @@ public sealed class WpfViewSmokeTests
                 Assert.Equal("vendor-model-2026-08", viewModel.ModelId);
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -538,8 +600,8 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                App.ReplaceSettings(new AppSettings());
-                var view = new SettingsView();
+                SetTestSettings(new AppSettings());
+                var view = CreateSettingsView();
                 var viewModel = Assert.IsType<SettingsViewModel>(view.DataContext);
                 var window = new Window { Content = view, Width = 1120, Height = 810 };
                 window.Show();
@@ -548,12 +610,13 @@ public sealed class WpfViewSmokeTests
                 window.UpdateLayout();
 
                 var modelSelector = Assert.IsType<ComboBox>(FindProfileEditor(view).FindName("ModelSelector"));
-                Assert.Equal("deepseek-v4-flash", viewModel.ModelId);
-                Assert.Equal("deepseek-v4-flash", modelSelector.Text);
+                Assert.Equal("deepseek-flash", viewModel.ModelId);
+                Assert.Equal("deepseek-flash", modelSelector.Text);
 
                 window.Close();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -570,8 +633,8 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                App.ReplaceSettings(new AppSettings());
-                var view = new SettingsView();
+                SetTestSettings(new AppSettings());
+                var view = CreateSettingsView();
                 var vm = Assert.IsType<SettingsViewModel>(view.DataContext);
                 var profileSelector = Assert.IsType<ComboBox>(FindProfileEditor(view).FindName("ProviderPlatformSelector"));
                 var keyBox = Assert.IsType<PasswordBox>(FindProfileEditor(view).FindName("ApiKeyBox"));
@@ -588,6 +651,7 @@ public sealed class WpfViewSmokeTests
                 Assert.Equal("first-draft", vm.ApiKey);
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -604,8 +668,8 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                App.ReplaceSettings(new AppSettings());
-                var view = new SettingsView();
+                SetTestSettings(new AppSettings());
+                var view = CreateSettingsView();
                 var window = new Window { Content = view, Width = 900, Height = 700 };
                 window.Show();
                 window.UpdateLayout();
@@ -626,6 +690,7 @@ public sealed class WpfViewSmokeTests
                 window.Close();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -647,6 +712,7 @@ public sealed class WpfViewSmokeTests
                 if (Activator.CreateInstance(windowType) is Window window) window.Close();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -679,6 +745,7 @@ public sealed class WpfViewSmokeTests
                 window.Close();
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -695,7 +762,7 @@ public sealed class WpfViewSmokeTests
             try
             {
                 EnsureApplicationResources();
-                var view = new SettingsView();
+                var view = CreateSettingsView();
                 var ability = Assert.IsType<ExpressionAbilitySettingsView>(view.FindName("ExpressionAbilitySettingsPage"));
                 AssertBinding(ability, "OutputStyleSelector", ComboBox.SelectedItemProperty, "OutputStyle");
                 AssertBinding(ability, "CustomStyleInstructionsTextBox", TextBox.TextProperty, "CustomStyleInstructions");
@@ -746,6 +813,7 @@ public sealed class WpfViewSmokeTests
                 AssertBinding(view, "RunHealthCheckButton", Button.CommandProperty, "RunHealthCheckCommand");
             }
             catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
@@ -775,6 +843,10 @@ public sealed class WpfViewSmokeTests
 
     private static void EnsureApplicationResources()
     {
+        var settings = App.Settings.Clone();
+        settings.DataDirectory = IsolatedDataRoot;
+        App.ReplaceSettings(settings);
+
         if (Application.Current is { } existing && !ReferenceEquals(existing.Dispatcher, Dispatcher.CurrentDispatcher))
             TestHelpers.ResetWpfApplication();
 
@@ -784,5 +856,28 @@ public sealed class WpfViewSmokeTests
         resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Huaxiazi;component/Resources/Themes/Dark.xaml", UriKind.Relative) });
         resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Huaxiazi;component/Resources/Styles/GlobalStyles.xaml", UriKind.Relative) });
         resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Huaxiazi;component/Resources/Icons/AppIcons.xaml", UriKind.Relative) });
+    }
+
+    private static SettingsView CreateSettingsView()
+    {
+        var settings = App.Settings.Clone();
+        settings.DataDirectory = IsolatedDataRoot;
+        SetTestSettings(settings);
+        return new SettingsView(new SettingsViewModel(
+            new ArchiveService(IsolatedDataRoot), new SmokeTestSecretStore(), skillCatalogLoader: () => []));
+    }
+
+    private static void SetTestSettings(AppSettings settings)
+    {
+        settings.DataDirectory = IsolatedDataRoot;
+        App.ReplaceSettings(settings);
+    }
+
+    private sealed class SmokeTestSecretStore : ISecretStore
+    {
+        public void Save(string id, string secret) { }
+        public string? Read(string id) => null;
+        public bool Exists(string id) => false;
+        public void Delete(string id) { }
     }
 }

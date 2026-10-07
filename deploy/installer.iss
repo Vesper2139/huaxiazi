@@ -12,9 +12,16 @@
 #endif
 
 #define MyAppName      "话匣子"
-#define MyAppVersion   "2.0.3"
 #define MyAppPublisher "Huaxiazi"
 #define MyAppExeName   "Huaxiazi.exe"
+
+#ifndef MySourceDir
+  #define MySourceDir "..\out\publish\win-x64"
+#endif
+
+#ifndef MyAppVersion
+  #define MyAppVersion GetVersionNumbersString(AddBackslash(MySourceDir) + MyAppExeName)
+#endif
 
 [Setup]
 ; AppId is a stable GUID used for upgrade/ uninstall identification.
@@ -25,16 +32,23 @@ AppVerName={#MyAppName} {#MyAppVersion}
 VersionInfoVersion={#MyAppVersion}.0
 SetupIconFile=..\Resources\Brand\Huaxiazi.ico
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\{#MyAppName}
+; Per-user install matches the working historical releases and avoids UAC
+; virtualization or an elevated setup process changing the user's TEMP token.
+DefaultDirName={localappdata}\Programs\{#MyAppName}
+DisableDirPage=no
+UsePreviousAppDir=no
 DefaultGroupName={#MyAppName}
 OutputDir=..\release
 OutputBaseFilename=Huaxiazi-Setup
+; Keep payload outside the setup executable: this avoids the temporary
+; is-*.tmp self-extraction path that has failed under restricted TEMP policies.
+; Ship Huaxiazi-Setup.exe together with all generated Huaxiazi-Setup-*.bin files.
+UseSetupLdr=no
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-; Install into protected Program Files so same-user processes cannot replace
-; application DLLs or the uninstaller without elevation.
-PrivilegesRequired=admin
+; Do not elevate: the default target is writable by the current user.
+PrivilegesRequired=lowest
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
@@ -49,8 +63,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "chinesesimplified"; MessagesFile: ".\Languages\ChineseSimplified.isl"
 
 [Files]
-; Source is relative to this .iss file (deploy\), so the published output is
-Source: "..\out\publish\win-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Source can be overridden by publish.ps1 with /DMySourceDir=...
+Source: "{#MySourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

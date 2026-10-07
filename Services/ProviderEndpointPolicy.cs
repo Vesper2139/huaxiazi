@@ -45,7 +45,10 @@ internal static class ProviderEndpointPolicy
             return true;
         }
 
-        if (profile.Type != option.Type || profile.Protocol != option.Protocol)
+        var allowsOpenAiProtocols = profile.Platform is ProviderPlatform.OpenAI or ProviderPlatform.Grok;
+        var allowedOpenAiProtocol = allowsOpenAiProtocols &&
+            (profile.Protocol is ProviderProtocol.OpenAICompatible or ProviderProtocol.OpenAIResponses);
+        if (profile.Type != option.Type || (!allowedOpenAiProtocol && profile.Protocol != option.Protocol))
             return Fail("模型平台类型或协议与官方预设不一致，请重新选择平台。", out error);
         if (!Uri.TryCreate(option.ApiBase, UriKind.Absolute, out var trustedBase))
             return Fail("官方模型平台配置无效。", out error);
@@ -55,10 +58,18 @@ internal static class ProviderEndpointPolicy
                             (option.Type == ProviderType.Local
                                 ? baseUri.IsLoopback
                                 : string.Equals(baseUri.IdnHost, trustedBase.IdnHost, StringComparison.OrdinalIgnoreCase));
+        var legacyMiniMaxAuthority = profile.Platform == ProviderPlatform.MiniMax &&
+                                    string.Equals(baseUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+                                    baseUri.Port == 443 &&
+                                    string.Equals(baseUri.IdnHost, "api.minimax.chat", StringComparison.OrdinalIgnoreCase);
+        var legacyTogetherAuthority = profile.Platform == ProviderPlatform.Together &&
+                                      string.Equals(baseUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+                                      baseUri.Port == 443 &&
+                                      string.Equals(baseUri.IdnHost, "api.together.xyz", StringComparison.OrdinalIgnoreCase);
         var configuredPath = baseUri.AbsolutePath.TrimEnd('/');
         var trustedPath = trustedBase.AbsolutePath.TrimEnd('/');
         var legacyDeepSeekRoot = profile.Platform == ProviderPlatform.DeepSeek && string.IsNullOrEmpty(configuredPath);
-        if (!sameAuthority || baseUri.UserInfo.Length > 0 || !string.IsNullOrEmpty(baseUri.Query) ||
+        if ((!sameAuthority && !legacyMiniMaxAuthority && !legacyTogetherAuthority) || baseUri.UserInfo.Length > 0 || !string.IsNullOrEmpty(baseUri.Query) ||
             (!string.Equals(configuredPath, trustedPath, StringComparison.OrdinalIgnoreCase) && !legacyDeepSeekRoot))
             return Fail("官方模型平台只能连接其官方 API 地址；已阻止被篡改的端点。", out error);
         error = string.Empty;

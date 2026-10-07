@@ -23,4 +23,18 @@ public partial class ExpressionAbilitySettingsView : UserControl
         var dialog = new SaveFileDialog { Filter = "ZIP 包|*.zip", FileName = viewModel.SelectedAgentSkill.Name + ".zip", AddExtension = true };
         if (dialog.ShowDialog(Window.GetWindow(this)) == true) viewModel.ExportSelectedAgentSkill(dialog.FileName);
     }
+
+    private void ExportPreferences_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel viewModel) return;
+        var dialog = new SaveFileDialog
+        {
+            Filter = "JSON 文件|*.json",
+            FileName = "huaxiazi-expression-preferences.json",
+            AddExtension = true,
+            OverwritePrompt = true
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) == true)
+            viewModel.ExportExpressionPreferences(dialog.FileName);
+    }
 }

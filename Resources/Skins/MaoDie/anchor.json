@@ -1,0 +1,110 @@
+[
+  {
+    "state": "Idle",
+    "left": 20,
+    "top": 18,
+    "width": 140,
+    "height": 145,
+    "centerX": 90,
+    "centerY": 90.5
+  },
+  {
+    "state": "Sleeping",
+    "left": 20,
+    "top": 18,
+    "width": 140,
+    "height": 145,
+    "centerX": 90,
+    "centerY": 90.5
+  },
+  {
+    "state": "Happy",
+    "left": 22,
+    "top": 18,
+    "width": 137,
+    "height": 145,
+    "centerX": 90.5,
+    "centerY": 90.5
+  },
+  {
+    "state": "Curious",
+    "left": 23,
+    "top": 18,
+    "width": 134,
+    "height": 145,
+    "centerX": 90,
+    "centerY": 90.5
+  },
+  {
+    "state": "Thinking",
+    "left": 39,
+    "top": 18,
+    "width": 102,
+    "height": 145,
+    "centerX": 90,
+    "centerY": 90.5
+  },
+  {
+    "state": "Listening",
+    "left": 41,
+    "top": 18,
+    "width": 98,
+    "height": 145,
+    "centerX": 90,
+    "centerY": 90.5
+  },
+  {
+    "state": "Working",
+    "left": 24,
+    "top": 18,
+    "width": 132,
+    "height": 145,
+    "centerX": 90,
+    "centerY": 90.5
+  },
+  {
+    "state": "Surprised",
+    "left": 42,
+    "top": 18,
+    "width": 96,
+    "height": 145,
+    "centerX": 90,
+    "centerY": 90.5
+  },
+  {
+    "state": "Warning",
+    "left": 24,
+    "top": 18,
+    "width": 132,
+    "height": 145,
+    "centerX": 90,
+    "centerY": 90.5
+  },
+  {
+    "state": "Error",
+    "left": 31,
+    "top": 18,
+    "width": 118,
+    "height": 145,
+    "centerX": 90,
+    "centerY": 90.5
+  },
+  {
+    "state": "Dragging",
+    "left": 18,
+    "top": 33,
+    "width": 145,
+    "height": 115,
+    "centerX": 90.5,
+    "centerY": 90.5
+  },
+  {
+    "state": "Expanding",
+    "left": 33,
+    "top": 18,
+    "width": 115,
+    "height": 145,
+    "centerX": 90.5,
+    "centerY": 90.5
+  }
+]

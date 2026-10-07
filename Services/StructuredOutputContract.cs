@@ -9,7 +9,19 @@ public sealed record StructuredOutputContract(
     string Name,
     IReadOnlySet<string> RequiredFields,
     IReadOnlySet<string> AllowedFields,
-    int MaxAnswerCharacters = 12_000);
+    int MaxAnswerCharacters = 12_000,
+    IReadOnlyDictionary<string, StructuredOutputFieldType>? FieldTypes = null,
+    IReadOnlyDictionary<string, IReadOnlySet<string>>? AllowedStringValues = null,
+    IReadOnlyDictionary<string, StructuredOutputNumericRange>? NumericRanges = null);
+
+public enum StructuredOutputFieldType
+{
+    String,
+    StringArray,
+    Number
+}
+
+public sealed record StructuredOutputNumericRange(double Minimum, double Maximum);
 
 public sealed record StructuredOutputValidationResult(
     bool IsValid,
@@ -28,13 +40,40 @@ public static class StructuredOutputValidator
         {
             using var document = JsonDocument.Parse(raw);
             if (document.RootElement.ValueKind != JsonValueKind.Object) return Invalid("root-type", "根节点必须是 JSON 对象。");
-            var names = document.RootElement.EnumerateObject().Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (!names.Add(property.Name)) return Invalid("duplicate-field", "JSON 对象包含重复字段，字段值存在歧义。");
+            }
             if (contract.RequiredFields.Any(field => !names.Contains(field))) return Invalid("missing-field", "缺少必需字段。");
             if (names.Any(field => !contract.AllowedFields.Contains(field))) return Invalid("extra-field", "包含未允许字段。");
-            if (!document.RootElement.TryGetProperty("answer", out var answer) || answer.ValueKind != JsonValueKind.String)
-                return Invalid("answer-type", "answer 必须是字符串。");
-            var text = answer.GetString() ?? string.Empty;
-            if (text.Length > contract.MaxAnswerCharacters) return Invalid("answer-too-long", "answer 超出长度预算。");
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                var fieldType = contract.FieldTypes is not null && contract.FieldTypes.TryGetValue(property.Name, out var declaredType)
+                    ? declaredType
+                    : StructuredOutputFieldType.String;
+                var validType = property.Value.ValueKind == JsonValueKind.Null && !contract.RequiredFields.Contains(property.Name) ||
+                    fieldType == StructuredOutputFieldType.String && property.Value.ValueKind == JsonValueKind.String ||
+                    fieldType == StructuredOutputFieldType.StringArray && property.Value.ValueKind == JsonValueKind.Array &&
+                    property.Value.EnumerateArray().All(item => item.ValueKind == JsonValueKind.String) ||
+                    fieldType == StructuredOutputFieldType.Number && property.Value.ValueKind == JsonValueKind.Number &&
+                    property.Value.TryGetDouble(out _);
+                if (!validType) return Invalid("field-type", $"字段 {property.Name} 的类型不符合约定。");
+                if (fieldType == StructuredOutputFieldType.Number && property.Value.ValueKind == JsonValueKind.Number &&
+                    contract.NumericRanges is not null && contract.NumericRanges.TryGetValue(property.Name, out var range) &&
+                    (property.Value.GetDouble() < range.Minimum || property.Value.GetDouble() > range.Maximum))
+                    return Invalid("number-range", $"字段 {property.Name} 超出允许范围。");
+                if (fieldType == StructuredOutputFieldType.String && property.Value.ValueKind == JsonValueKind.String &&
+                    contract.AllowedStringValues is not null &&
+                    contract.AllowedStringValues.TryGetValue(property.Name, out var allowedValues) &&
+                    !allowedValues.Contains(property.Value.GetString() ?? string.Empty))
+                    return Invalid("enum-value", $"字段 {property.Name} 的值不在允许范围内。");
+            }
+
+            var text = document.RootElement.TryGetProperty("answer", out var answer) && answer.ValueKind == JsonValueKind.String
+                ? answer.GetString() ?? string.Empty
+                : raw;
+            if (text.Length > contract.MaxAnswerCharacters) return Invalid("answer-too-long", "输出内容超出长度预算。");
             if (ContainsMetaEcho(text)) return Invalid("meta-echo", "answer 回显了协议或内部分析。");
             return new(true, text, null, null);
         }

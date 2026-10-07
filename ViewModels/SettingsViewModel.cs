@@ -1,13 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Linq;
 using System.IO;
 using System.Globalization;
+using System.Net.Http;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
+using Microsoft.Win32;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Huaxiazi.Models;
@@ -47,33 +52,198 @@ public enum ApiKeyStatusKind
 }
 
 public sealed record InferenceLevelOption(InferenceLevel Value, string DisplayName, string Description);
+public sealed record ProviderProtocolOption(ProviderProtocol Value, string DisplayName);
+public sealed record ProviderRoutingModeOption(ProviderRoutingMode Value, string DisplayName, string Description);
+public sealed record ExpressionPreferenceTaskOption(ApplicationMode Value, string DisplayName);
+public sealed record PreferenceValueOption(string Value, string DisplayName);
 
 public sealed partial class SettingsViewModel : ObservableObject
 {
+    public IReadOnlyList<ProviderProtocolOption> OpenAiProtocolOptions { get; } =
+    [
+        new(ProviderProtocol.OpenAICompatible, "Chat Completions（兼容旧配置）"),
+        new(ProviderProtocol.OpenAIResponses, "Responses API")
+    ];
+    public IReadOnlyList<ExpressionPreferenceTaskOption> ExpressionPreferenceTasks { get; } =
+    [new(ApplicationMode.Polish, "表达润色"), new(ApplicationMode.PromptOptimize, "提示词优化")];
+    public IReadOnlyList<PreferenceValueOption> ExpressionPreferenceScenarios
+    {
+        get
+        {
+            var values = ExpressionPreferenceTask == ApplicationMode.Polish
+                ? PolishScenarios.Where(value => !string.Equals(value, "其他", StringComparison.Ordinal)).ToArray()
+                : PromptCategoryMetadata.AllCategories.Select(category => category.GetDisplayName()).ToArray();
+            return [new(string.Empty, "全部场景"), .. values.Select(value => new PreferenceValueOption(value, value))];
+        }
+    }
+    public IReadOnlyList<PreferenceValueOption> ExpressionLengthOptions { get; } =
+    [new("balanced", "均衡"), new("concise", "简洁"), new("detailed", "完整")];
+    public IReadOnlyList<PreferenceValueOption> ScopedOutputStyleOptions { get; } =
+        [new(string.Empty, "跟随任务/全局"), .. OutputStyleCatalog.Values.Select(value => new PreferenceValueOption(value, value))];
+    public IReadOnlyList<PreferenceValueOption> ExpressionToneOptions { get; } =
+    [new("natural", "自然"), new("professional", "专业克制"), new("warm", "温和亲切")];
+    private Dictionary<string, ExpressionPreferenceSet> _expressionPreferenceDrafts = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _editedExpressionPreferenceTasks = new(StringComparer.Ordinal);
+    private Dictionary<string, string> _outputStyleOverrideDrafts = new(StringComparer.Ordinal);
+    private string _scopedOutputStyle = string.Empty;
+    public string ScopedOutputStyle
+    {
+        get => _scopedOutputStyle;
+        set
+        {
+            var normalized = OutputStyleCatalog.Values.Contains(value, StringComparer.Ordinal) ? value : string.Empty;
+            SetDirty(ref _scopedOutputStyle, normalized);
+        }
+    }
+    private ApplicationMode _expressionPreferenceTask = ApplicationMode.Polish;
+    private string _expressionPreferenceScenario = string.Empty;
+    public string ExpressionPreferenceScenario
+    {
+        get => _expressionPreferenceScenario;
+        set
+        {
+            var normalized = value ?? string.Empty;
+            if (string.Equals(_expressionPreferenceScenario, normalized, StringComparison.Ordinal)) return;
+            StoreExpressionPreferenceEditor();
+            StoreOutputStyleOverrideEditor();
+            if (!SetProperty(ref _expressionPreferenceScenario, normalized)) return;
+            LoadExpressionPreferenceEditor(ExpressionPreferenceTask);
+            LoadOutputStyleOverrideEditor(ExpressionPreferenceTask);
+        }
+    }
+    public ApplicationMode ExpressionPreferenceTask
+    {
+        get => _expressionPreferenceTask;
+        set
+        {
+            if (_expressionPreferenceTask == value) return;
+            StoreExpressionPreferenceEditor();
+            StoreOutputStyleOverrideEditor();
+            if (!SetProperty(ref _expressionPreferenceTask, value)) return;
+            OnPropertyChanged(nameof(ExpressionPreferenceScenarios));
+            if (!ExpressionPreferenceScenarios.Any(option => option.Value == ExpressionPreferenceScenario))
+            {
+                _expressionPreferenceScenario = string.Empty;
+                OnPropertyChanged(nameof(ExpressionPreferenceScenario));
+            }
+            LoadExpressionPreferenceEditor(value);
+            LoadOutputStyleOverrideEditor(value);
+        }
+    }
+    private string _preferredExpressionLength = "balanced";
+    public string PreferredExpressionLength
+    {
+        get => _preferredExpressionLength;
+        set { if (SetProperty(ref _preferredExpressionLength, value)) MarkExpressionPreferenceEdited(); }
+    }
+    private string _preferredExpressionTone = "natural";
+    public string PreferredExpressionTone
+    {
+        get => _preferredExpressionTone;
+        set { if (SetProperty(ref _preferredExpressionTone, value)) MarkExpressionPreferenceEdited(); }
+    }
+    private bool _preserveOriginalWording = true;
+    public bool PreserveOriginalWording
+    {
+        get => _preserveOriginalWording;
+        set { if (SetProperty(ref _preserveOriginalWording, value)) MarkExpressionPreferenceEdited(); }
+    }
+    private string _forbiddenExpressionText = string.Empty;
+    public string ForbiddenExpressionText
+    {
+        get => _forbiddenExpressionText;
+        set { if (SetProperty(ref _forbiddenExpressionText, value ?? string.Empty)) MarkExpressionPreferenceEdited(); }
+    }
+
+    public IReadOnlyList<ProviderRoutingModeOption> ProviderRoutingModes { get; } =
+    [
+        new(ProviderRoutingMode.Manual, "手动选择", "沿用主窗口选择的模型；可为润色和提示词优化分别绑定模型。"),
+        new(ProviderRoutingMode.Automatic, "自动按任务档位路由", "根据任务复杂度选择 Fast、Balanced 或 Reasoning 档；每种任务的三档模型都需由你明确绑定。路由是启发式建议，不代表已验证的质量或速度排序。"),
+        new(ProviderRoutingMode.LocalOnly, "仅本地", "只允许内置运行时或回环地址上的本地服务；没有本地模型时直接报错，不会请求云端。"),
+        new(ProviderRoutingMode.PreferLocal, "优先本地", "有本地模型时优先使用；只有配置明确的备用模型时才允许改用云端。"),
+        new(ProviderRoutingMode.PreferCloud, "优先云端", "有云端模型时优先使用；本地作为备用时必须明确配置。")
+    ];
+
+    private ProviderRoutingMode _providerRoutingMode = ProviderRoutingMode.Manual;
+    public ProviderRoutingMode ProviderRoutingMode
+    {
+        get => _providerRoutingMode;
+        set
+        {
+            if (!SetProperty(ref _providerRoutingMode, value)) return;
+            HasChanges = true;
+            OnPropertyChanged(nameof(ProviderRoutingDescription));
+            OnPropertyChanged(nameof(IsAutomaticRoutingEnabled));
+        }
+    }
+    public string ProviderRoutingDescription => ProviderRoutingModes.FirstOrDefault(option => option.Value == ProviderRoutingMode)?.Description ?? string.Empty;
+    public bool IsAutomaticRoutingEnabled => ProviderRoutingMode == ProviderRoutingMode.Automatic;
+    private string _polishProviderProfileId = string.Empty;
+    public string PolishProviderProfileId { get => _polishProviderProfileId; set => SetDirty(ref _polishProviderProfileId, value ?? string.Empty); }
+    private string _promptOptimizeProviderProfileId = string.Empty;
+    public string PromptOptimizeProviderProfileId { get => _promptOptimizeProviderProfileId; set => SetDirty(ref _promptOptimizeProviderProfileId, value ?? string.Empty); }
+    private string _fallbackProviderProfileId = string.Empty;
+    public string FallbackProviderProfileId { get => _fallbackProviderProfileId; set => SetDirty(ref _fallbackProviderProfileId, value ?? string.Empty); }
+
+    private string _polishFastProviderProfileId = string.Empty;
+    public string PolishFastProviderProfileId { get => _polishFastProviderProfileId; set => SetDirty(ref _polishFastProviderProfileId, value ?? string.Empty); }
+    private string _polishBalancedProviderProfileId = string.Empty;
+    public string PolishBalancedProviderProfileId { get => _polishBalancedProviderProfileId; set => SetDirty(ref _polishBalancedProviderProfileId, value ?? string.Empty); }
+    private string _polishReasoningProviderProfileId = string.Empty;
+    public string PolishReasoningProviderProfileId { get => _polishReasoningProviderProfileId; set => SetDirty(ref _polishReasoningProviderProfileId, value ?? string.Empty); }
+    private string _promptOptimizeFastProviderProfileId = string.Empty;
+    public string PromptOptimizeFastProviderProfileId { get => _promptOptimizeFastProviderProfileId; set => SetDirty(ref _promptOptimizeFastProviderProfileId, value ?? string.Empty); }
+    private string _promptOptimizeBalancedProviderProfileId = string.Empty;
+    public string PromptOptimizeBalancedProviderProfileId { get => _promptOptimizeBalancedProviderProfileId; set => SetDirty(ref _promptOptimizeBalancedProviderProfileId, value ?? string.Empty); }
+    private string _promptOptimizeReasoningProviderProfileId = string.Empty;
+    public string PromptOptimizeReasoningProviderProfileId { get => _promptOptimizeReasoningProviderProfileId; set => SetDirty(ref _promptOptimizeReasoningProviderProfileId, value ?? string.Empty); }
+
+    [RelayCommand]
+    private void ClearAutomaticTierBindings()
+    {
+        PolishFastProviderProfileId = string.Empty;
+        PolishBalancedProviderProfileId = string.Empty;
+        PolishReasoningProviderProfileId = string.Empty;
+        PromptOptimizeFastProviderProfileId = string.Empty;
+        PromptOptimizeBalancedProviderProfileId = string.Empty;
+        PromptOptimizeReasoningProviderProfileId = string.Empty;
+    }
+
+    [RelayCommand] private void ClearPolishProviderBinding() => PolishProviderProfileId = string.Empty;
+    [RelayCommand] private void ClearPromptOptimizeProviderBinding() => PromptOptimizeProviderProfileId = string.Empty;
+    [RelayCommand] private void ClearFallbackProviderBinding() => FallbackProviderProfileId = string.Empty;
+
     private readonly ArchiveService _archiveService;
     private readonly ISecretStore _secretStore;
+    private readonly OpenRouterModelCatalogService _openRouterModelCatalogService;
+    private IReadOnlyList<ModelDefinition> _openRouterModelCatalog = [];
+    private bool _hasLoadedOpenRouterModelCatalog;
+    [ObservableProperty] private bool _isRefreshingOpenRouterModels;
+    private string _openRouterModelCatalogStatus = "目录尚未刷新；你也可以直接输入 Model ID。";
     private readonly Func<ProviderProfile, string?, CancellationToken, Task<ConnectionTestResult>> _connectionTester;
     private readonly Func<IReadOnlyList<AgentSkillRecord>>? _skillCatalogLoader;
     private readonly Dictionary<string, string?> _pendingApiKeys = new(StringComparer.Ordinal);
     private readonly HashSet<string> _removedSecretIds = new(StringComparer.Ordinal);
+    private CancellationTokenSource? _localModelDownloadCancellation;
+    private CancellationTokenSource? _localRuntimeDownloadCancellation;
+    private CancellationTokenSource? _localRuntimeHealthCheckCancellation;
     private readonly DataManagementService _dataManagement = new();
     private readonly AppSettings _originalDisplaySettings;
-    public IReadOnlyList<string> Sections { get; } =
-        ["表达与生成", "模型连接", "外观与窗口", "快捷键", "历史与留存", "数据维护", "关于与更新"];
+    public IReadOnlyList<string> Sections { get; } = BuildSections();
     [ObservableProperty] private string _selectedSection = "表达与生成";
     [ObservableProperty] private ExpressionAbilityPane _expressionAbilityPane = ExpressionAbilityPane.Overview;
     public IReadOnlyList<PromptCategory> Categories => PromptCategoryMetadata.AllCategories;
     public IReadOnlyList<PromptDepth> Depths => PromptDepthMetadata.AllDepths;
     public IReadOnlyList<ApplicationMode> Modes { get; } = [ApplicationMode.Polish, ApplicationMode.PromptOptimize];
-    public IReadOnlyList<string> OutputStyles { get; } = ["自然", "克制", "亲切", "专业", "正式", "简洁"];
+    public IReadOnlyList<string> OutputStyles { get; } = OutputStyleCatalog.Values;
     /// <summary>前端可展示的用户调优白名单；系统策略和安全参数不在此集合中。</summary>
     public IReadOnlyList<AgentTuningOption> UserTuningOptions { get; } = AgentTuningExposurePolicy.ForUi();
     public IReadOnlyList<InferenceLevelOption> InferenceLevels { get; } =
     [
-        new(InferenceLevel.Low, "低", "响应更快，适合简单润色与日常问答"),
-        new(InferenceLevel.Medium, "中", "速度与思考深度平衡（推荐）"),
-        new(InferenceLevel.High, "高", "更充分推理，适合复杂分析与长文本"),
-        new(InferenceLevel.Custom, "自定义", "自行调整采样、输出上限与超时")
+        new(InferenceLevel.Low, "低", "使用较低档预设值；Provider 是否支持以模型能力说明为准。"),
+        new(InferenceLevel.Medium, "中", "使用中档预设值；Provider 是否支持以模型能力说明为准。"),
+        new(InferenceLevel.High, "高", "使用高档预设值；Provider 是否支持以模型能力说明为准。"),
+        new(InferenceLevel.Custom, "自定义", "自行调整采样、输出上限与超时；模型推理能力见下方说明。")
     ];
     public IReadOnlyList<string> PolishScenarios { get; } = ["私人沟通", "职场沟通", "公开发布", "正式材料", "其他"];
     public IReadOnlyList<SettingOption> ThemeModes { get; } =
@@ -83,8 +253,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         new(CompanionDriverMode.Local, "仅显示状态（推荐）", "根据鼠标、窗口、编辑和生成结果显示状态，不分析回答语气。"),
         new(CompanionDriverMode.EmotionAssistant, "根据语气反馈", "让角色根据回答语气给出反馈；不会增加额外请求，可能略微增加用量。")
     ];
-    public ObservableCollection<SettingOption> SpecialSkins { get; } =
-        [new("default", "默认外观"), new("LuoXiaoHei", "罗小黑"), new("MaoDie", "耄耋")];
+    public ObservableCollection<SkinChoiceOption> SpecialSkins { get; } = [];
     public IReadOnlyList<SettingOption> CloseBehaviors { get; } =
         [new("Hide", "收缩为悬浮球"), new("Tray", "隐藏到托盘"), new("Exit", "退出程序")];
     public IReadOnlyList<SettingOption> EscapeBehaviors { get; } =
@@ -182,6 +351,29 @@ public sealed partial class SettingsViewModel : ObservableObject
     public string CurrentVersion => UpdateChecker.GetCurrentVersion().ToString(3);
 
     public ObservableCollection<ProviderProfile> ProviderProfiles { get; } = [];
+    public ObservableCollection<InstalledLocalModel> InstalledLocalModels { get; } = [];
+    public ObservableCollection<LocalModelDescriptor> AvailableLocalModels { get; } = [];
+    public string LocalModelRoot => App.LocalModelStore.Root;
+    public bool IsLocalRuntimeAvailable => LocalRuntimeManager.IsRuntimeAvailable(
+        LocalRuntimePaths.GetRuntimeRoot());
+    public IReadOnlyList<LocalRuntimePackageDescriptor> AvailableLocalRuntimePackages => LocalRuntimePackageCatalog.Packages;
+    public bool IsCpuRuntimeInstalled => LocalRuntimePackageService.ResolveInstalledExecutable(LocalRuntimePaths.GetRuntimeRoot(), LocalRuntimeFlavor.Cpu) is not null;
+    public bool IsVulkanRuntimeInstalled => LocalRuntimePackageService.ResolveInstalledExecutable(LocalRuntimePaths.GetRuntimeRoot(), LocalRuntimeFlavor.Vulkan) is not null;
+    public string LocalRuntimeInstallationSummary => $"CPU：{(IsCpuRuntimeInstalled ? "已安装" : "未安装")} · Vulkan：{(IsVulkanRuntimeInstalled ? "已安装" : "未安装")}";
+    private string _localModelCatalogUrl = string.Empty;
+    public string LocalModelCatalogUrl { get => _localModelCatalogUrl; set => SetDirty(ref _localModelCatalogUrl, value); }
+    [ObservableProperty] private string _localModelStatus = "模型文件不会自动下载。请在本页主动导入或安装本地模型。";
+    [ObservableProperty] private bool _isLocalModelDownloading;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(InstallLocalRuntimePackageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UninstallLocalRuntimePackageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CheckInstalledLocalModelCommand))]
+    private bool _isLocalRuntimePackageDownloading;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(InstallLocalRuntimePackageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UninstallLocalRuntimePackageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CheckInstalledLocalModelCommand))]
+    private bool _isLocalRuntimeHealthCheckRunning;
     public ObservableCollection<ContentRevision> ArchiveItems { get; } = [];
     public ObservableCollection<PromptCategoryOption> PromptCategoryOptions { get; } = [];
     public ObservableCollection<OptimizationPreset> OptimizationPresets { get; } = [];
@@ -247,6 +439,12 @@ public sealed partial class SettingsViewModel : ObservableObject
             OnPropertyChanged(nameof(CanConfigureHistoryStorage));
         }
     }
+    private bool _localGenerationDiagnosticsEnabled;
+    public bool LocalGenerationDiagnosticsEnabled
+    {
+        get => _localGenerationDiagnosticsEnabled;
+        set => SetDirty(ref _localGenerationDiagnosticsEnabled, value);
+    }
     private int _historyRetentionDays = 30;
     public int HistoryRetentionDays { get => _historyRetentionDays; set => SetDirty(ref _historyRetentionDays, value); }
     private bool _saveOriginalText = true;
@@ -265,6 +463,37 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
     public bool CanConfigureHistoryStorage => HistoryEnabled && !IncognitoMode;
+
+    [RelayCommand]
+    private void ClearLocalGenerationDiagnostics()
+    {
+        try
+        {
+            new GenerationDiagnosticsService(Path.Combine(App.DataRoot, "diagnostics")).Clear();
+            ValidationMessage = "本机生成诊断记录已清除。";
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            ValidationMessage = $"清除本机生成诊断失败：{exception.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void GenerateLocalGenerationDiagnosticsSummary()
+    {
+        try
+        {
+            var diagnostics = new GenerationDiagnosticsService(Path.Combine(App.DataRoot, "diagnostics"));
+            var requestCount = diagnostics.ReadRecent().Count;
+            var workflowCount = diagnostics.ReadWorkflowRecent().Count;
+            var path = new GenerationDiagnosticsReportService(diagnostics).WriteSummary();
+            ValidationMessage = $"本机诊断摘要已生成：{Path.GetFileName(path)}（{requestCount} 次请求尝试，{workflowCount} 个工作流）。可从数据目录打开查看。";
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            ValidationMessage = $"生成本机诊断摘要失败：{exception.Message}";
+        }
+    }
     private bool _autoCopyAfterOptimize;
     public bool AutoCopyAfterOptimize { get => _autoCopyAfterOptimize; set => SetDirty(ref _autoCopyAfterOptimize, value); }
     private bool _enterToSend;
@@ -287,8 +516,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             if (string.Equals(_outputStyle, value, StringComparison.Ordinal)) return;
             SetDirty(ref _outputStyle, value);
-            if (App.Settings.PreferenceLearningEnabled && !App.Settings.IncognitoMode)
-                new StructuredPreferenceService().RecordStyleChoice(App.Settings.ExpressionPreferenceProfile);
+            if (PreferenceLearningEnabled && !IncognitoMode)
+            {
+                new StructuredPreferenceService().RecordStyleChoice(App.Settings.ExpressionPreferenceProfile, value);
+                OnPropertyChanged(nameof(PreferenceSummary));
+            }
         }
     }
     private string _customStyleInstructions = string.Empty;
@@ -297,24 +529,422 @@ public sealed partial class SettingsViewModel : ObservableObject
     public string CustomSystemPrompt { get => _customSystemPrompt; set => SetDirty(ref _customSystemPrompt, value); }
     private bool _preferenceLearningEnabled = true;
     public bool PreferenceLearningEnabled { get => _preferenceLearningEnabled; set => SetDirty(ref _preferenceLearningEnabled, value); }
+    private bool _shareConfirmedPreferencesWithCloud;
+    public bool ShareConfirmedPreferencesWithCloud
+    {
+        get => _shareConfirmedPreferencesWithCloud;
+        set => SetDirty(ref _shareConfirmedPreferencesWithCloud, value);
+    }
     public string PreferenceSummary
     {
         get
         {
             var profile = App.Settings.ExpressionPreferenceProfile ?? new ExpressionPreferenceProfile();
-            if (profile.EditCount == 0) return "尚未形成偏好；只会保存统计值，不保存学习样本文本。";
-            var direction = profile.ShorteningEdits > profile.ExpansionEdits ? "偏好更简洁" : "偏好结构完整";
-            return $"已从 {profile.EditCount} 次主动编辑中形成摘要：{direction}。";
+            var key = PreferenceTaskKey(ExpressionPreferenceTask, ExpressionPreferenceScenario);
+            var confirmed = _expressionPreferenceDrafts.TryGetValue(key, out var preference) && preference.UserConfirmed;
+            ExpressionInteractionSignalSet? signals = null;
+            profile.InteractionSignals?.TryGetValue(key, out signals);
+            var state = _editedExpressionPreferenceTasks.Contains(key)
+                ? "当前任务/场景的偏好有未保存修改；保存设置后才会确认并生效。"
+                : confirmed ? "当前任务/场景的偏好已由你确认；场景偏好优先于任务通用偏好。" : "当前任务/场景尚无已确认偏好；交互统计只用于分析，不会自动写入提示。";
+            var scoped = signals is null
+                ? "当前范围交互统计：暂无。"
+                : $"当前范围交互统计：接受 {signals.AcceptedCount}、编辑 {signals.EditCount}、重试 {signals.RetryCount}、撤销 {signals.UndoCount}；改短 {signals.ShorteningEdits}、改长 {signals.ExpansionEdits}。";
+            var styles = $"全局显式风格设置变更：{profile.StyleChoiceCount} 次（{FormatOutputStyleCounts(profile.StyleChoiceUsage)}）。";
+            return state + scoped + styles + "仅保存本地结构化统计，不保存原文或修改后的成稿；统计不会自动成为偏好。";
         }
     }
+
+    public string PreferenceMetadataSummary
+    {
+        get
+        {
+            var key = PreferenceTaskKey(ExpressionPreferenceTask, ExpressionPreferenceScenario);
+            if (!_expressionPreferenceDrafts.TryGetValue(key, out var preference) || !preference.UserConfirmed)
+                return "来源：尚未确认 · 统计候选仅供参考，载入并保存后才会成为用户偏好";
+            var updated = preference.UpdatedAtUtc?.ToUniversalTime().ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture) ?? "时间未记录";
+            return $"来源：用户确认 · 置信度：{preference.Confidence:0.0} · 更新时间：{updated}";
+        }
+    }
+
+    public ExpressionPreferenceCandidate? CurrentExpressionPreferenceCandidate =>
+        new ExpressionPreferenceSuggestionService().GetLengthCandidate(
+            App.Settings.ExpressionPreferenceProfile,
+            ExpressionPreferenceTask,
+            ExpressionPreferenceScenario);
+
+    public ExpressionPreferenceCandidate? CurrentExpressionToneCandidate =>
+        new ExpressionPreferenceSuggestionService().GetToneCandidate(
+            App.Settings.ExpressionPreferenceProfile,
+            ExpressionPreferenceTask,
+            ExpressionPreferenceScenario);
+
+    public bool HasExpressionPreferenceCandidate => CurrentExpressionPreferenceCandidate is not null;
+    public bool HasExpressionToneCandidate => CurrentExpressionToneCandidate is not null;
+
+    public string ExpressionPreferenceCandidateSummary
+    {
+        get
+        {
+            var candidate = CurrentExpressionPreferenceCandidate;
+            if (candidate is null)
+            {
+                var scopeKey = PreferenceTaskKey(ExpressionPreferenceTask, ExpressionPreferenceScenario);
+                ExpressionInteractionSignalSet? signals = null;
+                App.Settings.ExpressionPreferenceProfile.InteractionSignals?.TryGetValue(scopeKey, out signals);
+                var ignoredCandidate = new ExpressionPreferenceSuggestionService().GetLengthCandidate(
+                    App.Settings.ExpressionPreferenceProfile,
+                    ExpressionPreferenceTask,
+                    ExpressionPreferenceScenario,
+                    includeIgnored: true);
+                if (ignoredCandidate is not null)
+                {
+                    var direction = ignoredCandidate.Value == "concise" ? "改短" : "改长";
+                    return $"此范围的篇幅候选已忽略（{direction}后被接受的成稿 {ignoredCandidate.SupportingOutputs} 个）；可在其它任务/场景独立管理偏好。";
+                }
+                if (signals is null)
+                    return "当前范围尚无生成后编辑并接受/重试/撤销的关联记录，暂不生成篇幅候选。";
+                return $"当前范围的关联记录：接受后改短/改长 {signals.AcceptedShortenedOutputs}/{signals.AcceptedExpandedOutputs} 个，重试/撤销后改短/改长 {signals.RejectedShortenedOutputs}/{signals.RejectedExpandedOutputs} 个；接受风格：{FormatOutputStyleCounts(signals.AcceptedOutputStyles)}；重试/撤销风格：{FormatOutputStyleCounts(signals.RejectedOutputStyles)}。只有输出风格一致且方向单一的接受记录、没有拒绝记录时才显示篇幅候选；混合信号不推断。";
+            }
+
+            var value = candidate.Value == "concise" ? "简洁" : "完整";
+            var editDirection = candidate.Value == "concise" ? "改短" : "改长";
+            var signalsForScope = App.Settings.ExpressionPreferenceProfile.InteractionSignals[candidate.ScopeKey];
+            return $"交互线索（未校准）：{candidate.SupportingOutputs} 个生成结果经{editDirection}后被接受；已接受输出风格：{FormatOutputStyleCounts(signalsForScope.AcceptedOutputStyles)}。改短/改长后被接受分别为 {signalsForScope.AcceptedShortenedOutputs}/{signalsForScope.AcceptedExpandedOutputs} 个，重试/撤销关联的改短/改长结果分别为 {signalsForScope.RejectedShortenedOutputs}/{signalsForScope.RejectedExpandedOutputs} 个。当前仅单一输出风格和接受方向，暂建议篇幅“{value}”；这不是质量或偏好概率判断，需由你决定是否采用。";
+        }
+    }
+
+    public string ExpressionToneCandidateSummary
+    {
+        get
+        {
+            var candidate = CurrentExpressionToneCandidate;
+            if (candidate is null)
+            {
+                var ignoredCandidate = new ExpressionPreferenceSuggestionService().GetToneCandidate(
+                    App.Settings.ExpressionPreferenceProfile,
+                    ExpressionPreferenceTask,
+                    ExpressionPreferenceScenario,
+                    includeIgnored: true);
+                return ignoredCandidate is null
+                    ? "只有同一任务/场景至少 3 个已接受结果持续选择“正式/专业”或“亲切”风格，且没有拒绝或混合信号时，才显示语气建议；载入并保存前不会影响生成。"
+                    : $"此范围的语气候选已忽略（{ignoredCandidate.SupportingOutputs} 个已接受结果）；可在其它任务/场景独立管理偏好。";
+            }
+
+            var suggestedTone = candidate.Value == "professional" ? "专业克制" : "温和亲切";
+            return $"交互线索（未校准）：{candidate.SupportingOutputs} 个已接受结果使用了同一类输出风格；仅建议语气“{suggestedTone}”。这是弱提示，不代表质量或偏好概率判断，需由你决定是否采用。";
+        }
+    }
+
+    public IReadOnlyList<ExpressionPreferenceCandidate> ForbiddenExpressionCandidates =>
+        new ExpressionPreferenceSuggestionService().GetForbiddenExpressionCandidates(
+            App.Settings.ExpressionPreferenceProfile,
+            ExpressionPreferenceTask,
+            ExpressionPreferenceScenario);
+
+    public bool HasForbiddenExpressionCandidates => ForbiddenExpressionCandidates.Count > 0;
+
+    public string ForbiddenExpressionCandidateSummary => HasForbiddenExpressionCandidates
+        ? "以下固定表达在至少 3 个已接受结果中被删除，且没有相反反馈。它们只是可编辑候选；载入并保存后才会成为当前范围的偏好。"
+        : "至少 3 次在已接受结果中删除同一固定表达、且没有相反反馈时，才显示可选候选；原文和成稿不会保存在这些统计中。";
+
+    private static string PreferenceTaskKey(ApplicationMode mode, string? scenario = null) =>
+        StructuredPreferenceService.GetTaskPreferenceKey(mode, scenario);
+
+    private static string FormatOutputStyleCounts(Dictionary<string, int>? counts) =>
+        counts is null || counts.Count == 0
+            ? "暂无"
+            : string.Join("、", counts.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => $"{pair.Key} {pair.Value} 次"));
+
+    private void MarkExpressionPreferenceEdited()
+    {
+        HasChanges = true;
+        var key = PreferenceTaskKey(ExpressionPreferenceTask, ExpressionPreferenceScenario);
+        _editedExpressionPreferenceTasks.Add(key);
+        StoreExpressionPreferenceEditor();
+        OnPropertyChanged(nameof(PreferenceSummary));
+        OnPropertyChanged(nameof(PreferenceMetadataSummary));
+        OnPropertyChanged(nameof(ExpressionPreferenceCandidateSummary));
+        OnPropertyChanged(nameof(HasExpressionPreferenceCandidate));
+        OnPropertyChanged(nameof(ExpressionToneCandidateSummary));
+        OnPropertyChanged(nameof(HasExpressionToneCandidate));
+        OnPropertyChanged(nameof(ForbiddenExpressionCandidates));
+        OnPropertyChanged(nameof(HasForbiddenExpressionCandidates));
+        OnPropertyChanged(nameof(ForbiddenExpressionCandidateSummary));
+    }
+
+    private void StoreExpressionPreferenceEditor()
+    {
+        var key = PreferenceTaskKey(ExpressionPreferenceTask, ExpressionPreferenceScenario);
+        if (!_editedExpressionPreferenceTasks.Contains(key) && !_expressionPreferenceDrafts.ContainsKey(key)) return;
+        var set = _expressionPreferenceDrafts.TryGetValue(key, out var existing)
+            ? existing
+            : new ExpressionPreferenceSet();
+        set.PreferredLength = PreferredExpressionLength;
+        set.PreferredTone = PreferredExpressionTone;
+        set.PreserveOriginalWording = PreserveOriginalWording;
+        set.ForbiddenExpressions = ForbiddenExpressionText
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(value => value.Trim())
+            .Where(value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(20)
+            .ToList();
+        _expressionPreferenceDrafts[key] = set;
+    }
+
+    private void LoadExpressionPreferenceEditor(ApplicationMode mode)
+    {
+        var key = PreferenceTaskKey(mode, ExpressionPreferenceScenario);
+        var set = _expressionPreferenceDrafts.TryGetValue(key, out var existing)
+            ? existing
+            : new ExpressionPreferenceSet();
+        _preferredExpressionLength = set.PreferredLength;
+        _preferredExpressionTone = set.PreferredTone;
+        _preserveOriginalWording = set.PreserveOriginalWording;
+        _forbiddenExpressionText = string.Join(Environment.NewLine, set.ForbiddenExpressions);
+        OnPropertyChanged(nameof(PreferredExpressionLength));
+        OnPropertyChanged(nameof(PreferredExpressionTone));
+        OnPropertyChanged(nameof(PreserveOriginalWording));
+        OnPropertyChanged(nameof(ForbiddenExpressionText));
+        OnPropertyChanged(nameof(PreferenceSummary));
+        OnPropertyChanged(nameof(PreferenceMetadataSummary));
+        OnPropertyChanged(nameof(ExpressionPreferenceCandidateSummary));
+        OnPropertyChanged(nameof(HasExpressionPreferenceCandidate));
+        OnPropertyChanged(nameof(ExpressionToneCandidateSummary));
+        OnPropertyChanged(nameof(HasExpressionToneCandidate));
+        OnPropertyChanged(nameof(ForbiddenExpressionCandidates));
+        OnPropertyChanged(nameof(HasForbiddenExpressionCandidates));
+        OnPropertyChanged(nameof(ForbiddenExpressionCandidateSummary));
+    }
+
+    private void StoreOutputStyleOverrideEditor()
+    {
+        var key = OutputStylePreferenceResolver.CreateKey(ExpressionPreferenceTask, ExpressionPreferenceScenario);
+        if (string.IsNullOrWhiteSpace(ScopedOutputStyle))
+            _outputStyleOverrideDrafts.Remove(key);
+        else
+            _outputStyleOverrideDrafts[key] = ScopedOutputStyle;
+    }
+
+    private void LoadOutputStyleOverrideEditor(ApplicationMode mode)
+    {
+        var key = OutputStylePreferenceResolver.CreateKey(mode, ExpressionPreferenceScenario);
+        _scopedOutputStyle = _outputStyleOverrideDrafts.TryGetValue(key, out var style) ? style : string.Empty;
+        OnPropertyChanged(nameof(ScopedOutputStyle));
+    }
+
+    private static ExpressionPreferenceSet ClonePreferenceSet(ExpressionPreferenceSet source) => new()
+    {
+        PreferredLength = source.PreferredLength,
+        PreferredTone = source.PreferredTone,
+        PreserveOriginalWording = source.PreserveOriginalWording,
+        ForbiddenExpressions = [.. source.ForbiddenExpressions],
+        UserConfirmed = source.UserConfirmed,
+        Source = source.Source,
+        Confidence = source.Confidence,
+        UpdatedAtUtc = source.UpdatedAtUtc
+    };
 
     [RelayCommand]
     private void ResetExpressionPreferences()
     {
+        var previousProfile = App.Settings.ExpressionPreferenceProfile;
         App.Settings.ExpressionPreferenceProfile = new ExpressionPreferenceProfile();
-        try { App.ConfigService.Save(App.Settings); } catch { }
+        try
+        {
+            App.ConfigService.Save(App.Settings);
+        }
+        catch (Exception exception)
+        {
+            App.Settings.ExpressionPreferenceProfile = previousProfile;
+            OnPropertyChanged(nameof(PreferenceSummary));
+            OnPropertyChanged(nameof(PreferenceMetadataSummary));
+            OnPropertyChanged(nameof(ExpressionPreferenceCandidateSummary));
+            OnPropertyChanged(nameof(HasExpressionPreferenceCandidate));
+            OnPropertyChanged(nameof(ExpressionToneCandidateSummary));
+            OnPropertyChanged(nameof(HasExpressionToneCandidate));
+            ValidationMessage = $"偏好重置失败，本地数据已保留：{exception.Message}";
+            return;
+        }
+
+        _expressionPreferenceDrafts = new Dictionary<string, ExpressionPreferenceSet>(StringComparer.Ordinal);
+        _editedExpressionPreferenceTasks.Clear();
+        LoadExpressionPreferenceEditor(ExpressionPreferenceTask);
         OnPropertyChanged(nameof(PreferenceSummary));
-        ValidationMessage = "本地表达偏好已重置。";
+        OnPropertyChanged(nameof(PreferenceMetadataSummary));
+        OnPropertyChanged(nameof(ExpressionPreferenceCandidateSummary));
+        OnPropertyChanged(nameof(HasExpressionPreferenceCandidate));
+        OnPropertyChanged(nameof(ExpressionToneCandidateSummary));
+        OnPropertyChanged(nameof(HasExpressionToneCandidate));
+        OnPropertyChanged(nameof(ForbiddenExpressionCandidates));
+        OnPropertyChanged(nameof(HasForbiddenExpressionCandidates));
+        OnPropertyChanged(nameof(ForbiddenExpressionCandidateSummary));
+        ValidationMessage = "本机偏好与交互统计已重置并保存；此前导出的 JSON 和手动备份 ZIP 不会被改动，如需从副本中清除请手动删除。";
+    }
+
+    [RelayCommand]
+    private void ApplyExpressionPreferenceCandidate()
+    {
+        var candidate = CurrentExpressionPreferenceCandidate;
+        if (candidate is null) return;
+
+        PreferredExpressionLength = candidate.Value;
+        ValidationMessage = "候选已载入当前编辑范围；保存设置后才会确认并用于生成。";
+        OnPropertyChanged(nameof(ExpressionPreferenceCandidateSummary));
+        OnPropertyChanged(nameof(HasExpressionPreferenceCandidate));
+    }
+
+    [RelayCommand]
+    private void ApplyExpressionToneCandidate()
+    {
+        var candidate = CurrentExpressionToneCandidate;
+        if (candidate is null) return;
+
+        PreferredExpressionTone = candidate.Value;
+        ValidationMessage = "语气候选已载入当前编辑范围；保存设置后才会确认并用于生成。";
+        OnPropertyChanged(nameof(ExpressionToneCandidateSummary));
+        OnPropertyChanged(nameof(HasExpressionToneCandidate));
+    }
+
+    [RelayCommand]
+    private void ApplyForbiddenExpressionCandidate(ExpressionPreferenceCandidate? candidate)
+    {
+        if (candidate is null || !ForbiddenExpressionCandidates.Any(item => item.Key == candidate.Key)) return;
+        var existing = ForbiddenExpressionText
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(value => value.Trim());
+        if (existing.Contains(candidate.Value, StringComparer.OrdinalIgnoreCase)) return;
+
+        ForbiddenExpressionText = string.Join(Environment.NewLine, existing.Append(candidate.Value));
+        ValidationMessage = $"已将“{candidate.Value}”载入当前范围的禁用表达编辑框；可修改或删除，保存设置后才会确认。";
+    }
+
+    [RelayCommand]
+    private void ClearCurrentExpressionPreference()
+    {
+        var key = PreferenceTaskKey(ExpressionPreferenceTask, ExpressionPreferenceScenario);
+        _expressionPreferenceDrafts.Remove(key);
+        _editedExpressionPreferenceTasks.Remove(key);
+        _preferredExpressionLength = "balanced";
+        _preferredExpressionTone = "natural";
+        _preserveOriginalWording = true;
+        _forbiddenExpressionText = string.Empty;
+        OnPropertyChanged(nameof(PreferredExpressionLength));
+        OnPropertyChanged(nameof(PreferredExpressionTone));
+        OnPropertyChanged(nameof(PreserveOriginalWording));
+        OnPropertyChanged(nameof(ForbiddenExpressionText));
+        OnPropertyChanged(nameof(PreferenceSummary));
+        OnPropertyChanged(nameof(PreferenceMetadataSummary));
+        OnPropertyChanged(nameof(ExpressionPreferenceCandidateSummary));
+        OnPropertyChanged(nameof(HasExpressionPreferenceCandidate));
+        OnPropertyChanged(nameof(ExpressionToneCandidateSummary));
+        OnPropertyChanged(nameof(HasExpressionToneCandidate));
+        OnPropertyChanged(nameof(ForbiddenExpressionCandidates));
+        OnPropertyChanged(nameof(HasForbiddenExpressionCandidates));
+        OnPropertyChanged(nameof(ForbiddenExpressionCandidateSummary));
+        HasChanges = true;
+        ValidationMessage = "当前任务/场景偏好已标记为删除；保存设置后生效。交互统计和其它范围偏好会保留。";
+    }
+
+    [RelayCommand]
+    private void IgnoreExpressionPreferenceCandidate()
+    {
+        var candidate = CurrentExpressionPreferenceCandidate;
+        if (candidate is null) return;
+
+        var ignoredKeys = App.Settings.ExpressionPreferenceProfile.IgnoredSuggestionKeys;
+        if (ignoredKeys.Contains(candidate.Key, StringComparer.Ordinal)) return;
+        var evictedKey = ignoredKeys.Count >= 128 ? ignoredKeys[0] : null;
+        if (evictedKey is not null) ignoredKeys.RemoveAt(0);
+        ignoredKeys.Add(candidate.Key);
+        try
+        {
+            App.ConfigService.Save(App.Settings);
+            ValidationMessage = "已在本机忽略此篇幅候选；后续交互方向发生变化时仍可能出现新的候选。";
+        }
+        catch (Exception exception)
+        {
+            ignoredKeys.Remove(candidate.Key);
+            if (evictedKey is not null) ignoredKeys.Insert(0, evictedKey);
+            ValidationMessage = $"忽略候选未能保存，本次忽略未生效：{exception.Message}";
+        }
+
+        OnPropertyChanged(nameof(ExpressionPreferenceCandidateSummary));
+        OnPropertyChanged(nameof(HasExpressionPreferenceCandidate));
+            OnPropertyChanged(nameof(ForbiddenExpressionCandidates));
+            OnPropertyChanged(nameof(HasForbiddenExpressionCandidates));
+            OnPropertyChanged(nameof(ForbiddenExpressionCandidateSummary));
+    }
+
+    [RelayCommand]
+    private void IgnoreExpressionToneCandidate()
+    {
+        var candidate = CurrentExpressionToneCandidate;
+        if (candidate is null) return;
+
+        var ignoredKeys = App.Settings.ExpressionPreferenceProfile.IgnoredSuggestionKeys;
+        if (ignoredKeys.Contains(candidate.Key, StringComparer.Ordinal)) return;
+        var evictedKey = ignoredKeys.Count >= 128 ? ignoredKeys[0] : null;
+        if (evictedKey is not null) ignoredKeys.RemoveAt(0);
+        ignoredKeys.Add(candidate.Key);
+        try
+        {
+            App.ConfigService.Save(App.Settings);
+            ValidationMessage = "已在本机忽略此语气候选；其它任务/场景的建议仍可单独管理。";
+        }
+        catch (Exception exception)
+        {
+            ignoredKeys.Remove(candidate.Key);
+            if (evictedKey is not null) ignoredKeys.Insert(0, evictedKey);
+            ValidationMessage = $"忽略候选未能保存，本次忽略未生效：{exception.Message}";
+        }
+
+        OnPropertyChanged(nameof(ExpressionToneCandidateSummary));
+        OnPropertyChanged(nameof(HasExpressionToneCandidate));
+    }
+
+    [RelayCommand]
+    private void IgnoreForbiddenExpressionCandidate(ExpressionPreferenceCandidate? candidate)
+    {
+        if (candidate is null || !ForbiddenExpressionCandidates.Any(item => item.Key == candidate.Key)) return;
+        var ignoredKeys = App.Settings.ExpressionPreferenceProfile.IgnoredSuggestionKeys;
+        if (ignoredKeys.Contains(candidate.Key, StringComparer.Ordinal)) return;
+        var evictedKey = ignoredKeys.Count >= 128 ? ignoredKeys[0] : null;
+        if (evictedKey is not null) ignoredKeys.RemoveAt(0);
+        ignoredKeys.Add(candidate.Key);
+        try
+        {
+            App.ConfigService.Save(App.Settings);
+            ValidationMessage = $"已在本机忽略“{candidate.Value}”候选；其它表达候选仍可单独管理。";
+        }
+        catch (Exception exception)
+        {
+            ignoredKeys.Remove(candidate.Key);
+            if (evictedKey is not null) ignoredKeys.Insert(0, evictedKey);
+            ValidationMessage = $"忽略候选未能保存，本次忽略未生效：{exception.Message}";
+        }
+
+        OnPropertyChanged(nameof(ForbiddenExpressionCandidates));
+        OnPropertyChanged(nameof(HasForbiddenExpressionCandidates));
+        OnPropertyChanged(nameof(ForbiddenExpressionCandidateSummary));
+    }
+
+    public void ExportExpressionPreferences(string destinationPath)
+    {
+        try
+        {
+            new ExpressionPreferenceExportService().Export(
+                App.Settings.ExpressionPreferenceProfile,
+                destinationPath,
+                App.Settings.OutputStyle,
+                App.Settings.OutputStyleOverrides);
+            ValidationMessage = "已导出已保存的本地表达偏好和输出风格（含无文本内容的交互统计）。";
+        }
+        catch (Exception exception)
+        {
+            ValidationMessage = $"偏好导出失败：{exception.Message}";
+        }
     }
     private bool _preserveMeaning = true;
     public bool PreserveMeaning { get => _preserveMeaning; set => SetDirty(ref _preserveMeaning, value); }
@@ -349,8 +979,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public void RegisterImportedSkin(SkinManifest manifest)
     {
         App.SkinService.Register(manifest);
-        if (!SpecialSkins.Any(option => string.Equals(option.Value, manifest.Id, StringComparison.OrdinalIgnoreCase)))
-            SpecialSkins.Add(new SettingOption(manifest.Id, manifest.DisplayName));
+        ReloadSkinOptions();
         SkinId = manifest.Id;
     }
 
@@ -377,8 +1006,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     public double WindowOpacity { get => _windowOpacity; set { SetDirty(ref _windowOpacity, value); OnPropertyChanged(nameof(DisplayPreviewSummary)); ApplyPreview(); } }
     private double _floatingBallOpacity = 0.92;
     public double FloatingBallOpacity { get { return _floatingBallOpacity; } set { SetDirty(ref _floatingBallOpacity, value); OnPropertyChanged(nameof(DisplayPreviewSummary)); ApplyPreview(); } }
-    private double _floatingBallSize = 40;
-    public double FloatingBallSize { get { return _floatingBallSize; } set { SetDirty(ref _floatingBallSize, value); OnPropertyChanged(nameof(DisplayPreviewSummary)); ApplyPreview(); } }
+    private double _floatingBallSize = CompanionDisplayMetrics.DefaultSize;
+    public double FloatingBallSize
+    {
+        get => _floatingBallSize;
+        set
+        {
+            var normalized = CompanionDisplayMetrics.NormalizeSize(value);
+            SetDirty(ref _floatingBallSize, normalized);
+            OnPropertyChanged(nameof(DisplayPreviewSummary));
+            ApplyPreview();
+        }
+    }
     public string DisplayPreviewSummary =>
         $"字号 {EditorFontSize:0} px  ·  缩放 {UiScale:P0}  ·  编辑框 {EditorDefaultHeight:0} px  ·  窗口透明度 {WindowOpacity:P0}  ·  悬浮球 {FloatingBallSize:0} px / {FloatingBallOpacity:P0}";
     private string _closeBehavior = "Hide";
@@ -469,8 +1108,11 @@ public sealed partial class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(ApiKeyStateText));
                 OnPropertyChanged(nameof(ApiKeyStatusKind));
                 OnPropertyChanged(nameof(SelectedProviderPlatform));
+                OnPropertyChanged(nameof(SelectedOpenAiProtocol));
+                OnPropertyChanged(nameof(IsOpenAiProtocolSelectorVisible));
                 OnPropertyChanged(nameof(IsApiBaseEditable));
                 OnPropertyChanged(nameof(AvailableModels));
+                OnPropertyChanged(nameof(IsOpenRouterModelRefreshVisible));
                 OnPropertyChanged(nameof(SelectedModel));
                 OnPropertyChanged(nameof(SelectedProviderHelp));
                 OnPropertyChanged(nameof(SelectedProviderWebsite));
@@ -480,6 +1122,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(SelectedInferenceLevel));
                 OnPropertyChanged(nameof(IsCustomInference));
                 OnPropertyChanged(nameof(SelectedInferenceDescription));
+                OnPropertyChanged(nameof(SelectedProviderCapabilitySummary));
                 OnPropertyChanged(nameof(ShowLegacyModelMapping));
                 OnPropertyChanged(nameof(ProviderVerificationText));
                 OnPropertyChanged(nameof(CanDuplicateOrEditProvider));
@@ -504,6 +1147,303 @@ public sealed partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(ActiveProviderProfileId));
         OnPropertyChanged(nameof(IsSelectedProviderActive));
         OnPropertyChanged(nameof(FilteredProviderProfiles));
+    }
+
+    [RelayCommand]
+    private void RefreshLocalModels()
+    {
+        InstalledLocalModels.Clear();
+        foreach (var model in App.LocalModelStore.GetInstalledModels()) InstalledLocalModels.Add(model);
+        if (App.LocalModelStore.LastRegistryLoadError is not null)
+        {
+            App.LogApplicationError("LocalModelRegistry", App.LocalModelStore.LastRegistryLoadError);
+            LocalModelStatus = "本地模型注册表读取失败，已保留原文件；请查看 errors.log 后恢复或重新导入。";
+            return;
+        }
+        LocalModelStatus = InstalledLocalModels.Count == 0
+            ? "尚未安装受管本地模型。"
+            : $"已安装 {InstalledLocalModels.Count} 个本地模型。";
+        OnPropertyChanged(nameof(IsLocalRuntimeAvailable));
+        OnPropertyChanged(nameof(IsCpuRuntimeInstalled));
+        OnPropertyChanged(nameof(IsVulkanRuntimeInstalled));
+        OnPropertyChanged(nameof(LocalRuntimeInstallationSummary));
+    }
+
+    [RelayCommand(CanExecute = nameof(CanInstallLocalRuntimePackage))]
+    private async Task InstallLocalRuntimePackageAsync(LocalRuntimePackageDescriptor? descriptor)
+    {
+        if (descriptor is null || IsLocalRuntimePackageDownloading || IsLocalRuntimeHealthCheckRunning) return;
+        IsLocalRuntimePackageDownloading = true;
+        _localRuntimeDownloadCancellation?.Dispose();
+        _localRuntimeDownloadCancellation = new CancellationTokenSource();
+        try
+        {
+            LocalModelStatus = $"正在下载独立运行时 {descriptor.DisplayName}…";
+            var progress = new Progress<LocalRuntimePackageProgress>(value =>
+                LocalModelStatus = $"运行时下载 {value.Fraction:P1} · {ByteSizeFormatter.FormatModelPackageSize(value.ReceivedBytes)}/{ByteSizeFormatter.FormatModelPackageSize(value.TotalBytes)}");
+            using var service = new LocalRuntimePackageService();
+            await service.InstallAsync(descriptor, progress, _localRuntimeDownloadCancellation.Token);
+            OnPropertyChanged(nameof(IsLocalRuntimeAvailable));
+            OnPropertyChanged(nameof(IsCpuRuntimeInstalled));
+            OnPropertyChanged(nameof(IsVulkanRuntimeInstalled));
+            OnPropertyChanged(nameof(LocalRuntimeInstallationSummary));
+            LocalModelStatus = $"已安装 {descriptor.DisplayName}（prerelease 预览版，编译源码身份未核实）；运行时与主程序分开存放。";
+        }
+        catch (OperationCanceledException)
+        {
+            LocalModelStatus = "运行时下载已取消；已下载部分会保留以便续传。";
+        }
+        catch (Exception exception)
+        {
+            LocalModelStatus = "运行时安装失败：" + exception.Message;
+        }
+        finally
+        {
+            _localRuntimeDownloadCancellation?.Dispose();
+            _localRuntimeDownloadCancellation = null;
+            IsLocalRuntimePackageDownloading = false;
+        }
+    }
+
+    private bool CanInstallLocalRuntimePackage(LocalRuntimePackageDescriptor? descriptor) =>
+        descriptor is not null && !IsLocalRuntimePackageDownloading && !IsLocalRuntimeHealthCheckRunning;
+
+    [RelayCommand]
+    private void CancelLocalRuntimePackageDownload() => _localRuntimeDownloadCancellation?.Cancel();
+
+    [RelayCommand]
+    private async Task UninstallLocalRuntimePackageAsync(LocalRuntimePackageDescriptor? descriptor)
+    {
+        if (descriptor is null || IsLocalRuntimePackageDownloading || IsLocalRuntimeHealthCheckRunning) return;
+        try
+        {
+            App.LocalRuntimeManager.Stop();
+            using var service = new LocalRuntimePackageService();
+            await service.UninstallAsync(descriptor);
+            OnPropertyChanged(nameof(IsLocalRuntimeAvailable));
+            OnPropertyChanged(nameof(IsCpuRuntimeInstalled));
+            OnPropertyChanged(nameof(IsVulkanRuntimeInstalled));
+            OnPropertyChanged(nameof(LocalRuntimeInstallationSummary));
+            LocalModelStatus = $"已卸载 {descriptor.DisplayName}。";
+        }
+        catch (Exception exception)
+        {
+            LocalModelStatus = "运行时卸载失败：" + exception.Message;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCheckInstalledLocalModel))]
+    private async Task CheckInstalledLocalModelAsync(InstalledLocalModel? model)
+    {
+        if (model is null || IsLocalRuntimeHealthCheckRunning || IsLocalRuntimePackageDownloading) return;
+        IsLocalRuntimeHealthCheckRunning = true;
+        _localRuntimeHealthCheckCancellation?.Dispose();
+        _localRuntimeHealthCheckCancellation = new CancellationTokenSource();
+        try
+        {
+            LocalModelStatus = $"正在本机启动并检查 {model.DisplayName}；这会加载模型并使用本机内存，不会请求云端。";
+            var profile = ProviderProfiles.FirstOrDefault(item =>
+                item.Platform == ProviderPlatform.ManagedLocal && item.LocalModelInstallationId == model.InstallationId)?.Clone()
+                ?? new ProviderProfile
+                {
+                    Id = "runtime-check-" + model.InstallationId,
+                    Name = model.DisplayName,
+                    Type = ProviderType.Local,
+                    Platform = ProviderPlatform.ManagedLocal,
+                    Protocol = ProviderProtocol.OpenAICompatible,
+                    ApiBase = "http://127.0.0.1:0/v1",
+                    Model = model.InstallationId,
+                    LocalModelInstallationId = model.InstallationId
+                };
+            var endpoint = await App.LocalRuntimeManager.EnsureStartedAsync(
+                profile, _localRuntimeHealthCheckCancellation.Token);
+            var startupMs = App.LocalRuntimeManager.GetMetrics()?.StartupToReadyMilliseconds;
+            var timing = startupMs.HasValue ? $"首次启动 {startupMs.Value:0} ms" : "已复用运行中的进程";
+            LocalModelStatus = $"{model.DisplayName} 本地服务健康检查通过（{endpoint.DisplayBackend}，{timing}）；运行进程保持开启，可手动停止。未发起云端请求。";
+        }
+        catch (OperationCanceledException)
+        {
+            LocalModelStatus = "本地模型启动检查已取消，运行时已清理未就绪进程。";
+        }
+        catch (Exception exception)
+        {
+            LocalModelStatus = "本地模型启动检查失败：" + exception.Message;
+        }
+        finally
+        {
+            _localRuntimeHealthCheckCancellation?.Dispose();
+            _localRuntimeHealthCheckCancellation = null;
+            IsLocalRuntimeHealthCheckRunning = false;
+        }
+    }
+
+    private bool CanCheckInstalledLocalModel(InstalledLocalModel? model) =>
+        model is not null && !IsLocalRuntimeHealthCheckRunning && !IsLocalRuntimePackageDownloading;
+
+    [RelayCommand]
+    private void CancelLocalRuntimeHealthCheck() => _localRuntimeHealthCheckCancellation?.Cancel();
+
+    [RelayCommand]
+    private void StopLocalRuntime()
+    {
+        App.LocalRuntimeManager.Stop();
+        LocalModelStatus = "本地推理服务已停止并释放运行进程。";
+    }
+
+    [RelayCommand]
+    private async Task RefreshLocalModelCatalogAsync()
+    {
+        var url = LocalModelCatalogUrl?.Trim();
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            AvailableLocalModels.Clear();
+            foreach (var model in LocalModelCatalogService.BuiltInCatalog.Models) AvailableLocalModels.Add(model);
+            LocalModelStatus = $"已加载内置开源模型目录，共 {AvailableLocalModels.Count} 个模型；点击下载即可自动校验、安装并配置。";
+            return;
+        }
+        try
+        {
+            LocalModelStatus = "正在验证精选目录签名…";
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            var catalog = await new LocalModelCatalogService().FetchAsync(url, client);
+            AvailableLocalModels.Clear();
+            foreach (var model in catalog.Models) AvailableLocalModels.Add(model);
+            LocalModelStatus = $"已加载精选目录 {catalog.CatalogVersion}，共 {AvailableLocalModels.Count} 个模型。";
+        }
+        catch (Exception exception)
+        {
+            LocalModelStatus = "精选目录加载失败：" + exception.Message;
+        }
+    }
+
+    private bool CanDownloadLocalModel(LocalModelDescriptor? descriptor) => descriptor is not null && !IsLocalModelDownloading;
+
+    [RelayCommand(CanExecute = nameof(CanDownloadLocalModel))]
+    private async Task DownloadLocalModelAsync(LocalModelDescriptor? descriptor)
+    {
+        if (descriptor is null) return;
+        if (IsLocalModelDownloading) return;
+        IsLocalModelDownloading = true;
+        _localModelDownloadCancellation?.Dispose();
+        _localModelDownloadCancellation = new CancellationTokenSource();
+        try
+        {
+            LocalModelStatus = $"正在下载 {descriptor.DisplayName}…";
+            var progress = new Progress<LocalModelDownloadProgress>(value =>
+                LocalModelStatus = $"下载 {value.Fraction:P1} · {ByteSizeFormatter.FormatModelPackageSize(value.ReceivedBytes)}/{ByteSizeFormatter.FormatModelPackageSize(value.TotalBytes)}");
+            var result = await new LocalModelDownloadService(App.LocalModelStore).DownloadAsync(
+                descriptor, progress, _localModelDownloadCancellation.Token);
+            if (result.Status != LocalModelDownloadStatus.Success)
+            {
+                LocalModelStatus = "下载未完成：" + (string.IsNullOrWhiteSpace(result.Message) ? result.Status.ToString() : result.Message);
+                return;
+            }
+            RefreshLocalModels();
+            if (result.InstalledModel is not null)
+            {
+                UseInstalledLocalModel(result.InstalledModel);
+                if (!TrySave())
+                {
+                    LocalModelStatus = $"模型已安装，但自动保存配置失败，请点击设置页保存：{descriptor.DisplayName}";
+                    return;
+                }
+            }
+            LocalModelStatus = $"已安装：{descriptor.DisplayName}";
+        }
+        catch (Exception exception)
+        {
+            LocalModelStatus = "下载失败：" + exception.Message;
+        }
+        finally
+        {
+            _localModelDownloadCancellation?.Dispose();
+            _localModelDownloadCancellation = null;
+            IsLocalModelDownloading = false;
+        }
+    }
+
+    [RelayCommand]
+    private void CancelLocalModelDownload() => _localModelDownloadCancellation?.Cancel();
+
+    [RelayCommand]
+    private void OpenLocalModelDownloadLink(LocalModelDescriptor? descriptor)
+    {
+        if (descriptor is null || !LocalModelCatalogService.IsSafeDirectDownloadLink(descriptor.DownloadUrl))
+        {
+            LocalModelStatus = "下载链接无效或不是 HTTPS 地址。";
+            return;
+        }
+        Process.Start(new ProcessStartInfo(descriptor.DownloadUrl) { UseShellExecute = true });
+    }
+
+    [RelayCommand]
+    private async Task ImportLocalModelAsync()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "GGUF 模型 (*.gguf)|*.gguf",
+            Title = "导入本地 GGUF 模型",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            LocalModelStatus = "正在校验并导入模型…";
+            var model = await App.LocalModelStore.ImportModelAsync(dialog.FileName, Path.GetFileNameWithoutExtension(dialog.FileName));
+            RefreshLocalModels();
+            LocalModelStatus = $"已导入：{model.DisplayName}";
+        }
+        catch (Exception exception)
+        {
+            LocalModelStatus = "导入失败：" + exception.Message;
+        }
+    }
+
+    [RelayCommand]
+    private void UseInstalledLocalModel(InstalledLocalModel? model)
+    {
+        if (model is null) return;
+        var profile = ProviderProfiles.FirstOrDefault(item =>
+            item.Platform == ProviderPlatform.ManagedLocal && item.LocalModelInstallationId == model.InstallationId);
+        if (profile is null)
+        {
+            var id = "managed-local-" + model.InstallationId.Replace('@', '-');
+            profile = new ProviderProfile
+            {
+                Id = id,
+                Name = model.DisplayName,
+                Type = ProviderType.Local,
+                Platform = ProviderPlatform.ManagedLocal,
+                Protocol = ProviderProtocol.OpenAICompatible,
+                ApiBase = "http://127.0.0.1:0/v1",
+                Model = model.InstallationId,
+                SecretId = "provider-" + id,
+                LocalModelInstallationId = model.InstallationId,
+                LocalRuntimeProfileId = "balanced"
+            };
+            ProviderProfiles.Add(profile);
+        }
+        SetActiveProvider(profile);
+        HasChanges = true;
+        LocalModelStatus = $"已将“{model.DisplayName}”设为当前模型。生成时按需启动本地运行时。";
+        OnPropertyChanged(nameof(FilteredProviderProfiles));
+    }
+
+    [RelayCommand]
+    private void RemoveInstalledLocalModel(InstalledLocalModel? model)
+    {
+        if (model is null) return;
+        var active = ProviderProfiles.FirstOrDefault(item => item.Id == _activeProviderProfileId);
+        try
+        {
+            App.LocalModelStore.RemoveModel(model.InstallationId, active?.LocalModelInstallationId);
+            RefreshLocalModels();
+        }
+        catch (Exception exception)
+        {
+            LocalModelStatus = "无法删除：" + exception.Message;
+        }
     }
 
     /// <summary>
@@ -535,9 +1475,14 @@ public sealed partial class SettingsViewModel : ObservableObject
             RebindCredentialSlot(SelectedProviderProfile, previousSecretId, forceEndpointBinding: true);
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsApiBaseEditable));
+            OnPropertyChanged(nameof(SelectedOpenAiProtocol));
+            OnPropertyChanged(nameof(IsOpenAiProtocolSelectorVisible));
             OnPropertyChanged(nameof(SelectedProviderProfile));
             OnPropertyChanged(nameof(AvailableModels));
+            OnPropertyChanged(nameof(IsOpenRouterModelRefreshVisible));
             OnPropertyChanged(nameof(SelectedModel));
+            OnPropertyChanged(nameof(SelectedInferenceDescription));
+            OnPropertyChanged(nameof(SelectedProviderCapabilitySummary));
             OnPropertyChanged(nameof(SelectedProviderHelp));
             OnPropertyChanged(nameof(SelectedProviderWebsite));
             OnPropertyChanged(nameof(SelectedProviderApiKeyUrl));
@@ -546,6 +1491,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             OnPropertyChanged(nameof(ApiKeyStateText));
             OnPropertyChanged(nameof(ApiKeyStatusKind));
             OnPropertyChanged(nameof(ModelId));
+            OnPropertyChanged(nameof(SelectedProviderCapabilitySummary));
             OnPropertyChanged(nameof(ApiBaseInput));
             OnPropertyChanged(nameof(ShowLegacyModelMapping));
             OnPropertyChanged(nameof(ProviderVerificationText));
@@ -556,6 +1502,25 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
     public bool IsApiBaseEditable => SelectedProviderProfile?.Platform == ProviderPlatform.CustomOpenAICompatible;
+
+    public ProviderProtocol SelectedOpenAiProtocol
+    {
+        get => SelectedProviderProfile?.Protocol ?? ProviderProtocol.OpenAICompatible;
+        set
+        {
+            if (SelectedProviderProfile?.Platform != ProviderPlatform.OpenAI || SelectedProviderProfile.Protocol == value) return;
+            if (value is not (ProviderProtocol.OpenAICompatible or ProviderProtocol.OpenAIResponses)) return;
+            SelectedProviderProfile.Protocol = value;
+            HasChanges = true;
+            _providerConnectionChanged = true;
+            ResetConnectionVerification();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedProviderCapabilitySummary));
+            NotifyProviderProfileEdited();
+        }
+    }
+
+    public bool IsOpenAiProtocolSelectorVisible => SelectedProviderProfile?.Platform == ProviderPlatform.OpenAI;
 
     public string ModelId
     {
@@ -569,6 +1534,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             ResetConnectionVerification();
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectedModel));
+            OnPropertyChanged(nameof(SelectedInferenceDescription));
+            OnPropertyChanged(nameof(SelectedProviderCapabilitySummary));
             OnPropertyChanged(nameof(FilteredProviderProfiles));
         }
     }
@@ -598,6 +1565,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             OnPropertyChanged(nameof(HasStoredApiKey));
             OnPropertyChanged(nameof(ApiKeyStateText));
             OnPropertyChanged(nameof(ApiKeyStatusKind));
+            OnPropertyChanged(nameof(SelectedInferenceDescription));
             OnPropertyChanged();
         }
     }
@@ -613,17 +1581,95 @@ public sealed partial class SettingsViewModel : ObservableObject
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsCustomInference));
             OnPropertyChanged(nameof(SelectedInferenceDescription));
+            OnPropertyChanged(nameof(SelectedProviderCapabilitySummary));
             OnPropertyChanged(nameof(SelectedProviderProfile));
         }
     }
 
     public bool IsCustomInference => SelectedInferenceLevel == InferenceLevel.Custom;
-    public string SelectedInferenceDescription => InferenceLevels.FirstOrDefault(x => x.Value == SelectedInferenceLevel)?.Description ?? string.Empty;
+    public string SelectedInferenceDescription => ProviderInferencePresets.Describe(SelectedInferenceLevel, SelectedProviderProfile);
+
+    public string SelectedProviderCapabilitySummary
+    {
+        get
+        {
+            if (SelectedProviderProfile is not { } profile) return string.Empty;
+            var resolvedModel = ProviderCapabilityResolver.ResolveModelId(profile, ModelMappingEntries);
+            return ProviderCapabilityResolver.Describe(profile, resolvedModel);
+        }
+    }
 
     public bool ShowLegacyModelMapping => SelectedProviderProfile?.EnableModelMapping == true;
     public string ProviderVerificationText => SelectedProviderPlatform is { } option
         ? $"预设校验于 {option.VerifiedOn} · 模型 ID 可直接修改"
         : string.Empty;
+
+    public bool IsOpenRouterModelRefreshVisible => SelectedProviderProfile?.Platform == ProviderPlatform.OpenRouter;
+    public string OpenRouterModelCatalogStatus
+    {
+        get => _openRouterModelCatalogStatus;
+        private set => SetProperty(ref _openRouterModelCatalogStatus, value);
+    }
+
+    [RelayCommand]
+    private async Task RefreshOpenRouterModelsAsync()
+    {
+        if (SelectedProviderProfile?.Platform != ProviderPlatform.OpenRouter)
+        {
+            OpenRouterModelCatalogStatus = "请先选择 OpenRouter 配置。";
+            return;
+        }
+
+        var apiKey = ResolveSelectedApiKey();
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            OpenRouterModelCatalogStatus = "请先填写 OpenRouter API Key，再刷新型号目录。";
+            return;
+        }
+
+        IsRefreshingOpenRouterModels = true;
+        OpenRouterModelCatalogStatus = "正在从 OpenRouter 官方目录读取文本输入/输出型号…";
+        try
+        {
+            var models = await _openRouterModelCatalogService.FetchAsync(apiKey, CancellationToken.None);
+            _openRouterModelCatalog = models;
+            _hasLoadedOpenRouterModelCatalog = true;
+            if (SelectedProviderProfile is { Platform: ProviderPlatform.OpenRouter } profile)
+            {
+                var selectedModel = models.FirstOrDefault(model =>
+                    string.Equals(model.ModelId, profile.Model, StringComparison.OrdinalIgnoreCase));
+                if (UpdateOpenRouterCapabilitySnapshot(profile, selectedModel))
+                    HasChanges = true;
+            }
+            OnPropertyChanged(nameof(AvailableModels));
+            OnPropertyChanged(nameof(SelectedProviderCapabilitySummary));
+            OpenRouterModelCatalogStatus = models.Count == 0
+                ? "目录已刷新，但没有发现可用于文本输入/输出的型号。"
+                : $"已刷新 {models.Count} 个支持文本输入/输出的型号及目录参数元数据；该元数据是候选提示，原生 Schema 请求将要求路由到支持全部参数的端点。";
+        }
+        catch (HttpRequestException exception)
+        {
+            OpenRouterModelCatalogStatus = exception.StatusCode is { } statusCode
+                ? $"刷新失败（HTTP {(int)statusCode}）；现有目录和当前模型保持不变。"
+                : "刷新失败（网络不可用）；现有目录和当前模型保持不变。";
+        }
+        catch (InvalidDataException)
+        {
+            OpenRouterModelCatalogStatus = "刷新失败（目录响应格式无效）；现有目录和当前模型保持不变。";
+        }
+        catch (ArgumentException)
+        {
+            OpenRouterModelCatalogStatus = "刷新失败（API Key 格式无效）；现有目录和当前模型保持不变。";
+        }
+        catch (OperationCanceledException)
+        {
+            OpenRouterModelCatalogStatus = "目录刷新超时；现有目录和当前模型保持不变。";
+        }
+        finally
+        {
+            IsRefreshingOpenRouterModels = false;
+        }
+    }
 
     /// <summary>当前供应商可选模型列表（显示名称 → 实际 Model ID）。</summary>
     public IReadOnlyList<ModelDefinition> AvailableModels
@@ -632,6 +1678,15 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             var option = SelectedProviderPlatform;
             if (option is null) return [];
+            if (option.Platform == ProviderPlatform.OpenRouter && _hasLoadedOpenRouterModelCatalog)
+            {
+                var dynamicModels = _openRouterModelCatalog.ToList();
+                var configuredModel = SelectedProviderProfile?.Model?.Trim();
+                if (!string.IsNullOrWhiteSpace(configuredModel) &&
+                    !dynamicModels.Any(model => string.Equals(model.ModelId, configuredModel, StringComparison.OrdinalIgnoreCase)))
+                    dynamicModels.Add(new ModelDefinition("当前配置（目录未列出）", configuredModel));
+                return dynamicModels;
+            }
             if (option.Models is { Count: > 0 } models) return models;
             return string.IsNullOrWhiteSpace(option.DefaultModel) ? [] : [new ModelDefinition(option.DefaultModel, option.DefaultModel)];
         }
@@ -650,12 +1705,34 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             if (SelectedProviderProfile is null || value is null || SelectedProviderProfile.Model == value.ModelId) return;
             SelectedProviderProfile.Model = value.ModelId;
+            if (SelectedProviderProfile.Platform == ProviderPlatform.OpenRouter)
+                UpdateOpenRouterCapabilitySnapshot(SelectedProviderProfile, value);
             _providerConnectionChanged = true;
             ResetConnectionVerification();
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectedProviderProfile));
+            OnPropertyChanged(nameof(SelectedInferenceDescription));
+            OnPropertyChanged(nameof(SelectedProviderCapabilitySummary));
+            OnPropertyChanged(nameof(AvailableModels));
             HasChanges = true;
         }
+    }
+
+    private static bool UpdateOpenRouterCapabilitySnapshot(ProviderProfile profile, ModelDefinition? model)
+    {
+        var modelId = model?.SupportedParameters is null ? string.Empty : model.ModelId;
+        var supportedParameters = model?.SupportedParameters?
+            .OrderBy(parameter => parameter, StringComparer.Ordinal)
+            .ToList();
+        if (string.Equals(profile.OpenRouterCapabilitiesModelId, modelId, StringComparison.Ordinal) &&
+            ((profile.OpenRouterSupportedParameters is null && supportedParameters is null) ||
+             (profile.OpenRouterSupportedParameters is not null && supportedParameters is not null &&
+              profile.OpenRouterSupportedParameters.SequenceEqual(supportedParameters, StringComparer.Ordinal))))
+            return false;
+
+        profile.OpenRouterCapabilitiesModelId = modelId;
+        profile.OpenRouterSupportedParameters = supportedParameters;
+        return true;
     }
 
     public string SelectedProviderHelp => SelectedProviderPlatform?.HelpText ?? string.Empty;
@@ -682,6 +1759,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             OnPropertyChanged();
             OnPropertyChanged(nameof(MappingSummary));
             OnPropertyChanged(nameof(ShowLegacyModelMapping));
+            OnPropertyChanged(nameof(SelectedProviderCapabilitySummary));
         }
     }
 
@@ -728,6 +1806,20 @@ public sealed partial class SettingsViewModel : ObservableObject
             SelectedProviderProfile.ModelMapping[entry.Key.Trim()] = entry.Value;
         }
     }
+
+    private void ModelMappingEntries_OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+            foreach (ModelMappingEntry entry in e.OldItems)
+                entry.PropertyChanged -= ModelMappingEntry_OnPropertyChanged;
+        if (e.NewItems is not null)
+            foreach (ModelMappingEntry entry in e.NewItems)
+                entry.PropertyChanged += ModelMappingEntry_OnPropertyChanged;
+        OnPropertyChanged(nameof(SelectedProviderCapabilitySummary));
+    }
+
+    private void ModelMappingEntry_OnPropertyChanged(object? sender, PropertyChangedEventArgs e) =>
+        OnPropertyChanged(nameof(SelectedProviderCapabilitySummary));
     private string _apiKey = string.Empty;
     public string ApiKey
     {
@@ -885,20 +1977,55 @@ public sealed partial class SettingsViewModel : ObservableObject
         ArchiveService? archiveService = null,
         ISecretStore? secretStore = null,
         Func<ProviderProfile, string?, CancellationToken, Task<ConnectionTestResult>>? connectionTester = null,
-        Func<IReadOnlyList<AgentSkillRecord>>? skillCatalogLoader = null)
+        Func<IReadOnlyList<AgentSkillRecord>>? skillCatalogLoader = null,
+        OpenRouterModelCatalogService? openRouterModelCatalogService = null)
     {
+        ModelMappingEntries.CollectionChanged += ModelMappingEntries_OnCollectionChanged;
         _archiveService = archiveService ?? App.ArchiveService;
         _secretStore = secretStore ?? App.SecretStore;
+        _openRouterModelCatalogService = openRouterModelCatalogService ?? new OpenRouterModelCatalogService();
         _connectionTester = connectionTester ?? TestConnectionWithServiceAsync;
         _skillCatalogLoader = skillCatalogLoader;
         ProviderPlatformView = new ListCollectionView(ProviderPlatformCatalog.Options.ToList());
         ProviderPlatformView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ProviderPlatformOption.TierDisplayName)));
         _originalDisplaySettings = App.Settings.Clone();
-        foreach (var skin in App.SkinService.AvailableSkins.Where(skin => !skin.IsBuiltIn))
-            SpecialSkins.Add(new SettingOption(skin.Id, skin.DisplayName));
+        ReloadSkinOptions();
         LoadFromSettings();
+        RefreshLocalModels();
+        _ = RefreshLocalModelCatalogAsync();
         LoadArchive();
         LoadHealthReport(App.LatestHealthReport);
+    }
+
+    private void ReloadSkinOptions()
+    {
+        SpecialSkins.Clear();
+        SpecialSkins.Add(new SkinChoiceOption("default", "默认外观", null, SkinPreviewPalette.Neutral));
+        foreach (var skin in App.SkinService.AvailableSkins
+                     .Where(skin => !string.Equals(skin.Id, "LightPaper", StringComparison.OrdinalIgnoreCase) &&
+                                    !string.Equals(skin.Id, "DarkNocturne", StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(skin => skin.DisplayName, StringComparer.CurrentCultureIgnoreCase))
+        {
+            SpecialSkins.Add(new SkinChoiceOption(
+                skin.Id,
+                skin.DisplayName,
+                ResolveSkinPreviewSource(skin),
+                SkinPreviewPalette.ForSkin(skin.Id)));
+        }
+    }
+
+    private static string? ResolveSkinPreviewSource(SkinManifest skin)
+    {
+        if (string.IsNullOrWhiteSpace(skin.PreviewPath)) return null;
+        if (skin.IsBuiltIn)
+            return $"pack://application:,,,/Huaxiazi;component/{skin.PreviewPath.TrimStart('/')}";
+        if (string.IsNullOrWhiteSpace(skin.InstallPath)) return null;
+        var installRoot = Path.GetFullPath(skin.InstallPath)
+            .TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var candidate = Path.GetFullPath(Path.Combine(installRoot, skin.PreviewPath));
+        return candidate.StartsWith(installRoot, StringComparison.OrdinalIgnoreCase) && File.Exists(candidate)
+            ? candidate
+            : null;
     }
 
     partial void OnSelectedSectionChanged(string value)
@@ -1241,8 +2368,23 @@ public sealed partial class SettingsViewModel : ObservableObject
     private static async Task<ConnectionTestResult> TestConnectionWithServiceAsync(
         ProviderProfile profile, string? apiKey, CancellationToken cancellationToken)
     {
+        if (profile.Platform == ProviderPlatform.ManagedLocal)
+        {
+            var installed = App.LocalModelStore.GetInstalledModels()
+                .Any(model => model.InstallationId == profile.LocalModelInstallationId);
+            if (!installed)
+                return new ConnectionTestResult(ConnectionTestStatus.ModelUnavailable, "尚未安装所选本地模型。", null, 0, "managed-local: model-not-installed");
+            return LocalRuntimeManager.IsRuntimeAvailable(LocalRuntimePaths.GetRuntimeRoot())
+                ? new ConnectionTestResult(ConnectionTestStatus.Success, "本地模型与推理运行时可用。", null, 0, "managed-local: ready")
+                : new ConnectionTestResult(ConnectionTestStatus.ModelUnavailable, "本地推理运行时未安装，当前无法生成。", null, 0, "managed-local: runtime-not-installed");
+        }
         using var service = new AIService(profile, apiKey);
         return await service.TestConnectionAsync(cancellationToken);
+    }
+
+    private static IReadOnlyList<string> BuildSections()
+    {
+        return ["表达与生成", "模型连接", "本地模型", "外观与窗口", "快捷键", "历史与留存", "数据维护", "关于与更新"];
     }
 
     private string? ResolveSelectedApiKey()
@@ -1641,10 +2783,21 @@ public sealed partial class SettingsViewModel : ObservableObject
         settings.AlwaysOnTop = AlwaysOnTop;
         settings.AutoArchive = AutoArchive;
         settings.HistoryEnabled = HistoryEnabled;
+        settings.LocalGenerationDiagnosticsEnabled = LocalGenerationDiagnosticsEnabled;
         settings.HistoryRetentionDays = HistoryRetentionDays;
         settings.SaveOriginalText = SaveOriginalText;
         settings.SaveOptimizedText = SaveOptimizedText;
         settings.IncognitoMode = IncognitoMode;
+        settings.ProviderRoutingMode = ProviderRoutingMode;
+        settings.PolishProviderProfileId = PolishProviderProfileId;
+        settings.PromptOptimizeProviderProfileId = PromptOptimizeProviderProfileId;
+        settings.FallbackProviderProfileId = FallbackProviderProfileId;
+        settings.PolishFastProviderProfileId = PolishFastProviderProfileId;
+        settings.PolishBalancedProviderProfileId = PolishBalancedProviderProfileId;
+        settings.PolishReasoningProviderProfileId = PolishReasoningProviderProfileId;
+        settings.PromptOptimizeFastProviderProfileId = PromptOptimizeFastProviderProfileId;
+        settings.PromptOptimizeBalancedProviderProfileId = PromptOptimizeBalancedProviderProfileId;
+        settings.PromptOptimizeReasoningProviderProfileId = PromptOptimizeReasoningProviderProfileId;
         settings.AutoCopyAfterOptimize = AutoCopyAfterOptimize;
         settings.EnterToSend = EnterToSend;
         settings.AutosaveDelayMilliseconds = AutosaveDelayMilliseconds;
@@ -1656,6 +2809,22 @@ public sealed partial class SettingsViewModel : ObservableObject
         settings.CustomStyleInstructions = CustomStyleInstructions.Trim();
         settings.CustomSystemPrompt = CustomSystemPrompt.Trim();
         settings.PreferenceLearningEnabled = PreferenceLearningEnabled;
+        settings.ShareConfirmedPreferencesWithCloud = ShareConfirmedPreferencesWithCloud;
+        StoreExpressionPreferenceEditor();
+        settings.ExpressionPreferenceProfile ??= new ExpressionPreferenceProfile();
+        settings.ExpressionPreferenceProfile.Normalize();
+        settings.ExpressionPreferenceProfile.TaskPreferences = _expressionPreferenceDrafts
+            .ToDictionary(pair => pair.Key, pair => ClonePreferenceSet(pair.Value), StringComparer.Ordinal);
+        StoreOutputStyleOverrideEditor();
+        settings.OutputStyleOverrides = OutputStylePreferenceResolver.NormalizeOverrides(_outputStyleOverrideDrafts);
+        foreach (var key in _editedExpressionPreferenceTasks)
+        {
+            if (!settings.ExpressionPreferenceProfile.TaskPreferences.TryGetValue(key, out var preference)) continue;
+            preference.UserConfirmed = true;
+            preference.Source = "user-confirmed";
+            preference.Confidence = 1;
+            preference.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        }
         settings.PreserveMeaning = PreserveMeaning;
         settings.MinimalRewrite = MinimalRewrite;
         settings.ProfessionalTone = ProfessionalTone;
@@ -1663,6 +2832,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         settings.ActivePresetId = SelectedOptimizationPreset?.Id ?? string.Empty;
         settings.UpdateCheckUrl = UpdateCheckUrl.Trim();
         settings.AutoCheckUpdates = AutoCheckUpdates;
+        settings.LocalModelCatalogUrl = LocalModelCatalogUrl.Trim();
         settings.DataDirectory = string.IsNullOrWhiteSpace(DataDirectory) ||
             string.Equals(normalizedDataDirectory, App.DefaultDataRoot, StringComparison.OrdinalIgnoreCase)
             ? string.Empty
@@ -1738,6 +2908,13 @@ public sealed partial class SettingsViewModel : ObservableObject
             return false;
         }
         App.ReplaceSettings(settings);
+        _expressionPreferenceDrafts = settings.ExpressionPreferenceProfile.TaskPreferences
+            .ToDictionary(pair => pair.Key, pair => ClonePreferenceSet(pair.Value), StringComparer.Ordinal);
+        _outputStyleOverrideDrafts = OutputStylePreferenceResolver.NormalizeOverrides(settings.OutputStyleOverrides);
+        LoadOutputStyleOverrideEditor(ExpressionPreferenceTask);
+        _editedExpressionPreferenceTasks.Clear();
+        OnPropertyChanged(nameof(PreferenceSummary));
+        OnPropertyChanged(nameof(PreferenceMetadataSummary));
         _activeProviderProfileId = settings.ActiveProviderProfileId;
         _pendingApiKeys.Clear();
         _removedSecretIds.Clear();
@@ -1806,10 +2983,21 @@ public sealed partial class SettingsViewModel : ObservableObject
         _alwaysOnTop = settings.AlwaysOnTop;
         _autoArchive = settings.AutoArchive;
         _historyEnabled = settings.HistoryEnabled;
+        _localGenerationDiagnosticsEnabled = settings.LocalGenerationDiagnosticsEnabled;
         _historyRetentionDays = settings.HistoryRetentionDays;
         _saveOriginalText = settings.SaveOriginalText;
         _saveOptimizedText = settings.SaveOptimizedText;
         _incognitoMode = settings.IncognitoMode;
+        _providerRoutingMode = settings.ProviderRoutingMode;
+        _polishProviderProfileId = settings.PolishProviderProfileId ?? string.Empty;
+        _promptOptimizeProviderProfileId = settings.PromptOptimizeProviderProfileId ?? string.Empty;
+        _fallbackProviderProfileId = settings.FallbackProviderProfileId ?? string.Empty;
+        _polishFastProviderProfileId = settings.PolishFastProviderProfileId ?? string.Empty;
+        _polishBalancedProviderProfileId = settings.PolishBalancedProviderProfileId ?? string.Empty;
+        _polishReasoningProviderProfileId = settings.PolishReasoningProviderProfileId ?? string.Empty;
+        _promptOptimizeFastProviderProfileId = settings.PromptOptimizeFastProviderProfileId ?? string.Empty;
+        _promptOptimizeBalancedProviderProfileId = settings.PromptOptimizeBalancedProviderProfileId ?? string.Empty;
+        _promptOptimizeReasoningProviderProfileId = settings.PromptOptimizeReasoningProviderProfileId ?? string.Empty;
         _autoCopyAfterOptimize = settings.AutoCopyAfterOptimize;
         _enterToSend = settings.EnterToSend;
         _autosaveDelayMilliseconds = settings.AutosaveDelayMilliseconds;
@@ -1821,6 +3009,13 @@ public sealed partial class SettingsViewModel : ObservableObject
         _customStyleInstructions = settings.CustomStyleInstructions;
         _customSystemPrompt = settings.CustomSystemPrompt;
         _preferenceLearningEnabled = settings.PreferenceLearningEnabled;
+        _shareConfirmedPreferencesWithCloud = settings.ShareConfirmedPreferencesWithCloud;
+        settings.ExpressionPreferenceProfile ??= new ExpressionPreferenceProfile();
+        settings.ExpressionPreferenceProfile.Normalize();
+        _expressionPreferenceDrafts = settings.ExpressionPreferenceProfile.TaskPreferences
+            .ToDictionary(pair => pair.Key, pair => ClonePreferenceSet(pair.Value), StringComparer.Ordinal);
+        _editedExpressionPreferenceTasks.Clear();
+        LoadExpressionPreferenceEditor(ExpressionPreferenceTask);
         _preserveMeaning = settings.PreserveMeaning;
         _minimalRewrite = settings.MinimalRewrite;
         _professionalTone = settings.ProfessionalTone;
@@ -1830,6 +3025,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             ?? OptimizationPresets.FirstOrDefault();
         _updateCheckUrl = settings.UpdateCheckUrl;
         _autoCheckUpdates = settings.AutoCheckUpdates;
+        _localModelCatalogUrl = settings.LocalModelCatalogUrl;
         _dataDirectory = App.DataRoot;
         _themeMode = settings.ThemeMode;
         _skinId = string.IsNullOrWhiteSpace(settings.SkinId) ? "default" : settings.SkinId;
@@ -1973,4 +3169,5 @@ public sealed class PromptCategoryOption : ObservableObject
 public sealed record ArchiveModeFilterOption(string Name, ApplicationMode? Mode);
 
 public sealed record SettingOption(string Value, string Name);
+public sealed record SkinChoiceOption(string Value, string Name, string? PreviewSource, SkinPreviewPalette Palette);
 public sealed record CompanionDriverModeOption(CompanionDriverMode Value, string Name, string Description);

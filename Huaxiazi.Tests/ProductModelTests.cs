@@ -55,7 +55,7 @@ public sealed class ProductModelTests
         Assert.Equal(28, settings.EditorDefaultHeight);
         Assert.Equal(0.65, settings.WindowOpacity);
         Assert.Equal(1, settings.FloatingBallOpacity);
-        Assert.Equal(96, settings.FloatingBallSize);
+        Assert.Equal(72, settings.FloatingBallSize);
     }
 
     [Fact]

@@ -8,7 +8,7 @@ namespace Huaxiazi.Services;
 /// 剪贴板服务：复制结果 / 读取剪贴板文字。
 /// 在 WPF 中需确保在 UI 线程调用（Clipboard 要求 STA 线程）。
 /// </summary>
-public sealed class ClipboardService
+public sealed class ClipboardService : IClipboardService
 {
     /// <summary>
     /// 将文本复制到系统剪贴板。需在 UI 线程调用。

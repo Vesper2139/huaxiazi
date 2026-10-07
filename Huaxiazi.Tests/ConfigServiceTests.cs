@@ -24,6 +24,196 @@ public class ConfigServiceTests
     }
 
     [Fact]
+    public void Load_Version20Config_MigratesToVersion21WithoutLosingProviderProfiles()
+    {
+        var dir = MakeTempConfigDir();
+        try
+        {
+            TestHelpers.RedirectConfigTo(dir);
+            File.WriteAllText(Path.Combine(dir, "config.json"), """
+                {
+                  "configVersion": 20,
+                  "providerProfiles": [
+                    {
+                      "Id": "kept-provider",
+                      "Name": "保留的 API",
+                      "Type": "Cloud",
+                      "Platform": "OpenAI",
+                      "Protocol": "OpenAICompatible",
+                      "ApiBase": "https://api.openai.com/v1",
+                      "Model": "gpt-4o-mini",
+                      "SecretId": "provider-kept-provider"
+                    }
+                  ],
+                  "activeProviderProfileId": "kept-provider"
+                }
+                """);
+
+            var loaded = new ConfigService().Load();
+
+            Assert.Equal(21, loaded.ConfigVersion);
+            var provider = Assert.Single(loaded.ProviderProfiles);
+            Assert.Equal("kept-provider", provider.Id);
+            Assert.Equal("provider-kept-provider", provider.SecretId);
+            Assert.Equal("kept-provider", loaded.ActiveProviderProfileId);
+            Assert.True(File.Exists(Path.Combine(dir, "config.json.v20.ignored")));
+        }
+        finally
+        {
+            TestHelpers.ResetConfigToDefault();
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public void Load_Version21DiskFixture_PreservesProviderContractsAcrossLoadSaveLoad()
+    {
+        using var configDirectory = TestHelpers.UseIsolatedConfigDirectory();
+        var configPath = ConfigService.ConfigPath;
+        File.WriteAllText(configPath, """
+            {
+              "configVersion": 21,
+              "providerProfiles": [
+                {
+                  "Id": "openai-primary",
+                  "Name": "OpenAI 主配置",
+                  "Type": "Cloud",
+                  "Platform": "OpenAI",
+                  "Protocol": "OpenAICompatible",
+                  "ApiBase": "https://api.openai.com/v1",
+                  "Model": "gpt-4o-mini",
+                  "TimeoutSeconds": 117,
+                  "Temperature": 0.35,
+                  "TopP": 0.82,
+                  "MaxTokens": 3072,
+                  "InferenceLevel": "Custom",
+                  "SecretId": "provider-openai-primary",
+                  "EnableModelMapping": true,
+                  "ModelMapping": { "polish-alias": "gpt-4o-mini-2024-07-18" }
+                },
+                {
+                  "Id": "anthropic-secondary",
+                  "Name": "Anthropic 备用配置",
+                  "Type": "Cloud",
+                  "Platform": "Anthropic",
+                  "Protocol": "AnthropicMessages",
+                  "ApiBase": "https://api.anthropic.com",
+                  "Model": "claude-sonnet-4-5",
+                  "TimeoutSeconds": 223,
+                  "Temperature": 0.25,
+                  "TopP": 0.9,
+                  "MaxTokens": 4096,
+                  "InferenceLevel": "High",
+                  "SecretId": "provider-anthropic-secondary",
+                  "EnableModelMapping": true,
+                  "ModelMapping": { "polish-alias": "claude-sonnet-4-5-20250929" }
+                }
+              ],
+              "activeProviderProfileId": "anthropic-secondary",
+              "expressionPreferenceProfile": {
+                "interactionSignals": {
+                  "polish|职场沟通": { "acceptedCount": 3 }
+                }
+              }
+            }
+            """);
+
+        var service = new ConfigService();
+        var loaded = service.Load();
+        Assert.Equal(21, loaded.ConfigVersion);
+        Assert.False(loaded.LocalGenerationDiagnosticsEnabled);
+        Assert.Equal("anthropic-secondary", loaded.ActiveProviderProfileId);
+        Assert.Equal(2, loaded.ProviderProfiles.Count);
+        Assert.Equal("provider-openai-primary", loaded.ProviderProfiles[0].SecretId);
+        Assert.Equal("provider-anthropic-secondary", loaded.ProviderProfiles[1].SecretId);
+        Assert.False(File.Exists(configPath + ".v21.ignored"));
+        loaded.LocalGenerationDiagnosticsEnabled = true;
+        service.Save(loaded);
+        var roundTripped = service.Load();
+
+        Assert.Equal(21, roundTripped.ConfigVersion);
+        Assert.True(roundTripped.LocalGenerationDiagnosticsEnabled);
+        Assert.Equal("anthropic-secondary", roundTripped.ActiveProviderProfileId);
+        Assert.Equal(2, roundTripped.ProviderProfiles.Count);
+        var openAi = roundTripped.ProviderProfiles[0];
+        Assert.Equal("openai-primary", openAi.Id);
+        Assert.Equal(ProviderPlatform.OpenAI, openAi.Platform);
+        Assert.Equal(ProviderProtocol.OpenAICompatible, openAi.Protocol);
+        Assert.Equal("https://api.openai.com/v1", openAi.ApiBase);
+        Assert.Equal("provider-openai-primary", openAi.SecretId);
+        Assert.Equal("gpt-4o-mini-2024-07-18", openAi.ModelMapping["polish-alias"]);
+        Assert.Equal(.35, openAi.Temperature);
+        Assert.Equal(.82, openAi.TopP);
+        Assert.Equal(3072, openAi.MaxTokens);
+        var anthropic = roundTripped.ProviderProfiles[1];
+        Assert.Equal("anthropic-secondary", anthropic.Id);
+        Assert.Equal(ProviderPlatform.Anthropic, anthropic.Platform);
+        Assert.Equal(ProviderProtocol.AnthropicMessages, anthropic.Protocol);
+        Assert.Equal("https://api.anthropic.com", anthropic.ApiBase);
+        Assert.Equal("provider-anthropic-secondary", anthropic.SecretId);
+        Assert.Equal("claude-sonnet-4-5-20250929", anthropic.ModelMapping["polish-alias"]);
+        Assert.Equal(.25, anthropic.Temperature);
+        Assert.Equal(.9, anthropic.TopP);
+        Assert.Equal(4096, anthropic.MaxTokens);
+        Assert.Equal(3, roundTripped.ExpressionPreferenceProfile.InteractionSignals["polish|职场沟通"].AcceptedCount);
+        Assert.Empty(roundTripped.ExpressionPreferenceProfile.InteractionSignals["polish|职场沟通"].AcceptedRemovedCannedExpressions);
+        Assert.Empty(roundTripped.ExpressionPreferenceProfile.InteractionSignals["polish|职场沟通"].RejectedRemovedCannedExpressions);
+        Assert.False(File.Exists(configPath + ".v21.ignored"));
+    }
+
+    [Fact]
+    public void SaveLoad_PreservesTaskScopedCannedExpressionFeedbackSignals()
+    {
+        using var configDirectory = TestHelpers.UseIsolatedConfigDirectory();
+        var service = new ConfigService();
+        service.Save(new AppSettings
+        {
+            ExpressionPreferenceProfile = new ExpressionPreferenceProfile
+            {
+                InteractionSignals = new System.Collections.Generic.Dictionary<string, ExpressionInteractionSignalSet>
+                {
+                    ["polish|职场沟通"] = new()
+                    {
+                        AcceptedRemovedCannedExpressions = new System.Collections.Generic.Dictionary<string, int> { ["首先"] = 3 },
+                        RejectedRemovedCannedExpressions = new System.Collections.Generic.Dictionary<string, int> { ["其次"] = 1 }
+                    },
+                    ["polish|私人沟通"] = new()
+                    {
+                        AcceptedRemovedCannedExpressions = new System.Collections.Generic.Dictionary<string, int> { ["最后"] = 4 }
+                    }
+                }
+            }
+        });
+
+        var loaded = service.Load();
+
+        Assert.Equal(3, loaded.ExpressionPreferenceProfile.InteractionSignals["polish|职场沟通"].AcceptedRemovedCannedExpressions["首先"]);
+        Assert.Equal(1, loaded.ExpressionPreferenceProfile.InteractionSignals["polish|职场沟通"].RejectedRemovedCannedExpressions["其次"]);
+        Assert.Equal(4, loaded.ExpressionPreferenceProfile.InteractionSignals["polish|私人沟通"].AcceptedRemovedCannedExpressions["最后"]);
+    }
+
+    [Fact]
+    public void SaveLoad_OpenAiResponsesProfile_RoundTripsWithoutChangingLegacyChatProtocol()
+    {
+        using var configDirectory = TestHelpers.UseIsolatedConfigDirectory();
+        var service = new ConfigService();
+        service.Save(new AppSettings
+        {
+            ProviderProfiles =
+            [
+                new ProviderProfile { Id = "openai-chat", Platform = ProviderPlatform.OpenAI, Protocol = ProviderProtocol.OpenAICompatible, SecretId = "provider-openai-chat" },
+                new ProviderProfile { Id = "openai-responses", Platform = ProviderPlatform.OpenAI, Protocol = ProviderProtocol.OpenAIResponses, SecretId = "provider-openai-responses" }
+            ],
+            ActiveProviderProfileId = "openai-responses"
+        });
+
+        var loaded = service.Load();
+
+        Assert.Equal(ProviderProtocol.OpenAICompatible, Assert.Single(loaded.ProviderProfiles, profile => profile.Id == "openai-chat").Protocol);
+        Assert.Equal(ProviderProtocol.OpenAIResponses, Assert.Single(loaded.ProviderProfiles, profile => profile.Id == "openai-responses").Protocol);
+    }
+
+    [Fact]
     public void Load_ConfigWithInvalidDataDirectory_FallsBackToDefaultDataRoot()
     {
         var dir = MakeTempConfigDir();
@@ -695,6 +885,7 @@ public class ConfigServiceTests
         Assert.Equal(root.GetProperty("quickPromptHotkey").GetString(), defaults.QuickPromptHotkey);
         Assert.Equal(root.GetProperty("copyResultHotkey").GetString(), defaults.CopyResultHotkey);
         Assert.Equal(root.GetProperty("userPersona").GetString(), defaults.UserPersona);
+        Assert.False(defaults.LocalGenerationDiagnosticsEnabled);
 
         // 窗口坐标未记忆时为 null（JSON null），与 bundled 文件完全一致，不再有 NaN/0.0 歧义
         Assert.Null(defaults.WindowLeft);

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://huaxiazi.local/schemas/polish-regression-case-v1.json",
+  "title": "Huaxiazi internal polish regression case v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "family_id", "split", "task", "input", "expected_decision", "origin", "provenance", "human_status", "family_status", "limitations"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "id": {"type": "string", "pattern": "^hxz-polish-reg-[a-z0-9-]+$"},
+    "family_id": {"type": "string", "pattern": "^hxz-polish-reg-family-[a-f0-9]{16}$"},
+    "split": {"enum": ["development", "regression"]},
+    "task": {"const": "polish"},
+    "input": {"type": "string", "minLength": 1},
+    "context": {"type": "object"},
+    "constraints": {"type": "array", "items": {"type": "string"}},
+    "claims": {"type": "array", "items": {"type": "object"}},
+    "expected_decision": {"enum": ["polish", "clarify", "refuse"]},
+    "reference_output": {"type": ["string", "null"]},
+    "origin": {"enum": ["project_synthetic_legacy", "ai_assisted_draft", "human_authored_internal"]},
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_dataset", "source_record_id", "source_sha256", "transform_version"],
+      "properties": {
+        "source_dataset": {"type": "string", "minLength": 1},
+        "source_record_id": {"type": "string", "minLength": 1},
+        "source_sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+        "transform_version": {"type": "string", "minLength": 1}
+      }
+    },
+    "human_status": {"enum": ["unreviewed", "accepted", "edited", "rejected", "pending_adjudication"]},
+    "family_status": {"type": "string", "minLength": 1},
+    "limitations": {"type": "string", "minLength": 1}
+  }
+}

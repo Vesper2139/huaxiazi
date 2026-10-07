@@ -47,26 +47,78 @@ public sealed class ThemeServiceTests
     {
         var service = new SkinService();
 
-        Assert.Equal(4, service.AvailableSkins.Count);
+        Assert.Equal(7, service.AvailableSkins.Count);
         Assert.NotNull(service.GetSkin("LightPaper"));
         Assert.NotNull(service.GetSkin("DarkNocturne"));
         Assert.NotNull(service.GetSkin("LuoXiaoHei"));
         Assert.NotNull(service.GetSkin("MaoDie"));
+        Assert.NotNull(service.GetSkin("YongWeiXiaoFei"));
+        Assert.NotNull(service.GetSkin("StarSailor"));
+        Assert.NotNull(service.GetSkin("BlueWhaleMaid"));
         Assert.NotNull(service.GetSkin("lightpaper")); // case-insensitive
     }
 
     [Fact]
-    public void SkinService_SpecialSkinsUseTransparentSpriteSheetProfiles()
+    public void SkinService_RegistersReferenceSkinsWithIndependentStatesAndAppIcons()
+    {
+        var service = new SkinService();
+
+        var pink = service.GetSkin("YongWeiXiaoFei");
+        var sailor = service.GetSkin("StarSailor");
+        var maid = service.GetSkin("BlueWhaleMaid");
+
+        Assert.All(new[] { pink, sailor, maid }, skin =>
+        {
+            Assert.NotNull(skin);
+            Assert.Equal("image", skin!.CompanionKind);
+            Assert.True(skin.CompanionProfile.HasCompleteStateSet);
+            Assert.Null(skin.CompanionSpriteSheetPath);
+            Assert.False(string.IsNullOrWhiteSpace(skin.AppIconPath));
+        });
+    }
+
+    [Fact]
+    public void NewSkinDisplayNames_MatchApprovedNames()
+    {
+        var service = new SkinService();
+
+        Assert.Equal("菲比啾比", service.GetSkin("StarSailor")!.DisplayName);
+        Assert.Equal("蓝色大肥鱼", service.GetSkin("BlueWhaleMaid")!.DisplayName);
+    }
+
+    [Fact]
+    public void AllCharacterSkins_SeparateAppIconFromFloatingBallMaterial()
+    {
+        var service = new SkinService();
+
+        foreach (var skinId in new[] { "LuoXiaoHei", "MaoDie", "YongWeiXiaoFei", "StarSailor", "BlueWhaleMaid" })
+        {
+            var skin = service.GetSkin(skinId)!;
+
+            Assert.False(string.IsNullOrWhiteSpace(skin.AppIconPath), skinId);
+            Assert.True(skin.CompanionProfile.HasCompleteStateSet, skinId);
+            Assert.Null(skin.CompanionSpriteSheetPath);
+            Assert.All(Enum.GetValues<CompanionVisualState>(), state =>
+            {
+                Assert.True(skin.CompanionProfile.TryGetAsset(state, out var stateAsset));
+                Assert.NotEqual(skin.AppIconPath, stateAsset);
+            });
+        }
+    }
+
+    [Fact]
+    public void SkinService_SpecialSkinsUseIndependentStateProfiles()
     {
         var service = new SkinService();
         var skin = service.GetSkin("LuoXiaoHei");
 
         Assert.NotNull(skin);
-        Assert.Equal("spritesheet", skin!.CompanionKind);
-        Assert.Equal("Resources/Skins/LuoXiaoHei/sprite-sheet-v2.png", skin.CompanionSpriteSheetPath);
-        Assert.Equal("Resources/Skins/LuoXiaoHei/idle-variants-v2.png", skin.CompanionIdleVariantsPath);
-        Assert.Equal(4, skin.CompanionSpriteSheetColumns);
-        Assert.Equal(3, skin.CompanionSpriteSheetRows);
+        Assert.Equal("image", skin!.CompanionKind);
+        Assert.True(skin.CompanionProfile.HasCompleteStateSet);
+        Assert.True(skin.CompanionProfile.TryGetAsset(CompanionVisualState.Idle, out var idleAsset));
+        Assert.Equal("Resources/Skins/LuoXiaoHei/States/Idle.png", idleAsset);
+        Assert.Null(skin.CompanionSpriteSheetPath);
+        Assert.Null(skin.CompanionIdleVariantsPath);
     }
 
     [Fact]
@@ -75,7 +127,7 @@ public sealed class ThemeServiceTests
         var service = new SkinService();
         service.Register(new SkinManifest("Custom", "自定义皮肤", "Resources/Themes/Custom.xaml"));
 
-        Assert.Equal(5, service.AvailableSkins.Count);
+        Assert.Equal(8, service.AvailableSkins.Count);
         var custom = service.GetSkin("Custom");
         Assert.NotNull(custom);
         Assert.Equal("自定义皮肤", custom.DisplayName);
@@ -93,6 +145,39 @@ public sealed class ThemeServiceTests
             new AppSettings { SkinId = skinId, ThemeMode = themeMode }, systemIsLight, false);
 
         Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void Apply_KeepsSelectedSkinWhileThemeModeChangesTheUiPalette()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var app = TestHelpers.EnsureWpfApplication();
+                app.Resources.MergedDictionaries.Clear();
+                var settings = new AppSettings { SkinId = "MaoDie", ThemeMode = "Light" };
+                var service = new SkinService(app.Resources);
+
+                ThemeService.Apply(settings, service, app.Resources);
+                var lightBackground = Assert.IsType<Color>(app.Resources["BgColor"]);
+                Assert.Equal("MaoDie", app.Resources["ThemeId"]);
+
+                settings.ThemeMode = "Dark";
+                ThemeService.Apply(settings, service, app.Resources);
+                var darkBackground = Assert.IsType<Color>(app.Resources["BgColor"]);
+
+                Assert.NotEqual(lightBackground, darkBackground);
+                Assert.Equal("MaoDie", app.Resources["ThemeId"]);
+            }
+            catch (Exception exception) { failure = exception; }
+            finally { TestHelpers.ResetWpfApplication(); }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(failure);
     }
 
     [Fact]

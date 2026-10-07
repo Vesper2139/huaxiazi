@@ -61,7 +61,9 @@ public partial class App : System.Windows.Application
 
     internal static string DefaultDataRoot { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Huaxiazi");
-    internal static string DataRoot => DataDirectoryPolicy.ResolveOrDefault(Settings.DataDirectory, DefaultDataRoot);
+    internal static string RestrictedSessionDataRoot { get; } = Path.Combine(Path.GetTempPath(), "Huaxiazi");
+    internal static string DataRoot => DataDirectoryPolicy.ResolveOrDefault(
+        Settings.DataDirectory, DefaultDataRoot, RestrictedSessionDataRoot);
 
     private static readonly Lazy<ArchiveService> ArchiveServiceInstance = new(() => new ArchiveService(DataRoot));
     internal static ArchiveService ArchiveService => ArchiveServiceInstance.Value;
@@ -77,6 +79,62 @@ public partial class App : System.Windows.Application
     private static readonly Lazy<WorkspaceDraftService> WorkspaceDraftServiceInstance = new(() =>
         new WorkspaceDraftService(DataRoot));
     internal static WorkspaceDraftService WorkspaceDraftService => WorkspaceDraftServiceInstance.Value;
+
+    private static readonly Lazy<LocalModelStore> LocalModelStoreInstance = new(() => new LocalModelStore());
+    internal static LocalModelStore LocalModelStore => LocalModelStoreInstance.Value;
+
+    private static readonly Lazy<LocalRuntimeManager> LocalRuntimeManagerInstance = new(() =>
+        new LocalRuntimeManager(LocalModelStore));
+    internal static LocalRuntimeManager LocalRuntimeManager => LocalRuntimeManagerInstance.Value;
+
+    internal static ITextGenerationClient CreateGenerationClient(ProviderProfile profile, string? apiKey)
+        => CreateGenerationClient(profile, apiKey, ApplicationMode.Polish);
+
+    internal static ITextGenerationClient CreateGenerationClient(ProviderProfile profile, string? apiKey, ApplicationMode task)
+        => CreateGenerationClient(profile, apiKey, task, CreateGenerationDiagnosticsScope(task));
+
+    internal static ITextGenerationClient CreateGenerationClient(
+        ProviderProfile profile,
+        string? apiKey,
+        ApplicationMode task,
+        GenerationDiagnosticsScope? diagnosticsScope)
+    {
+        var profileSnapshot = profile.Clone();
+        Action<ProviderRequestTelemetry>? telemetryObserver = diagnosticsScope is null
+            ? null
+            : telemetry => diagnosticsScope.RecordRequest(profileSnapshot, telemetry);
+        return profile.Platform == ProviderPlatform.ManagedLocal
+            ? new LocalTextGenerationClient(LocalRuntimeManager, profile, telemetryObserver: telemetryObserver)
+            : new AIService(profile, apiKey, telemetryObserver: telemetryObserver);
+    }
+
+    internal static GenerationDiagnosticsScope? CreateGenerationDiagnosticsScope(
+        ApplicationMode task,
+        ProviderRoutingMode? routingMode = null,
+        string? routeReason = null,
+        string? primaryProfileId = null,
+        string? fallbackProfileId = null)
+    {
+        if (!Settings.LocalGenerationDiagnosticsEnabled || Settings.IncognitoMode) return null;
+        var service = new GenerationDiagnosticsService(Path.Combine(DataRoot, "diagnostics"));
+        return new GenerationDiagnosticsScope(
+            service,
+            task,
+            () => Settings.LocalGenerationDiagnosticsEnabled && !Settings.IncognitoMode,
+            routingMode,
+            routeReason,
+            primaryProfileId,
+            fallbackProfileId);
+    }
+
+    internal static Action<ProviderRequestTelemetry>? CreateGenerationTelemetryObserver(ProviderProfile profile, ApplicationMode task)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        var scope = CreateGenerationDiagnosticsScope(task);
+        if (scope is null) return null;
+        var profileSnapshot = profile.Clone();
+        return telemetry => scope.RecordRequest(profileSnapshot, telemetry);
+    }
 
     /// <summary>主窗口（展开态）。延迟创建。</summary>
     private MainWindow? _mainWindow;
@@ -118,13 +176,17 @@ public partial class App : System.Windows.Application
         try
         {
             new AgentSkillPackageService(Path.Combine(DataRoot, "agent-skills"))
-                .ImportPresets(Path.Combine(AppContext.BaseDirectory, "Presets", "Skills"));
+                .ImportPresets(Path.Combine(AppPaths.ContentRoot, "Presets", "Skills"));
         }
         catch (Exception exception) { LogUnhandled("PresetSkillImport", exception); }
         SkinService = new(Application.Current.Resources);
+        SkinService.SkinChanged += SkinService_OnSkinChanged;
         try
         {
-            foreach (var skin in new SkinPackageService(Path.Combine(DataRoot, "skins")).DiscoverInstalled())
+            foreach (var skin in new SkinPackageService(
+                         Path.Combine(DataRoot, "skins"),
+                         message => LogUnhandled("SkinCatalogValidation", new InvalidDataException(message)))
+                         .DiscoverInstalled())
                 SkinService.Register(skin);
         }
         catch (Exception exception) { LogUnhandled("SkinCatalog", exception); }
@@ -279,6 +341,13 @@ public partial class App : System.Windows.Application
     {
         try { _errorLogService.Value.Write(source, exception); }
         catch { }
+    }
+
+    internal void LogError(string source, Exception exception) => LogUnhandled(source, exception);
+
+    internal static void LogApplicationError(string source, Exception exception)
+    {
+        if (Current is App app) app.LogError(source, exception);
     }
 
     private void ShowFatalError()
@@ -495,6 +564,11 @@ public partial class App : System.Windows.Application
         ConfigService.Save(Settings);
     }
 
+    private void SkinService_OnSkinChanged(object? sender, string skinId)
+    {
+        _trayIcon?.RefreshIcon(skinId);
+    }
+
     /// <summary>显式退出应用。</summary>
     internal void ExitApp()
     {
@@ -576,5 +650,7 @@ public partial class App : System.Windows.Application
         }
         HotkeyService.Dispose();
         _trayIcon?.Dispose();
+        if (LocalRuntimeManagerInstance.IsValueCreated)
+            LocalRuntimeManager.Dispose();
     }
 }

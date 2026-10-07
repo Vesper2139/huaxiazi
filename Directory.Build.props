@@ -1,5 +1,9 @@
 <Project>
   <PropertyGroup>
+    <Version>2.0.4</Version>
+    <AssemblyVersion>$(Version).0</AssemblyVersion>
+    <FileVersion>$(Version).0</FileVersion>
+    <InformationalVersion>$(Version)</InformationalVersion>
     <BaseOutputPath>$(MSBuildThisFileDirectory)out\build\$(MSBuildProjectName)\bin\</BaseOutputPath>
     <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)out\build\$(MSBuildProjectName)\obj\</BaseIntermediateOutputPath>
     <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildThisFileDirectory)out\**</DefaultItemExcludes>

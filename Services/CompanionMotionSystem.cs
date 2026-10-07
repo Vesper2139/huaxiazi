@@ -91,13 +91,6 @@ public static class PoseComposer
         switch (intent.Action)
         {
             case CompanionActionKind.Drag:
-                if (intent.Direction == CompanionDirection.None)
-                {
-                    scaleX *= 1.04;
-                    scaleY *= 0.95;
-                }
-                scaleX += Math.Abs(dx) * 0.10 * intent.Intensity;
-                scaleY += Math.Abs(dy) * 0.07 * intent.Intensity;
                 x += dx * 1.6 * intent.Intensity;
                 y += dy * 1.6 * intent.Intensity;
                 rotation += (dx * 4 - dy * 2) * intent.Intensity;
@@ -309,6 +302,40 @@ public static class AssistantEmotionProtocol
     {
         if (mode != CompanionDriverMode.EmotionAssistant) return prompt;
         return prompt + "\n\n在正文最后另起一行输出 <HUAXIAZI_EMOTION>{\"emotion\":\"Neutral|Attentive|Supportive|Encouraging|Concerned|Cautious\",\"intensity\":0.0}</HUAXIAZI_EMOTION>。情绪只表达对用户的共情，不得附和攻击、危险、违规或错误事实。";
+    }
+
+    public static string DecorateStructuredSystemPrompt(string prompt, CompanionDriverMode mode)
+    {
+        if (mode != CompanionDriverMode.EmotionAssistant) return prompt;
+        return prompt + "\n\n在同一 JSON 对象中提供 companion_emotion 和 companion_intensity 字段；emotion 必须是 Neutral、Attentive、Supportive、Encouraging、Concerned、Cautious 之一，intensity 为 0 到 1。不要在 JSON 外追加情绪标记。情绪只表达对用户的共情，不得附和攻击、危险、违规或错误事实。";
+    }
+
+    public static string AppendStructuredEmotionMarker(string visibleContent, string rawResponse, CompanionDriverMode mode)
+    {
+        if (mode != CompanionDriverMode.EmotionAssistant || string.IsNullOrWhiteSpace(visibleContent)) return visibleContent;
+        var hint = ParseStructuredEmotion(rawResponse);
+        if (hint is null) return visibleContent;
+        var metadata = JsonSerializer.Serialize(new { emotion = hint.Emotion.ToString(), intensity = hint.Intensity });
+        return visibleContent + "\n" + OpenTag + metadata + CloseTag;
+    }
+
+    private static AssistantEmotionHint? ParseStructuredEmotion(string rawResponse)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(rawResponse);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("companion_emotion", out var emotionElement) || emotionElement.ValueKind != JsonValueKind.String ||
+                !root.TryGetProperty("companion_intensity", out var intensityElement) || !intensityElement.TryGetDouble(out var intensity))
+                return null;
+            if (!Enum.TryParse<AssistantEmotionKind>(emotionElement.GetString(), true, out var emotion) || !Enum.IsDefined(emotion))
+                return null;
+            return new AssistantEmotionHint(emotion, Math.Clamp(intensity, 0, 1));
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     public static CompanionAnnotatedText ParseContent(string content, CompanionDriverMode mode)

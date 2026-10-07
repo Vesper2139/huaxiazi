@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Generate release/version.json update manifest with real version / SHA-256 / URL.
 

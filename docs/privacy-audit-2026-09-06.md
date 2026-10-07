@@ -41,7 +41,7 @@
 | PRIV-003 | P2 | Git 提交者元数据 | 个人信息 | 历史提交者邮箱含个人联系方式；删除当前文件不能消除 Git 历史副本 | 新提交使用 noreply；历史重写需所有者明确批准并评估 fork/clone 副本风险 |
 | PRIV-004 | P2 | 本机运行数据目录 | 用户内容持久化 | `config.json`、DPAPI secrets、SQLite 数据库、drafts 和日志会在卸载/重新下载后继续存在，因此同一 Windows 用户重新运行程序仍可看到旧配置 | 在产品中明确“卸载不删除用户数据”；增加数据目录清理与密钥撤销指引 |
 | PRIV-005 | P2 | `docs/testing-expert-data-protection-audit.md` 与验收 HTML | 本机环境信息 | 内部审计材料含本机绝对路径和详细工程上下文，不适合公开 | 已加入 `.gitignore`，不进入 GitHub |
-| PRIV-006 | P3 | Inno Setup 中文翻译文件 | 第三方归属 | 文件含上游翻译维护者邮箱；这是许可证/归属信息，不是用户数据 | 当前保留以满足 MIT 归属；若要删除必须先确认许可证要求 |
+| PRIV-006 | P3 | Inno Setup 中文翻译文件 | 第三方归属 | 文件含上游翻译维护者邮箱；这是许可证/归属信息，不是用户数据 | 保留以满足 MIT 归属，不打包进用户应用目录 |
 
 ## 4. Secret Rotation List
 

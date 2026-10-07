@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0",
+  "artifact_version": "hxz-polish-regression-ai-supplement-specs-v1",
+  "status": "ai_draft_pending_human_spec_review",
+  "purpose": "internal_regression_sample_specifications",
+  "parent_dataset_version": "hxz-polish-regression-ai-supplement-draft-v1",
+  "parent_manifest_sha256": "f60ca15967638d48cbfee3eb2bfec03bbb716a98ab1c7fde179c8582dcfd9c1f",
+  "parent_cases_sha256": "0042e9c86699a7c3a51c576ebae85bd44c5787e1a6b34c8ab23b883eba35e4a8",
+  "coverage_report_sha256": "f98f27d744526bacf07e029fb699a131895c1ba8f412fcd573cdc029706a5647",
+  "generation_prompt_sha256": "a17ff4398f3567a099d3e0b3de364c2ef055ec7ca2c6020a94cb61e9d9d39556",
+  "drafted_at_utc": "2026-10-05T08:21:40Z",
+  "counts": {
+    "specifications": 30,
+    "target_behavior_categories": 10,
+    "proposed_additional_families": 30,
+    "projected_supplement_families": 50
+  },
+  "origin": "ai_assisted_draft",
+  "phase_0_gate_contribution": 0,
+  "not_admissible_as_blind_eval": true,
+  "generation_authorized": false,
+  "schema_extensions_required": [
+    "Three multi-turn specifications currently encode turn sequences in input text; true turn-by-turn evaluation requires a turns array and sequential replay support."
+  ],
+  "files": {
+    "sample-specs.jsonl": "41399049c96784452a53a90de7d231354148aa39fc6dc0c89b67dbd911f64454",
+    "README.md": "f97009df72c22fdf56d4b3762190c540602fe8b3d90656a478977a259604046a"
+  },
+  "limitations": [
+    "Specifications are AI drafts and have not been reviewed or approved by a human.",
+    "Behavior categories come from the parent draft labels and remain unreviewed.",
+    "Meeting five families per category is a planning target, not a statistical power guarantee.",
+    "No executable evaluation cases, references, or model-quality claims are created by this package."
+  ]
+}

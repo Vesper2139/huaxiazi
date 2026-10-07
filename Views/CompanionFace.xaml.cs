@@ -26,6 +26,7 @@ public partial class CompanionFace : UserControl
     private CompanionIdleBehavior? _activeIdleBehavior;
     private string? _loadedSpriteSkin;
     private string? _loadedVectorSkin;
+    private bool _secondaryRasterActive;
     private readonly CompanionPoseController _poseController = new(new SystemRandomSource(), new StopwatchAnimationClock());
     private IDisposable? _frameSubscription;
 
@@ -149,8 +150,7 @@ public partial class CompanionFace : UserControl
         // Commit the focused face synchronously so it is visible during the drag,
         // while ordinary state changes continue to use the softer blink transition.
         _expressionTransitionVersion++;
-        SkinSpriteHost.BeginAnimation(OpacityProperty, null);
-        SkinSpriteHost.Opacity = 1;
+        ResetRasterLayerOpacity();
         BlinkScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         BlinkScale.ScaleY = 1;
         CommitExpression(CompanionVisualState.Dragging, animateMotion: App.Settings.AnimationsEnabled);
@@ -160,8 +160,7 @@ public partial class CompanionFace : UserControl
     public void PlayDragDirection(double deltaX, double deltaY)
     {
         if (State != CompanionVisualState.Dragging) return;
-        SkinSpriteHost.BeginAnimation(OpacityProperty, null);
-        SkinSpriteHost.Opacity = 1;
+        ResetRasterLayerOpacity();
         var length = Math.Sqrt(deltaX * deltaX + deltaY * deltaY);
         if (length < 1) return;
         PlayOperationFeedback(new CompanionEvent(
@@ -175,8 +174,10 @@ public partial class CompanionFace : UserControl
         BodyOffset.BeginAnimation(TranslateTransform.XProperty, null);
         BodyOffset.BeginAnimation(TranslateTransform.YProperty, null);
         ExpressionRotation.BeginAnimation(RotateTransform.AngleProperty, null);
-        BodyScale.ScaleX = 1 + Math.Abs(nx) * 0.12;
-        BodyScale.ScaleY = 1 + Math.Abs(ny) * 0.08;
+        // 拖动由独立状态素材、位移和轻微旋转表达；根画布不缩放，避免角色
+        // 在移动时突然变大并撞上透明窗口边界。
+        BodyScale.ScaleX = 1;
+        BodyScale.ScaleY = 1;
         BodyOffset.X = nx * 1.6;
         BodyOffset.Y = ny * 1.6;
         ExpressionRotation.Angle = nx * 4 - ny * 2;
@@ -186,8 +187,7 @@ public partial class CompanionFace : UserControl
     {
         PlayOperationFeedback(new CompanionEvent(CompanionEventKind.DragEnded, BaseState: restingState));
         SetCurrentValue(StateProperty, restingState);
-        SkinSpriteHost.BeginAnimation(OpacityProperty, null);
-        SkinSpriteHost.Opacity = 1;
+        ResetRasterLayerOpacity();
         if (!App.Settings.AnimationsEnabled)
         {
             BodyScale.ScaleX = BodyScale.ScaleY = 1;
@@ -246,7 +246,8 @@ public partial class CompanionFace : UserControl
         _idleGestureTimer.Tick += IdleGestureTimerOnTick;
         // 默认角色的凝视、眨眼与呼吸全部由共享 WPF 帧时钟合成。
         // 图片皮肤仍可低频切换它们自己的待机帧，但不再各自创建高频计时器。
-        if (SkinSpriteHost.Visibility == Visibility.Visible) _idleGestureTimer.Start();
+        if (SkinSpriteHost.Visibility == Visibility.Visible || SkinSpriteHostSecondary.Visibility == Visibility.Visible)
+            _idleGestureTimer.Start();
         _frameSubscription?.Dispose();
         _frameSubscription = null;
         // A loaded event can be raised by a designer/test without a presentation source.
@@ -314,6 +315,8 @@ public partial class CompanionFace : UserControl
         }
         SkinSpriteGaze.X = pose.GazeX * 0.72;
         SkinSpriteGaze.Y = pose.GazeY * 0.72;
+        SkinSpriteGazeSecondary.X = pose.GazeX * 0.72;
+        SkinSpriteGazeSecondary.Y = pose.GazeY * 0.72;
         VectorSpriteHost.ApplyGaze(pose.GazeX, pose.GazeY);
         if (_poseController.BaseState == CompanionVisualState.Idle)
         {
@@ -321,7 +324,6 @@ public partial class CompanionFace : UserControl
                 ? Geometry.Parse(FormattableString.Invariant($"M18 29 Q22 {29 + pose.MouthCurve * 3.5:0.##} 26 29"))
                 : Geometry.Parse("M19.5 29 L24.5 29");
         }
-        SkinSpriteHost.Opacity = 1;
     }
 
     private void ApplyFaceProjection(CompanionPose pose)
@@ -388,17 +390,17 @@ public partial class CompanionFace : UserControl
     {
         if (State != CompanionVisualState.Idle) return;
         var skinId = Application.Current?.TryFindResource("ThemeId") as string ?? "";
+        var profile = App.SkinService.GetSkin(skinId)?.CompanionProfile;
         var visualState = behavior switch
         {
             CompanionIdleBehavior.SoftSmile => CompanionVisualState.Happy,
             CompanionIdleBehavior.Squint or CompanionIdleBehavior.Drowsy => CompanionVisualState.Sleeping,
-            CompanionIdleBehavior.CuriousLook or CompanionIdleBehavior.Glance or CompanionIdleBehavior.LookAround => skinId == "MaoDie"
-                ? CompanionVisualState.Listening
-                : CompanionVisualState.Curious,
+            CompanionIdleBehavior.CuriousLook or CompanionIdleBehavior.Glance or CompanionIdleBehavior.LookAround => CompanionVisualState.Curious,
             CompanionIdleBehavior.Refocus => CompanionVisualState.Listening,
             CompanionIdleBehavior.GentleSway => CompanionVisualState.Happy,
             _ => CompanionVisualState.Idle
         };
+        visualState = profile?.ResolveIdleBehavior(behavior, visualState) ?? visualState;
         if (visualState == CompanionVisualState.Idle) return;
         ApplyExpression(visualState, animate: App.Settings.AnimationsEnabled);
         _idleVariantResetTimer.Stop();
@@ -436,6 +438,8 @@ public partial class CompanionFace : UserControl
         // 变成静态头像。独立变换不会覆盖用于校准透明画布的 SkinSpriteOffset。
         SkinSpriteGaze.X = gazeX * 0.72;
         SkinSpriteGaze.Y = gazeY * 0.72;
+        SkinSpriteGazeSecondary.X = gazeX * 0.72;
+        SkinSpriteGazeSecondary.Y = gazeY * 0.72;
         VectorSpriteHost.ApplyGaze(gazeX, gazeY);
         // Preserve the caller's optional emphasis without breaking the shared face rig.
         GazeRotation.Angle += (targetRotation ?? gazeX * 0.8) * 0.08;
@@ -477,43 +481,9 @@ public partial class CompanionFace : UserControl
             VectorSpriteHost.BeginAnimation(OpacityProperty, fadeOut);
             return;
         }
-        if (SkinSpriteHost.Visibility == Visibility.Visible)
+        if (SkinSpriteHost.Visibility == Visibility.Visible || SkinSpriteHostSecondary.Visibility == Visibility.Visible)
         {
-            SkinSpriteTransitionScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-            SkinSpriteTransitionScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-            SkinSpriteTransitionScale.ScaleX = SkinSpriteTransitionScale.ScaleY = 1;
-            var fadeOut = new DoubleAnimation(SkinSpriteHost.Opacity, 0.18, TimeSpan.FromMilliseconds(80))
-            {
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn },
-                FillBehavior = FillBehavior.Stop
-            };
-            var squeeze = new DoubleAnimation(1, 0.985, TimeSpan.FromMilliseconds(80))
-            {
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn },
-                FillBehavior = FillBehavior.Stop
-            };
-            fadeOut.Completed += (_, _) =>
-            {
-                if (version != _expressionTransitionVersion) return;
-                SkinSpriteHost.BeginAnimation(OpacityProperty, null);
-                SkinSpriteHost.Opacity = 0.18;
-                CommitExpression(state, animateMotion: true);
-                SkinSpriteHost.BeginAnimation(OpacityProperty, new DoubleAnimation(0.18, 1, TimeSpan.FromMilliseconds(135))
-                {
-                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-                });
-                SkinSpriteTransitionScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.985, 1, TimeSpan.FromMilliseconds(135))
-                {
-                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-                });
-                SkinSpriteTransitionScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.985, 1, TimeSpan.FromMilliseconds(135))
-                {
-                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-                });
-            };
-            SkinSpriteHost.BeginAnimation(OpacityProperty, fadeOut);
-            SkinSpriteTransitionScale.BeginAnimation(ScaleTransform.ScaleXProperty, squeeze);
-            SkinSpriteTransitionScale.BeginAnimation(ScaleTransform.ScaleYProperty, squeeze);
+            BeginRasterCrossFade(state, version);
             return;
         }
 
@@ -536,9 +506,49 @@ public partial class CompanionFace : UserControl
         BlinkScale.BeginAnimation(ScaleTransform.ScaleYProperty, close);
     }
 
-    private void CommitExpression(CompanionVisualState state, bool animateMotion)
+    private void BeginRasterCrossFade(CompanionVisualState state, int version)
     {
-        ApplySkinVisual(state);
+        if (!TryResolveRasterAsset(state, out var sourcePath, out var cacheKey))
+        {
+            CommitExpression(state, animateMotion: true);
+            return;
+        }
+
+        var outgoing = _secondaryRasterActive ? SkinSpriteHostSecondary : SkinSpriteHost;
+        var incoming = _secondaryRasterActive ? SkinSpriteHost : SkinSpriteHostSecondary;
+        var incomingBrush = _secondaryRasterActive ? SkinSpriteBrush : SkinSpriteBrushSecondary;
+        LoadRasterLayer(incoming, incomingBrush, sourcePath, cacheKey);
+        incoming.Visibility = Visibility.Visible;
+        incoming.Opacity = 0;
+        outgoing.Visibility = Visibility.Visible;
+        outgoing.BeginAnimation(OpacityProperty, null);
+        outgoing.Opacity = 1;
+        incoming.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(145))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        });
+        var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(145))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },
+            FillBehavior = FillBehavior.Stop
+        };
+        fadeOut.Completed += (_, _) =>
+        {
+            if (version != _expressionTransitionVersion) return;
+            outgoing.BeginAnimation(OpacityProperty, null);
+            outgoing.Opacity = 0;
+            outgoing.Visibility = Visibility.Collapsed;
+            incoming.BeginAnimation(OpacityProperty, null);
+            incoming.Opacity = 1;
+            _secondaryRasterActive = ReferenceEquals(incoming, SkinSpriteHostSecondary);
+            CommitExpression(state, animateMotion: true, preserveRasterVisual: true);
+        };
+        outgoing.BeginAnimation(OpacityProperty, fadeOut);
+    }
+
+    private void CommitExpression(CompanionVisualState state, bool animateMotion, bool preserveRasterVisual = false)
+    {
+        if (!preserveRasterVisual) ApplySkinVisual(state);
         var expression = state switch
         {
             CompanionVisualState.Sleeping => ("M11.5 20 Q14.5 23 17.5 20", "M26.5 20 Q29.5 23 32.5 20", "M19.5 29 L24.5 29"),
@@ -576,23 +586,78 @@ public partial class CompanionFace : UserControl
         // independent WPF animations here would be cleared by the next shared frame.
     }
 
+    private void ResetRasterLayerOpacity()
+    {
+        SkinSpriteHost.BeginAnimation(OpacityProperty, null);
+        SkinSpriteHostSecondary.BeginAnimation(OpacityProperty, null);
+        SkinSpriteHost.Opacity = _secondaryRasterActive ? 0 : 1;
+        SkinSpriteHostSecondary.Opacity = _secondaryRasterActive ? 1 : 0;
+    }
+
+    private void HideRasterLayers()
+    {
+        SkinSpriteHost.BeginAnimation(OpacityProperty, null);
+        SkinSpriteHostSecondary.BeginAnimation(OpacityProperty, null);
+        SkinSpriteHost.Visibility = Visibility.Collapsed;
+        SkinSpriteHostSecondary.Visibility = Visibility.Collapsed;
+        SkinSpriteHost.Opacity = 0;
+        SkinSpriteHostSecondary.Opacity = 0;
+        _secondaryRasterActive = false;
+    }
+
+    private void LoadRasterLayer(
+        System.Windows.Shapes.Rectangle host,
+        System.Windows.Media.ImageBrush brush,
+        string sourcePath,
+        string cacheKey)
+    {
+        brush.ImageSource = new System.Windows.Media.Imaging.BitmapImage(new Uri(sourcePath, UriKind.Absolute));
+        brush.ViewboxUnits = BrushMappingMode.RelativeToBoundingBox;
+        brush.Viewbox = new Rect(0, 0, 1, 1);
+        if (ReferenceEquals(host, SkinSpriteHost)) _loadedSpriteSkin = cacheKey;
+    }
+
+    private void SetRasterLayerDirect(string sourcePath, string cacheKey)
+    {
+        HideRasterLayers();
+        LoadRasterLayer(SkinSpriteHost, SkinSpriteBrush, sourcePath, cacheKey);
+        SkinSpriteHost.Visibility = Visibility.Visible;
+        SkinSpriteHost.Opacity = 1;
+    }
+
+    private bool TryResolveRasterAsset(CompanionVisualState state, out string sourcePath, out string cacheKey)
+    {
+        sourcePath = string.Empty;
+        cacheKey = string.Empty;
+        var skinId = Application.Current?.TryFindResource("ThemeId") as string ?? "";
+        var manifest = App.SkinService.GetSkin(skinId);
+        if (manifest is null || !manifest.CompanionProfile.UsesImages) return false;
+        var resolvedState = manifest.CompanionProfile.ResolveFrameState(state);
+        if (!manifest.CompanionProfile.TryGetAsset(resolvedState, out var relativePath)) return false;
+
+        if (manifest.IsBuiltIn)
+            sourcePath = $"pack://application:,,,/Huaxiazi;component/{relativePath.TrimStart('/')}";
+        else if (manifest.InstallPath is not null)
+            sourcePath = ResolveExternalSkinPath(manifest, relativePath) ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(sourcePath)) return false;
+        cacheKey = skinId + ":" + resolvedState;
+        return true;
+    }
+
     private void ApplySkinVisual(CompanionVisualState state)
     {
         var skinId = Application.Current?.TryFindResource("ThemeId") as string ?? "";
         var manifest = App.SkinService.GetSkin(skinId);
         if (manifest?.CompanionProfile.UsesSpriteSheet == true)
         {
+            HideRasterLayers();
             VectorSpriteHost.Visibility = Visibility.Collapsed;
             FaceLayer.Visibility = Visibility.Collapsed;
             ProgressRing.Visibility = Visibility.Collapsed;
             LeftSignal.Visibility = RightSignal.Visibility = Visibility.Collapsed;
             CompanionSurface.Visibility = Visibility.Collapsed;
             SkinSpriteHost.Visibility = Visibility.Visible;
-            SkinSpriteScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-            SkinSpriteScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-            SkinSpriteScale.ScaleX = SkinSpriteScale.ScaleY = 1;
-            SkinSpriteOffset.BeginAnimation(TranslateTransform.YProperty, null);
-            SkinSpriteOffset.Y = 0;
+            SkinSpriteHost.Opacity = 1;
             var sheetPath = manifest.CompanionProfile.SpriteSheetPath;
             if (string.IsNullOrWhiteSpace(sheetPath)) return;
             var sheetSourcePath = manifest.IsBuiltIn
@@ -608,14 +673,7 @@ public partial class CompanionFace : UserControl
             var columns = manifest.CompanionProfile.SpriteSheetColumns;
             var rows = manifest.CompanionProfile.SpriteSheetRows;
             // 罗小黑拖动使用无速度线的中性首帧，方向感由拖动变换提供。
-            var frameState = (skinId, state) switch
-            {
-                // 耄耋对陌生指针的第一反应是露牙哈气，而不是温顺地抬头好奇。
-                ("MaoDie", CompanionVisualState.Curious) => CompanionVisualState.Warning,
-                // 罗小黑拖动使用无速度线的中性首帧，方向感由拖动变换提供。
-                ("LuoXiaoHei", CompanionVisualState.Dragging) => CompanionVisualState.Idle,
-                _ => state
-            };
+            var frameState = manifest.CompanionProfile.ResolveFrameState(state);
             var index = Math.Clamp((int)frameState, 0, columns * rows - 1);
             var col = index % columns;
             var row = index / columns;
@@ -626,7 +684,7 @@ public partial class CompanionFace : UserControl
         CompanionSurface.Visibility = Visibility.Visible;
         if (manifest?.CompanionProfile.UsesVectorLayers == true)
         {
-            SkinSpriteHost.Visibility = Visibility.Collapsed;
+            HideRasterLayers();
             FaceLayer.Visibility = Visibility.Collapsed;
             ProgressRing.Visibility = Visibility.Collapsed;
             LeftSignal.Visibility = RightSignal.Visibility = Visibility.Collapsed;
@@ -643,40 +701,15 @@ public partial class CompanionFace : UserControl
         }
 
         VectorSpriteHost.Visibility = Visibility.Collapsed;
-        string? sourcePath = null;
-        string? externalStatePath = null;
-        if (manifest is not null && manifest.CompanionProfile.UsesImages &&
-            manifest.CompanionProfile.TryGetAsset(state, out var relativePath))
-        {
-            if (manifest.IsBuiltIn)
-                sourcePath = $"pack://application:,,,/Huaxiazi;component/{relativePath.TrimStart('/')}";
-            else if (manifest.InstallPath is not null)
-            {
-                var installRoot = System.IO.Path.GetFullPath(manifest.InstallPath)
-                    .TrimEnd(System.IO.Path.DirectorySeparatorChar) + System.IO.Path.DirectorySeparatorChar;
-                var candidate = System.IO.Path.GetFullPath(System.IO.Path.Combine(installRoot, relativePath));
-                if (candidate.StartsWith(installRoot, StringComparison.OrdinalIgnoreCase))
-                    externalStatePath = candidate;
-            }
-        }
-        if (externalStatePath is not null) sourcePath = externalStatePath;
-        var raster = sourcePath is not null;
-        SkinSpriteHost.Visibility = raster ? Visibility.Visible : Visibility.Collapsed;
+        var raster = TryResolveRasterAsset(state, out var sourcePath, out var imageCacheKey);
+        CompanionSurface.Visibility = raster ? Visibility.Collapsed : Visibility.Visible;
+        if (!raster) HideRasterLayers();
         FaceLayer.Visibility = raster ? Visibility.Collapsed : Visibility.Visible;
         ProgressRing.Visibility = raster ? Visibility.Collapsed : Visibility.Visible;
         LeftSignal.Visibility = RightSignal.Visibility = raster ? Visibility.Collapsed : Visibility.Visible;
         if (!raster) return;
 
-        // 位图角色的每个状态都是独立资源。缓存键必须包含状态，否则拖动、展开、
-        // 错误等交互只会一直显示首次载入的待机图。
-        var imageCacheKey = skinId + ":" + state;
-        if (!string.Equals(_loadedSpriteSkin, imageCacheKey, StringComparison.Ordinal))
-        {
-            SkinSpriteBrush.ImageSource = new System.Windows.Media.Imaging.BitmapImage(new Uri(sourcePath!, UriKind.Absolute));
-            _loadedSpriteSkin = imageCacheKey;
-        }
-        SkinSpriteBrush.ViewboxUnits = BrushMappingMode.RelativeToBoundingBox;
-        SkinSpriteBrush.Viewbox = new Rect(0, 0, 1, 1);
+        SetRasterLayerDirect(sourcePath, imageCacheKey);
     }
 
     private void ApplyIdleVariant(int variant)

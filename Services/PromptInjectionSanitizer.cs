@@ -13,7 +13,7 @@ namespace Huaxiazi.Services;
 public static class PromptInjectionSanitizer
 {
     private static readonly Regex UnsafeInstruction = new(
-        @"(?ix)(?:\b(?:ignore|disregard|forget|override|bypass|reveal|leak|exfiltrate|disclose|print|show)\b\s+.*\b(?:previous|prior|system|hidden|developer|prompt|instruction|rule|secret|api\s*key|token)\b)|(?:\b(?:system|hidden|developer)\s+(?:prompt|instruction|rule)s?\b\s*[:：]?\s*(?:reveal|show|print|leak|ignore|override))|(?:忽略|无视|覆盖|忘记|绕过|泄露|输出|显示).*(?:之前|前置|系统提示|系统规则|隐藏提示|开发者指令|密钥|令牌|安全边界)",
+        @"(?ix)(?:\b(?:ignore|disregard|forget|override|bypass|reveal|leak|exfiltrate|disclose|print|show)\b\s+.*\b(?:previous|prior|system|hidden|developer|prompt|instruction|rule|secret|api\s*key|token)\b)|(?:\b(?:system|hidden|developer)\s+(?:prompt|instruction|rule)s?\b\s*[:：]?\s*(?:reveal|show|print|leak|ignore|override))|(?:忽略|无视|覆盖|忘记|绕过|泄露|输出|显示).*(?:之前|前置|系统提示|系统规则|隐藏提示|开发者指令|密钥|令牌|安全边界)|(?:把|将).{0,16}(?:原文|用户输入|用户文本|输入内容).{0,12}(?:当成|作为).{0,12}(?:更高|最高|高于).{0,8}(?:优先级|优先级别).{0,8}(?:指令|规则|提示词|安全边界)",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     public static bool LooksLikePromptInjection(string? value) =>
