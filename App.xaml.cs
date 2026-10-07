@@ -173,14 +173,24 @@ public partial class App : System.Windows.Application
         // 1. 加载配置（不存在则写默认）
         Settings = ConfigService.Load();
         Settings.NormalizeResidentEntrypoints();
+        SkinService = new(Application.Current.Resources);
+        SkinService.SkinChanged += SkinService_OnSkinChanged;
+        ThemeService.Apply(Settings, SkinService, Application.Current.Resources);
+        // Present the usable editor as soon as its required settings and theme are ready.
+        // Optional startup work below (preset import, skin scan, history retention, hotkeys and tray)
+        // must not leave a fresh launch looking like a ball-only or failed start.
+        if (StartupWindowPolicy.ShouldShowMainWindow(e.Args))
+        {
+            ShowMainWindow();
+        }
+        else if (Settings.FloatingBallEnabled) ShowFloatingBall();
+
         try
         {
             new AgentSkillPackageService(Path.Combine(DataRoot, "agent-skills"))
                 .ImportPresets(Path.Combine(AppPaths.ContentRoot, "Presets", "Skills"));
         }
         catch (Exception exception) { LogUnhandled("PresetSkillImport", exception); }
-        SkinService = new(Application.Current.Resources);
-        SkinService.SkinChanged += SkinService_OnSkinChanged;
         try
         {
             foreach (var skin in new SkinPackageService(
@@ -188,9 +198,10 @@ public partial class App : System.Windows.Application
                          message => LogUnhandled("SkinCatalogValidation", new InvalidDataException(message)))
                          .DiscoverInstalled())
                 SkinService.Register(skin);
+            ThemeService.Apply(Settings, SkinService, Application.Current.Resources);
         }
         catch (Exception exception) { LogUnhandled("SkinCatalog", exception); }
-        ThemeService.Apply(Settings, SkinService, Application.Current.Resources);
+
         _systemThemeChangedHandler = (_, args) =>
         {
             if (args.Category is not (UserPreferenceCategory.General or UserPreferenceCategory.VisualStyle or UserPreferenceCategory.Color)) return;
@@ -238,14 +249,8 @@ public partial class App : System.Windows.Application
                 () => Current.Dispatcher.Invoke(ExitApp));
             _trayIcon.Show();
         }
-        if (e.Args.Any(arg => string.Equals(arg, "--show-main", StringComparison.OrdinalIgnoreCase)))
-        {
-            ShowFloatingBall();
-            Dispatcher.BeginInvoke(ShowMainWindow);
-        }
-        else if (Settings.FloatingBallEnabled) ShowFloatingBall();
-
-        Dispatcher.BeginInvoke(new Action(async () => await RunHealthChecksAsync(showLocalFailureDialog: true)));
+        // Startup diagnostics remain available in Settings, but never block the first usable window.
+        Dispatcher.BeginInvoke(new Action(async () => await RunHealthChecksAsync(showLocalFailureDialog: false)));
 
         if (Settings.AutoCheckUpdates && !string.IsNullOrWhiteSpace(Settings.UpdateCheckUrl))
         {

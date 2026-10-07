@@ -8,6 +8,9 @@ public static class StartupService
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ValueName = "Huaxiazi";
 
+    internal static string BuildBackgroundLaunchCommand(string executablePath) =>
+        $"\"{executablePath}\" --background";
+
     public static bool TrySetEnabled(bool enabled, out string? error)
     {
         error = null;
@@ -23,7 +26,7 @@ public static class StartupService
 
             var executable = Environment.ProcessPath;
             if (string.IsNullOrWhiteSpace(executable)) throw new InvalidOperationException("无法确定程序路径。");
-            key.SetValue(ValueName, $"\"{executable}\"", RegistryValueKind.String);
+            key.SetValue(ValueName, BuildBackgroundLaunchCommand(executable), RegistryValueKind.String);
             return true;
         }
         catch (Exception exception)

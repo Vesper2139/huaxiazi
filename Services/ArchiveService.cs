@@ -26,7 +26,7 @@ public sealed class ArchiveService
     private readonly string _trashDirectory;
     private readonly string _connectionString;
     private readonly int _yearArchiveThreshold;
-    private readonly DatabaseCorruptedException? _initializationFailure = null;
+    private readonly Exception? _initializationFailure = null;
     private bool _yearArchiveActivated;
 
     public ArchiveService(string rootDirectory, int yearArchiveThreshold = 100)
@@ -39,8 +39,6 @@ public sealed class ArchiveService
         _trashDirectory = Path.Combine(_root, "data", "trash");
         var databasePath = Path.Combine(_root, "data", "huaxiazi.db");
 
-        Directory.CreateDirectory(_draftsDirectory);
-        Directory.CreateDirectory(_trashDirectory);
         _connectionString = new SqliteConnectionStringBuilder
         {
             DataSource = databasePath,
@@ -50,6 +48,8 @@ public sealed class ArchiveService
         }.ToString();
         try
         {
+            Directory.CreateDirectory(_draftsDirectory);
+            Directory.CreateDirectory(_trashDirectory);
             Initialize();
         }
         catch (DatabaseCorruptedException exception)
@@ -65,6 +65,10 @@ public sealed class ArchiveService
             // recoverable domain error as an open-time failure.
             _initializationFailure = new DatabaseCorruptedException(
                 "本地资料库已损坏，请恢复备份或在数据管理中重置资料库。", exception);
+        }
+        catch (Exception exception) when (exception is SqliteException or IOException or UnauthorizedAccessException)
+        {
+            _initializationFailure = exception;
         }
     }
 
@@ -506,7 +510,11 @@ public sealed class ArchiveService
     private SqliteConnection OpenConnection()
     {
         if (_initializationFailure is not null)
-            throw new DatabaseCorruptedException(_initializationFailure.Message, _initializationFailure);
+        {
+            if (_initializationFailure is DatabaseCorruptedException corrupted)
+                throw new DatabaseCorruptedException(corrupted.Message, corrupted);
+            throw new InvalidOperationException("本地历史资料库暂不可用；润色和提示词功能仍可继续。", _initializationFailure);
+        }
         var connection = new SqliteConnection(_connectionString);
         try
         {

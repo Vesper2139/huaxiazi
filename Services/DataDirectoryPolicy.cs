@@ -69,9 +69,8 @@ internal static class DataDirectoryPolicy
             TryResolve(null, fallbackRoot, verifyWritable: true, out var fallback, out _))
             return fallback;
 
-        // Preserve the historical path as the final deterministic fallback. The
-        // health check will still report a useful error if even this path cannot
-        // be opened, but a restricted session gets a chance to use fallbackRoot.
-        return Path.GetFullPath(defaultRoot);
+        // If both probes fail, keep trying the fallback path. Returning the known
+        // denied primary path makes SQLite fail before the editor can appear.
+        return Path.GetFullPath(string.IsNullOrWhiteSpace(fallbackRoot) ? defaultRoot : fallbackRoot);
     }
 }

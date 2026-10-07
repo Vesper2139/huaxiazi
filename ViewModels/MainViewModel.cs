@@ -608,7 +608,15 @@ public sealed partial class MainViewModel : ObservableObject
     private void RefreshHistory()
     {
         RecentRevisions.Clear();
-        foreach (var revision in _archiveService.Search(null).Take(50)) RecentRevisions.Add(revision);
+        try
+        {
+            foreach (var revision in _archiveService.Search(null).Take(50)) RecentRevisions.Add(revision);
+        }
+        catch (Exception exception)
+        {
+            ArchiveStatus = "本地历史记录暂不可用；润色和提示词功能仍可继续。";
+            App.LogApplicationError("ArchiveUnavailable", exception);
+        }
     }
 
     public void SaveDraftIfDirty()
