@@ -114,12 +114,12 @@ public partial class MainWindow : Window
     private void ApplyToolbarLayout(double windowWidth)
     {
         var compact = windowWidth < 560;
-        // The status capsule is useful on wide layouts, but its fixed width forces
-        // the model selector and window controls outside the title band at 520 DIP.
-        // SetCurrentValue keeps the XAML visibility binding alive when width changes.
-        TitleFeedback.SetCurrentValue(VisibilityProperty, compact ? Visibility.Collapsed : Visibility.Visible);
-        if (HistoryButton is not null) HistoryButton.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        if (DiffToggleButton is not null) DiffToggleButton.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        // Keep high-value status, history and diff affordances available at the
+        // default width; compact mode reduces the status capsule to an indicator.
+        TitleFeedback.Width = compact ? 18 : 132;
+        TitleFeedback.Padding = compact ? new Thickness(6, 0, 0, 0) : new Thickness(5, 0, 5, 0);
+        OperationalNoticeIndicator.Margin = compact ? new Thickness(0) : new Thickness(0, 0, 5, 0);
+        OperationalNoticeText.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         if (ResultActionGroup is not null) ResultActionGroup.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         if (EditorDockBottom is null || EditorDockGrid is null || EditingActionGroup is null) return;
 

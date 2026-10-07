@@ -243,7 +243,7 @@
 
                 <Grid x:Name="TitleBand" Grid.Row="0" MinHeight="{DynamicResource SkinTitleBarHeight}" MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <StackPanel x:Name="HuaxiaziWordmark" Margin="60,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
+                    <StackPanel x:Name="HuaxiaziWordmark" Margin="76,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center">
                             <Run Text="VES" /><Run Text="PER" Foreground="{DynamicResource BrandBrush}" />
                         </TextBlock>
@@ -251,11 +251,11 @@
                                 VerticalAlignment="Center" CornerRadius="5" Background="{DynamicResource PopupBrush}"
                                 BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="1"
                                 Visibility="{Binding HasOperationalNotice, Converter={StaticResource BoolToVisibility}}"
-                                ToolTip="{Binding OperationalNotice}" ToolTipService.InitialShowDelay="180" ToolTipService.ShowDuration="60000"
+                                ToolTip="{Binding OperationalNotice}" ToolTipService.InitialShowDelay="700" ToolTipService.ShowDuration="60000"
                                 AutomationProperties.LiveSetting="Polite">
                             <DockPanel LastChildFill="True">
-                                <Ellipse Width="5" Height="5" Margin="0,0,5,0" VerticalAlignment="Center" Fill="{DynamicResource BrandBrush}" />
-                                <TextBlock Text="{Binding OperationalNotice}" Foreground="{DynamicResource MutedBrush}" FontSize="11"
+                                <Ellipse x:Name="OperationalNoticeIndicator" Width="5" Height="5" Margin="0,0,5,0" VerticalAlignment="Center" Fill="{DynamicResource BrandBrush}" />
+                                <TextBlock x:Name="OperationalNoticeText" Text="{Binding OperationalNotice}" Foreground="{DynamicResource MutedBrush}" FontSize="11"
                                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                             </DockPanel>
                         </Border>
@@ -417,10 +417,10 @@
             </Grid>
         </Border>
 
-        <!-- 精灵与面板分层：展开/收起时精灵保持 44×44 视觉尺寸，便笺从其后方铺开。 -->
+        <!-- 精灵与面板分层：使用设置中的角色尺寸；便笺内容层保持独立。 -->
         <Border x:Name="CompanionDragHandle" Panel.ZIndex="30" Width="{DynamicResource SkinCompanionSize}" Height="{DynamicResource SkinCompanionSize}" Margin="4,0,0,0"
                 HorizontalAlignment="Left" VerticalAlignment="Top" Background="Transparent"
-                Cursor="SizeAll" ToolTip="双击精灵收起为悬浮球；按住拖动窗口"
+                Cursor="SizeAll" AutomationProperties.HelpText="双击精灵收起为悬浮球；按住拖动窗口"
                 MouseEnter="CompanionDragHandle_OnMouseEnter" MouseLeave="CompanionDragHandle_OnMouseLeave"
                 MouseLeftButtonDown="CompanionDragHandle_OnMouseLeftButtonDown">
             <Border.RenderTransform>

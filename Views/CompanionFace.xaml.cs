@@ -646,8 +646,8 @@ public partial class CompanionFace : UserControl
             }
         }
 
-        // Normalize visible alpha area while preserving each pose's proportions.
-        // The cap leaves room around the fixed 181-DIP sprite cells.
+        // Match each frame's longest visible edge so wide and square poses read at
+        // a consistent visual size. Keep the art's aspect ratio unchanged.
         var scale = Math.Clamp(skinScale * contentScale, 0.75, 1.2);
         transform.ScaleX = scale;
         transform.ScaleY = scale;
@@ -691,9 +691,18 @@ public partial class CompanionFace : UserControl
             }
 
             if (maxX < minX || maxY < minY) return 1d;
-            var visibleArea = (maxX - minX + 1d) * (maxY - minY + 1d);
-            const double targetArea = 128d * 128d;
-            return Math.Clamp(Math.Sqrt(targetArea / visibleArea), 0.8, 1.25);
+            var visibleLongestEdge = Math.Max(maxX - minX + 1d, maxY - minY + 1d);
+            var frameLongestEdge = Math.Max(frameWidth, frameHeight);
+            if (frameLongestEdge <= 0) return 1d;
+
+            // Align raster skins to the built-in face, which fills most of the
+            // companion viewport. Sprite transparency should not make a skin
+            // appear smaller than a vector character at the same setting.
+            const double targetViewportOccupancy = 0.92d;
+            var visibleOccupancy = visibleLongestEdge / frameLongestEdge;
+            return visibleOccupancy <= 0
+                ? 1d
+                : Math.Clamp(targetViewportOccupancy / visibleOccupancy, 0.8, 1.25);
         }
         catch
         {
